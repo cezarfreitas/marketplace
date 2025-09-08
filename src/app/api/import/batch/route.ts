@@ -150,16 +150,15 @@ async function processBatchImport(refIds: string[], progressId: string) {
         // Inserir categoria se não existir
         if (category) {
           await executeQuery(
-            `INSERT INTO categories (vtex_id, name, is_active, title, meta_tag_description, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+            `INSERT INTO categories (vtex_id, name, is_active, title, created_at, updated_at)
+             VALUES (?, ?, ?, ?, NOW(), NOW())
              ON DUPLICATE KEY UPDATE 
              name = VALUES(name), is_active = VALUES(is_active), title = VALUES(title), updated_at = NOW()`,
             sanitizeParams([
               category.id,
               category.name,
               category.isActive,
-              category.title || null,
-              category.metaTagDescription || null
+              category.title || null
             ])
           );
         }
@@ -187,17 +186,15 @@ async function processBatchImport(refIds: string[], progressId: string) {
         const skus = await vtexService.getProductSkus(product.Id);
         for (const sku of skus) {
           await executeQuery(
-            `INSERT INTO skus (vtex_id, product_id, name, ref_id, is_active, is_visible, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+            `INSERT INTO skus (vtex_id, product_id, name_complete, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, NOW(), NOW())
              ON DUPLICATE KEY UPDATE 
-             name = VALUES(name), is_active = VALUES(is_active), is_visible = VALUES(is_visible), updated_at = NOW()`,
+             name_complete = VALUES(name_complete), is_active = VALUES(is_active), updated_at = NOW()`,
             sanitizeParams([
               sku.Id,
               product.Id,
-              sku.Name,
-              sku.RefId,
-              sku.IsActive,
-              sku.IsVisible
+              sku.Name || sku.NameComplete || null,
+              sku.IsActive
             ])
           );
         }
