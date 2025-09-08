@@ -1,0 +1,52 @@
+# Configuração para EasyPanel
+version: '3.8'
+
+services:
+  meli-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # Configurações do Banco de Dados
+      - DB_HOST=server.idenegociosdigitais.com.br
+      - DB_PORT=3349
+      - DB_USER=meli
+      - DB_PASSWORD=7dd3e59ddb3c3a5da0e3
+      - DB_NAME=meli
+      
+      # JWT Secret (ALTERE EM PRODUÇÃO!)
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production-2024
+      - JWT_EXPIRES_IN=7d
+      
+      # Configurações da Aplicação
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      - PORT=3000
+      
+      # Configurações VTEX (opcional)
+      - VTEX_ACCOUNT_NAME=
+      - VTEX_ENVIRONMENT=vtexcommercestable
+      - VTEX_APP_KEY=
+      - VTEX_APP_TOKEN=
+      - VTEX_BASE_URL=
+      
+      # Configurações OpenAI (opcional)
+      - OPENAI_API_KEY=
+      
+      # Configurações de Log
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.meli-app.rule=Host(`meli.idenegociosdigitais.com.br`)"
+      - "traefik.http.routers.meli-app.entrypoints=websecure"
+      - "traefik.http.routers.meli-app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.meli-app.loadbalancer.server.port=3000"

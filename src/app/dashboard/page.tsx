@@ -1,0 +1,426 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Package, Image as ImageIcon, FileText, RefreshCw, Globe } from 'lucide-react';
+import Layout from '@/components/Layout';
+
+export default function DashboardPage() {
+  const [totalProducts, setTotalProducts] = useState<number>(0);
+  const [productsWithImageAnalysis, setProductsWithImageAnalysis] = useState<number>(0);
+  const [productsWithoutImageAnalysis, setProductsWithoutImageAnalysis] = useState<number>(0);
+  const [imageAnalysisPercentage, setImageAnalysisPercentage] = useState<number>(0);
+  const [productsWithMarketplaceDescription, setProductsWithMarketplaceDescription] = useState<number>(0);
+  const [productsWithoutMarketplaceDescription, setProductsWithoutMarketplaceDescription] = useState<number>(0);
+  const [marketplaceDescriptionPercentage, setMarketplaceDescriptionPercentage] = useState<number>(0);
+  const [productsWithAnymarketSync, setProductsWithAnymarketSync] = useState<number>(0);
+  const [productsWithoutSync, setProductsWithoutSync] = useState<number>(0);
+  const [syncPercentage, setSyncPercentage] = useState<number>(0);
+  const [productsInAnymarket, setProductsInAnymarket] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchTotalProducts = async () => {
+    try {
+      const response = await fetch('/api/products?limit=1');
+      const data = await response.json();
+      
+      if (data.success) {
+        setTotalProducts(data.data.total || 0);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar total de produtos');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar total de produtos:', error);
+      throw error;
+    }
+  };
+
+  const fetchProductsWithImageAnalysis = async () => {
+    try {
+      const response = await fetch('/api/products?has_image_analysis=true&limit=1');
+      const data = await response.json();
+      
+      if (data.success) {
+        setProductsWithImageAnalysis(data.data.total || 0);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar produtos com análise de imagem');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos com análise de imagem:', error);
+      throw error;
+    }
+  };
+
+  const fetchProductsWithoutImageAnalysis = async () => {
+    try {
+      const response = await fetch('/api/products?has_image_analysis=false&limit=1');
+      const data = await response.json();
+      
+      if (data.success) {
+        setProductsWithoutImageAnalysis(data.data.total || 0);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar produtos sem análise de imagem');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos sem análise de imagem:', error);
+      throw error;
+    }
+  };
+
+  const fetchProductsWithMarketplaceDescription = async () => {
+    try {
+      const response = await fetch('/api/products?has_marketplace_description=true&limit=1');
+      const data = await response.json();
+      
+      if (data.success) {
+        setProductsWithMarketplaceDescription(data.data.total || 0);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar produtos com descrição do marketplace');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos com descrição do marketplace:', error);
+      throw error;
+    }
+  };
+
+  const fetchProductsWithoutMarketplaceDescription = async () => {
+    try {
+      const response = await fetch('/api/products?has_marketplace_description=false&limit=1');
+      const data = await response.json();
+      
+      if (data.success) {
+        setProductsWithoutMarketplaceDescription(data.data.total || 0);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar produtos sem descrição do marketplace');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos sem descrição do marketplace:', error);
+      throw error;
+    }
+  };
+
+  const fetchProductsWithAnymarketSync = async () => {
+    try {
+      const response = await fetch('/api/products?has_anymarket_sync_log=true&limit=1');
+      const data = await response.json();
+      
+      if (data.success) {
+        setProductsWithAnymarketSync(data.data.total || 0);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar produtos com sincronização do Anymarket');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos com sincronização do Anymarket:', error);
+      throw error;
+    }
+  };
+
+  const fetchProductsWithoutSync = async () => {
+    try {
+      const response = await fetch('/api/products?has_anymarket_sync_log=false&limit=1');
+      const data = await response.json();
+      
+      if (data.success) {
+        setProductsWithoutSync(data.data.total || 0);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar produtos sem sincronização');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos sem sincronização:', error);
+      throw error;
+    }
+  };
+
+  const fetchProductsInAnymarket = async () => {
+    try {
+      const response = await fetch('/api/products?has_anymarket_ref_id=true&limit=1');
+      const data = await response.json();
+      
+      console.log('🌐 Produtos no Anymarket:', data);
+      
+      if (data.success) {
+        setProductsInAnymarket(data.data.total || 0);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar produtos no Anymarket');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos no Anymarket:', error);
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        setError(null); // Limpa erros anteriores
+        await Promise.all([
+          fetchTotalProducts(),
+          fetchProductsWithImageAnalysis(),
+          fetchProductsWithoutImageAnalysis(),
+          fetchProductsWithMarketplaceDescription(),
+          fetchProductsWithoutMarketplaceDescription(),
+          fetchProductsWithAnymarketSync(),
+          fetchProductsWithoutSync(),
+          fetchProductsInAnymarket()
+        ]);
+      } catch (error) {
+        console.error('Erro ao buscar dados do dashboard:', error);
+        setError(error instanceof Error ? error.message : 'Erro ao conectar com a base de dados');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAllData();
+  }, []);
+
+  // Calcular percentuais quando os dados mudarem
+  useEffect(() => {
+    console.log('📈 Dados do dashboard:', {
+      totalProducts,
+      productsWithImageAnalysis,
+      productsWithMarketplaceDescription,
+      productsWithAnymarketSync,
+      productsWithoutImageAnalysis,
+      productsWithoutMarketplaceDescription,
+      productsWithoutSync,
+      productsInAnymarket
+    });
+    
+    if (totalProducts > 0) {
+      // Percentual de análise de imagem
+      const imagePercentage = (productsWithImageAnalysis / totalProducts) * 100;
+      setImageAnalysisPercentage(Math.round(imagePercentage * 10) / 10);
+      
+      // Percentual de descrição do marketplace
+      const marketplacePercentage = (productsWithMarketplaceDescription / totalProducts) * 100;
+      setMarketplaceDescriptionPercentage(Math.round(marketplacePercentage * 10) / 10);
+      
+      // Percentual de sincronização
+      const syncPercentage = (productsWithAnymarketSync / totalProducts) * 100;
+      setSyncPercentage(Math.round(syncPercentage * 10) / 10);
+    }
+  }, [totalProducts, productsWithImageAnalysis, productsWithMarketplaceDescription, productsWithAnymarketSync]);
+
+  return (
+    <Layout title="Dashboard" subtitle="Visão geral do sistema">
+      <div className="w-full">
+        {/* Exibir erro se houver */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            <div className="flex items-center">
+              <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-sm font-bold">!</span>
+              </div>
+              <div>
+                <h3 className="font-semibold">Erro de Conexão</h3>
+                <p className="text-sm">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Grid de Cards em linha */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          {/* Card de Total de Produtos */}
+          <div className="aspect-square">
+            <div className="bg-orange-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-orange-200 p-6 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center mr-3">
+                  <Package className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-orange-100">Total de Produtos</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-6xl font-bold text-white text-center leading-none">
+                  {loading ? (
+                    <div className="animate-pulse bg-orange-300 h-16 w-32 rounded"></div>
+                  ) : (
+                    totalProducts.toLocaleString()
+                  )}
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-4">
+                <p className="text-sm text-orange-100">
+                  Produtos cadastrados no sistema
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Produtos com Análise de Imagem */}
+          <div className="aspect-square">
+            <div className="bg-green-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-green-200 p-6 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-green-400 rounded-lg flex items-center justify-center mr-3">
+                  <ImageIcon className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-green-100">Análise de Imagem</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="text-6xl font-bold text-white text-center leading-none mb-2">
+                  {loading ? (
+                    <div className="animate-pulse bg-green-300 h-16 w-32 rounded"></div>
+                  ) : (
+                    productsWithImageAnalysis.toLocaleString()
+                  )}
+                </div>
+                <div className="text-center">
+                  {!loading && (productsWithoutImageAnalysis > 0 || imageAnalysisPercentage > 0) && (
+                    <p className="text-xs text-green-200">
+                      {productsWithoutImageAnalysis.toLocaleString()} / {imageAnalysisPercentage}%
+                    </p>
+                  )}
+                  {loading && (
+                    <div className="animate-pulse bg-green-300 h-3 w-20 rounded mx-auto"></div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-4">
+                <p className="text-sm text-green-100">
+                  Produtos com análise de imagem gerada
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Produtos com Descrição do Marketplace */}
+          <div className="aspect-square">
+            <div className="bg-blue-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-blue-200 p-6 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-blue-400 rounded-lg flex items-center justify-center mr-3">
+                  <FileText className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-blue-100">Descrição Anymarket</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="text-6xl font-bold text-white text-center leading-none mb-2">
+                  {loading ? (
+                    <div className="animate-pulse bg-blue-300 h-16 w-32 rounded"></div>
+                  ) : (
+                    productsWithMarketplaceDescription.toLocaleString()
+                  )}
+                </div>
+                <div className="text-center">
+                  {!loading && (productsWithoutMarketplaceDescription > 0 || marketplaceDescriptionPercentage > 0) && (
+                    <p className="text-xs text-blue-200">
+                      {productsWithoutMarketplaceDescription.toLocaleString()} / {marketplaceDescriptionPercentage}%
+                    </p>
+                  )}
+                  {loading && (
+                    <div className="animate-pulse bg-blue-300 h-3 w-20 rounded mx-auto"></div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-4">
+                <p className="text-sm text-blue-100">
+                  Produtos com descrição para marketplace
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Produtos com Sincronização Anymarket */}
+          <div className="aspect-square">
+            <div className="bg-purple-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-purple-200 p-6 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-purple-400 rounded-lg flex items-center justify-center mr-3">
+                  <RefreshCw className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-purple-100">Sincronização</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="text-6xl font-bold text-white text-center leading-none mb-2">
+                  {loading ? (
+                    <div className="animate-pulse bg-purple-300 h-16 w-32 rounded"></div>
+                  ) : (
+                    productsWithAnymarketSync.toLocaleString()
+                  )}
+                </div>
+                <div className="text-center">
+                  {!loading && (productsWithoutSync > 0 || syncPercentage > 0) && (
+                    <p className="text-xs text-purple-200">
+                      {productsWithoutSync.toLocaleString()} / {syncPercentage}%
+                    </p>
+                  )}
+                  {loading && (
+                    <div className="animate-pulse bg-purple-300 h-3 w-20 rounded mx-auto"></div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-4">
+                <p className="text-sm text-purple-100">
+                  Produtos sincronizados no Anymarket
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Está no Anymarket */}
+          <div className="aspect-square">
+            <div className="bg-indigo-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-indigo-200 p-6 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-indigo-400 rounded-lg flex items-center justify-center mr-3">
+                  <Globe className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-indigo-100">Está no Anymarket</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-6xl font-bold text-white text-center leading-none">
+                  {loading ? (
+                    <div className="animate-pulse bg-indigo-300 h-16 w-32 rounded"></div>
+                  ) : (
+                    productsInAnymarket.toLocaleString()
+                  )}
+                </div>
+                {/* Debug info */}
+                {!loading && (
+                  <div className="text-xs text-indigo-200 mt-1">
+                    Debug: {productsInAnymarket}
+                  </div>
+                )}
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-4">
+                <p className="text-sm text-indigo-100">
+                  Produtos disponíveis no Anymarket
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}

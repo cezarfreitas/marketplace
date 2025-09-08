@@ -1,0 +1,35 @@
+-- Script para atualizar a tabela de marcas para corresponder ao JSON da API VTEX
+-- Banco: meli
+
+-- Primeiro, vamos fazer backup dos dados existentes (se houver)
+CREATE TABLE IF NOT EXISTS brands_backup AS SELECT * FROM brands;
+
+-- Dropar a tabela atual
+DROP TABLE IF EXISTS brands;
+
+-- Criar nova tabela de marcas baseada no JSON da API VTEX
+CREATE TABLE brands (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    vtex_id INT NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    title VARCHAR(255),
+    meta_tag_description TEXT,
+    image_url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_vtex_id (vtex_id),
+    INDEX idx_name (name),
+    INDEX idx_is_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Comentários sobre os campos:
+-- id: Chave primária auto-incremento
+-- vtex_id: ID da marca na VTEX (campo "id" do JSON)
+-- name: Nome da marca (campo "name" do JSON)
+-- is_active: Status ativo/inativo (campo "isActive" do JSON)
+-- title: Título da marca (campo "title" do JSON)
+-- meta_tag_description: Descrição para meta tags (campo "metaTagDescription" do JSON)
+-- image_url: URL da imagem (campo "imageUrl" do JSON)
+-- created_at: Data de criação
+-- updated_at: Data de atualização
