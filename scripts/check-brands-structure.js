@@ -1,58 +1,56 @@
 const mysql = require('mysql2/promise');
 
-async function checkBrandsStructure() {
+async function checkBrandsTable() {
   let connection;
   
   try {
-    console.log('🔄 Conectando ao banco de dados remoto...');
+    // Configuração do banco de dados
+    const dbConfig = {
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'meli',
+      port: process.env.DB_PORT || 3306
+    };
+
+    console.log('🔍 Conectando ao banco de dados...');
+    connection = await mysql.createConnection(dbConfig);
     
-    connection = await mysql.createConnection({
-      host: 'server.idenegociosdigitais.com.br',
-      port: 3349,
-      user: 'meli',
-      password: '7dd3e59ddb3c3a5da0e3',
-      database: 'meli'
-    });
-
-    console.log('✅ Conectado ao banco de dados remoto!');
-
-    // Verificar estrutura atual da tabela
-    console.log('📊 Verificando estrutura atual da tabela brands...');
-    const [columns] = await connection.execute('DESCRIBE brands');
-    console.log('Colunas existentes:');
-    columns.forEach(col => {
-      console.log(`  - ${col.Field}: ${col.Type}`);
-    });
-
-    // Testar consulta simples
-    console.log('🔍 Testando consulta simples...');
-    const [simpleResult] = await connection.execute('SELECT COUNT(*) as total FROM brands');
-    console.log(`Total de marcas: ${simpleResult[0].total}`);
-
-    // Testar consulta com alguns campos básicos
-    console.log('🔍 Testando consulta com campos básicos...');
-    const [basicResult] = await connection.execute('SELECT id, vtex_id, name, is_active, created_at FROM brands LIMIT 3');
-    console.log('Primeiras 3 marcas:');
-    basicResult.forEach(brand => {
-      console.log(`  - ${brand.name} (ID: ${brand.id})`);
-    });
-
-    // Testar busca
-    console.log('🔍 Testando busca...');
-    const [searchResult] = await connection.execute('SELECT id, name FROM brands WHERE name LIKE ? LIMIT 3', ['%+55%']);
-    console.log('Resultado da busca por "+55":');
-    searchResult.forEach(brand => {
-      console.log(`  - ${brand.name} (ID: ${brand.id})`);
-    });
-
+    console.log('✅ Conectado! Verificando estrutura da tabela brands...');
+    const [rows] = await connection.execute('DESCRIBE brands');
+    
+    console.log('\n📋 Estrutura atual da tabela brands:');
+    console.table(rows);
+    
+    // Verificar se a coluna meta_tag_description existe
+    const hasMetaTagDescription = rows.some(row => row.Field === 'meta_tag_description');
+    
+    if (!hasMetaTagDescription) {
+      console.log('\n❌ PROBLEMA: A coluna meta_tag_description não existe!');
+      console.log('🔧 Vou adicionar a coluna...');
+      
+      await connection.execute(`
+        ALTER TABLE brands 
+        ADD COLUMN meta_tag_description TEXT AFTER title
+      `);
+      
+      console.log('✅ Coluna meta_tag_description adicionada com sucesso!');
+      
+      // Verificar novamente
+      const [newRows] = await connection.execute('DESCRIBE brands');
+      console.log('\n📋 Nova estrutura da tabela brands:');
+      console.table(newRows);
+    } else {
+      console.log('\n✅ A coluna meta_tag_description já existe!');
+    }
+    
   } catch (error) {
     console.error('❌ Erro:', error.message);
   } finally {
     if (connection) {
       await connection.end();
-      console.log('🔌 Conexão fechada');
     }
   }
 }
 
-checkBrandsStructure();
+checkBrandsTable();

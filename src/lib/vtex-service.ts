@@ -350,13 +350,53 @@ export class VTEXService {
   }
 }
 
-// Configuração padrão da VTEX
+// Função para buscar configurações VTEX do banco de dados
+async function getVtexConfigFromDB(): Promise<VTEXConfig> {
+  const { executeQuery } = await import('./db-ultra-simple');
+  
+  try {
+    const [configs] = await executeQuery(`
+      SELECT config_key, config_value 
+      FROM system_config 
+      WHERE config_key IN ('vtex_account_name', 'vtex_environment', 'vtex_app_key', 'vtex_app_token')
+    `);
+    
+    const configMap = (configs as any[]).reduce((acc: any, config: any) => {
+      acc[config.config_key] = config.config_value;
+      return acc;
+    }, {});
+    
+    return {
+      accountName: configMap.vtex_account_name || 'projetoinfluencer',
+      environment: configMap.vtex_environment || 'vtexcommercestable',
+      appKey: configMap.vtex_app_key || '',
+      appToken: configMap.vtex_app_token || '',
+    };
+  } catch (error) {
+    console.error('Erro ao buscar configurações VTEX do banco:', error);
+    // Fallback para configurações padrão
+    return {
+      accountName: 'projetoinfluencer',
+      environment: 'vtexcommercestable',
+      appKey: 'vtexappkey-urbane-ONYTAV',
+      appToken: 'TOWYDCVLZSPSXSDEHFCKYDKATTPJQMVZPMRKLBJNICVVEMSWDDOQBIRPGIOBNNEMJOKNRCWZODANPIRQGCNWKGVWLZBHMHOIPHZPAMEQCGMBRILAUDXRFHVXQTRDBGTC',
+    };
+  }
+}
+
+// Configuração padrão da VTEX (fallback)
 export const vtexConfig: VTEXConfig = {
   accountName: 'projetoinfluencer',
   environment: 'vtexcommercestable',
-  appKey: 'vtexappkey-urbane-DIMEIL',
-  appToken: 'TBGWIRRWPUOVSHPCXJFFCVHXXLDRZRFEMRMECOLAWIGXWSCLJHPSBSIVBSLPHHFGXBBYBKBLJFCIJKAHWUTUUDHXXROYPJFKIFEEABBGCSVZNXYVEAHCAFHORSCKQTSU',
+  appKey: 'vtexappkey-urbane-ONYTAV',
+  appToken: 'TOWYDCVLZSPSXSDEHFCKYDKATTPJQMVZPMRKLBJNICVVEMSWDDOQBIRPGIOBNNEMJOKNRCWZODANPIRQGCNWKGVWLZBHMHOIPHZPAMEQCGMBRILAUDXRFHVXQTRDBGTC',
 };
 
 // Instância padrão do serviço
 export const vtexService = new VTEXService(vtexConfig);
+
+// Função para criar uma instância do serviço com configurações do banco
+export async function createVtexServiceFromDB(): Promise<VTEXService> {
+  const config = await getVtexConfigFromDB();
+  return new VTEXService(config);
+}

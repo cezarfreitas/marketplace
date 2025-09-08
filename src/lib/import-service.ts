@@ -1,5 +1,6 @@
 import { executeQuery } from './db-simple';
 import { vtexService } from './vtex-service';
+import { validateAndSanitizeProduct, logImportError } from './import-validation';
 
 export interface ImportResult {
   success: boolean;
@@ -285,6 +286,17 @@ export class ImportService {
         name: product.Name,
         refId: product.RefId
       });
+      
+      // Validar produto antes de inserir
+      const validation = validateAndSanitizeProduct(product);
+      if (!validation.isValid) {
+        logImportError(refId, validation.errors, product);
+        return {
+          success: false,
+          message: `Erro de validação no produto RefId ${refId}`,
+          error: validation.errors.join('; ')
+        };
+      }
       
       // Inserir apenas o produto (sem dependências)
       console.log(`📦 Inserindo produto...`);

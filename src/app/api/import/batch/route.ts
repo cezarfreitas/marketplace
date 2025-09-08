@@ -150,7 +150,7 @@ async function processBatchImport(refIds: string[], progressId: string, vtexServ
         );
 
         // Buscar ID interno do produto inserido
-        const [productRow] = await executeQuery('SELECT id FROM products WHERE vtex_id = ?', [product.Id]);
+        const [productRow] = await executeQuery('SELECT id FROM products WHERE vtex_id = ?', [product.Id]) as any[];
         const internalProductId = productRow[0]?.id;
 
         if (!internalProductId) {
@@ -194,7 +194,7 @@ async function processBatchImport(refIds: string[], progressId: string, vtexServ
               console.log(`📊 Primeiro SKU ${firstSku.Id} retornou ${images.length} imagens`);
               
               // Buscar ID interno do SKU
-              const [skuRow] = await executeQuery('SELECT id FROM skus WHERE vtex_id = ?', [firstSku.Id]);
+              const [skuRow] = await executeQuery('SELECT id FROM skus WHERE vtex_id = ?', [firstSku.Id]) as any[];
               const internalSkuId = skuRow[0]?.id;
               
               if (!internalSkuId) {
@@ -246,7 +246,8 @@ async function processBatchImport(refIds: string[], progressId: string, vtexServ
                 }
               }
             } catch (error) {
-              console.log(`❌ Erro ao buscar imagens do primeiro SKU ${firstSku.Id}:`, error.message);
+              const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+              console.log(`❌ Erro ao buscar imagens do primeiro SKU ${firstSku.Id}:`, errorMessage);
             }
           }
         } else {
@@ -274,7 +275,7 @@ async function processBatchImport(refIds: string[], progressId: string, vtexServ
           );
           
           // Atualizar produto com brand_id
-          const [brandRow] = await executeQuery('SELECT id FROM brands WHERE vtex_id = ?', [brand.id]);
+          const [brandRow] = await executeQuery('SELECT id FROM brands WHERE vtex_id = ?', [brand.id]) as any[];
           const brandId = brandRow[0]?.id;
           
           if (brandId) {
@@ -307,7 +308,7 @@ async function processBatchImport(refIds: string[], progressId: string, vtexServ
           );
           
           // Atualizar produto com category_id
-          const [categoryRow] = await executeQuery('SELECT id FROM categories WHERE vtex_id = ?', [category.Id]);
+          const [categoryRow] = await executeQuery('SELECT id FROM categories WHERE vtex_id = ?', [category.Id]) as any[];
           const categoryId = categoryRow[0]?.id;
           
           if (categoryId) {
