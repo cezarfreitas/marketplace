@@ -11,8 +11,12 @@ export async function GET() {
         SUM(CASE WHEN is_visible = 1 THEN 1 ELSE 0 END) as visible_products,
         SUM(CASE WHEN is_active = 1 AND is_visible = 1 THEN 1 ELSE 0 END) as active_and_visible_products,
         SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_products,
-        SUM(CASE WHEN is_visible = 0 THEN 1 ELSE 0 END) as invisible_products
-      FROM products
+        SUM(CASE WHEN is_visible = 0 THEN 1 ELSE 0 END) as invisible_products,
+        SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM images i JOIN skus s ON i.sku_id = s.id WHERE s.product_id = p.id) THEN 1 ELSE 0 END) as products_without_images,
+        SUM(CASE WHEN EXISTS (SELECT 1 FROM images i JOIN skus s ON i.sku_id = s.id WHERE s.product_id = p.id) THEN 1 ELSE 0 END) as products_with_images,
+        SUM(CASE WHEN EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_id = p.ref_id) THEN 1 ELSE 0 END) as products_in_anymarket,
+        SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_id = p.ref_id) THEN 1 ELSE 0 END) as products_not_in_anymarket
+      FROM products p
     `;
 
     const result = await executeQuery(statsQuery);
@@ -31,6 +35,10 @@ export async function GET() {
     const activeAndVisible = parseInt(stats.active_and_visible_products) || 0;
     const inactive = parseInt(stats.inactive_products) || 0;
     const invisible = parseInt(stats.invisible_products) || 0;
+    const withoutImages = parseInt(stats.products_without_images) || 0;
+    const withImages = parseInt(stats.products_with_images) || 0;
+    const inAnymarket = parseInt(stats.products_in_anymarket) || 0;
+    const notInAnymarket = parseInt(stats.products_not_in_anymarket) || 0;
 
     // Calcular percentuais
     const activePercentage = total > 0 ? Math.round((active / total) * 100) : 0;
@@ -38,6 +46,10 @@ export async function GET() {
     const activeAndVisiblePercentage = total > 0 ? Math.round((activeAndVisible / total) * 100) : 0;
     const inactivePercentage = total > 0 ? Math.round((inactive / total) * 100) : 0;
     const invisiblePercentage = total > 0 ? Math.round((invisible / total) * 100) : 0;
+    const withoutImagesPercentage = total > 0 ? Math.round((withoutImages / total) * 100) : 0;
+    const withImagesPercentage = total > 0 ? Math.round((withImages / total) * 100) : 0;
+    const inAnymarketPercentage = total > 0 ? Math.round((inAnymarket / total) * 100) : 0;
+    const notInAnymarketPercentage = total > 0 ? Math.round((notInAnymarket / total) * 100) : 0;
 
     return NextResponse.json({
       success: true,
@@ -48,12 +60,20 @@ export async function GET() {
         activeAndVisible,
         inactive,
         invisible,
+        withoutImages,
+        withImages,
+        inAnymarket,
+        notInAnymarket,
         percentages: {
           active: activePercentage,
           visible: visiblePercentage,
           activeAndVisible: activeAndVisiblePercentage,
           inactive: inactivePercentage,
-          invisible: invisiblePercentage
+          invisible: invisiblePercentage,
+          withoutImages: withoutImagesPercentage,
+          withImages: withImagesPercentage,
+          inAnymarket: inAnymarketPercentage,
+          notInAnymarket: notInAnymarketPercentage
         }
       }
     });

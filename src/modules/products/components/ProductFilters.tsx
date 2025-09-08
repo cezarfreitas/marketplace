@@ -17,34 +17,78 @@ export function ProductFiltersComponent({
 }: ProductFiltersProps) {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loadingBrands, setLoadingBrands] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
-  // Debounce para busca
-  const handleSearchChange = (value: string) => {
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
+  // Busca apenas após pressionar Enter
+  const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      onFiltersChange({ search: e.currentTarget.value });
     }
+  };
 
-    const timeout = setTimeout(() => {
-      onFiltersChange({ search: value });
-    }, 300);
-
-    setSearchTimeout(timeout);
+  const handleSearchChange = (value: string) => {
+    // Não faz nada aqui, só atualiza o valor local
+    // A busca só acontece quando pressionar Enter
   };
 
   // Contar filtros ativos
   const getActiveFiltersCount = () => {
     let count = 0;
     if (filters.search) count++;
+    if (filters.brand_id) count++;
+    if (filters.category_id) count++;
     if (filters.has_image_analysis) count++;
     if (filters.has_marketplace_description) count++;
     if (filters.has_anymarket_ref_id) count++;
     if (filters.has_anymarket_sync_log) count++;
     if (filters.is_active) count++;
     if (filters.is_visible) count++;
+    if (filters.has_images) count++;
     return count;
   };
 
   const activeFiltersCount = getActiveFiltersCount();
+
+  // Carregar marcas
+  const fetchBrands = async () => {
+    setLoadingBrands(true);
+    try {
+      const response = await fetch('/api/brands?limit=1000');
+      const data = await response.json();
+      if (data.success) {
+        setBrands(data.data.brands || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar marcas:', error);
+    } finally {
+      setLoadingBrands(false);
+    }
+  };
+
+  // Carregar categorias
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const response = await fetch('/api/categories?limit=1000');
+      const data = await response.json();
+      if (data.success) {
+        setCategories(data.data.categories || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar categorias:', error);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  // Carregar dados quando o componente montar
+  useEffect(() => {
+    fetchBrands();
+    fetchCategories();
+  }, []);
 
   // Cleanup timeout
   useEffect(() => {
@@ -97,7 +141,8 @@ export function ProductFiltersComponent({
               type="text"
               value={filters.search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Buscar produtos por nome, SKU ou descrição..."
+              onKeyPress={handleSearchKeyPress}
+              placeholder="Buscar produtos por nome, SKU ou descrição... (pressione Enter)"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
             />
           </div>
@@ -173,7 +218,46 @@ export function ProductFiltersComponent({
         {/* Filtros Avançados */}
         {showAdvancedFilters && (
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+              {/* Marca */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Marca
+                </label>
+                <select
+                  value={filters.brand_id}
+                  onChange={(e) => onFiltersChange({ brand_id: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={loadingBrands}
+                >
+                  <option value="">Todas as marcas</option>
+                  {brands.map((brand) => (
+                    <option key={brand.id} value={brand.id}>
+                      {brand.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Categoria */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Categoria
+                </label>
+                <select
+                  value={filters.category_id}
+                  onChange={(e) => onFiltersChange({ category_id: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={loadingCategories}
+                >
+                  <option value="">Todas as categorias</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {/* Análise de Imagem */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -267,6 +351,22 @@ export function ProductFiltersComponent({
                   <option value="">Todos</option>
                   <option value="true">Visível</option>
                   <option value="false">Invisível</option>
+                </select>
+              </div>
+
+              {/* Tem Imagens */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Tem Imagens
+                </label>
+                <select
+                  value={filters.has_images}
+                  onChange={(e) => onFiltersChange({ has_images: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Todos</option>
+                  <option value="true">Com Imagens</option>
+                  <option value="false">Sem Imagens</option>
                 </select>
               </div>
             </div>

@@ -61,6 +61,7 @@ export interface ProductFilters {
   has_anymarket_sync_log: string;
   is_active: string;
   is_visible: string;
+  has_images: string;
 }
 
 export interface ProductListResponse {

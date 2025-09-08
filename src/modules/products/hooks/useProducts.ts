@@ -22,7 +22,8 @@ export function useProducts(options: UseProductsOptions = {}) {
       has_anymarket_ref_id: '',
       has_anymarket_sync_log: '',
       is_active: '',
-      is_visible: ''
+      is_visible: '',
+      has_images: ''
     },
     initialSort = { field: 'created_at', direction: 'desc' }
   } = options;

@@ -23,6 +23,12 @@ export default function DashboardPage() {
   const [syncPercentage, setSyncPercentage] = useState<number>(0);
   const [productsInAnymarket, setProductsInAnymarket] = useState<number>(0);
   const [anymarketPercentage, setAnymarketPercentage] = useState<number>(0);
+  const [productsNotInAnymarket, setProductsNotInAnymarket] = useState<number>(0);
+  const [notInAnymarketPercentage, setNotInAnymarketPercentage] = useState<number>(0);
+  const [productsWithoutImages, setProductsWithoutImages] = useState<number>(0);
+  const [withoutImagesPercentage, setWithoutImagesPercentage] = useState<number>(0);
+  const [inactiveProducts, setInactiveProducts] = useState<number>(0);
+  const [inactivePercentage, setInactivePercentage] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +46,12 @@ export default function DashboardPage() {
         setActivePercentage(stats.percentages.active || 0);
         setVisiblePercentage(stats.percentages.visible || 0);
         setActiveAndVisiblePercentage(stats.percentages.activeAndVisible || 0);
+        setProductsWithoutImages(stats.withoutImages || 0);
+        setWithoutImagesPercentage(stats.percentages.withoutImages || 0);
+        setInactiveProducts(stats.inactive || 0);
+        setInactivePercentage(stats.percentages.inactive || 0);
+        setProductsNotInAnymarket(stats.notInAnymarket || 0);
+        setNotInAnymarketPercentage(stats.percentages.notInAnymarket || 0);
       } else {
         console.error('API retornou erro:', data);
         throw new Error(data.message || 'Erro ao buscar estatísticas de produtos');
@@ -449,11 +461,17 @@ export default function DashboardPage() {
               </div>
               
               {/* Estatísticas detalhadas */}
-              <div className="mt-4">
+              <div className="mt-4 space-y-2">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-indigo-100">Percentual:</span>
+                  <span className="text-indigo-100">No Anymarket:</span>
                   <span className="text-white font-medium">
-                    {loading ? '...' : `${anymarketPercentage}%`}
+                    {loading ? '...' : `${productsInAnymarket.toLocaleString()} (${anymarketPercentage}%)`}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-indigo-100">Não no Anymarket:</span>
+                  <span className="text-white font-medium">
+                    {loading ? '...' : `${productsNotInAnymarket.toLocaleString()} (${notInAnymarketPercentage}%)`}
                   </span>
                 </div>
               </div>
@@ -462,6 +480,88 @@ export default function DashboardPage() {
               <div className="text-left mt-2">
                 <p className="text-xs text-indigo-100">
                   Produtos disponíveis no Anymarket
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Produtos sem Imagem */}
+          <div className="aspect-square">
+            <div className="bg-red-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-red-200 p-6 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-red-400 rounded-lg flex items-center justify-center mr-3">
+                  <ImageIcon className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-red-100">Sem Imagem</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-6xl font-bold text-white text-center leading-none">
+                  {loading ? (
+                    <div className="animate-pulse bg-red-300 h-16 w-32 rounded"></div>
+                  ) : (
+                    productsWithoutImages.toLocaleString()
+                  )}
+                </div>
+              </div>
+              
+              {/* Estatísticas detalhadas */}
+              <div className="mt-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-red-100">Percentual:</span>
+                  <span className="text-white font-medium">
+                    {loading ? '...' : `${withoutImagesPercentage}%`}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-2">
+                <p className="text-xs text-red-100">
+                  Produtos sem imagens cadastradas
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Produtos Inativos */}
+          <div className="aspect-square">
+            <div className="bg-gray-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-gray-200 p-6 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-gray-400 rounded-lg flex items-center justify-center mr-3">
+                  <Package className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-gray-100">Inativos</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-6xl font-bold text-white text-center leading-none">
+                  {loading ? (
+                    <div className="animate-pulse bg-gray-300 h-16 w-32 rounded"></div>
+                  ) : (
+                    inactiveProducts.toLocaleString()
+                  )}
+                </div>
+              </div>
+              
+              {/* Estatísticas detalhadas */}
+              <div className="mt-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-100">Percentual:</span>
+                  <span className="text-white font-medium">
+                    {loading ? '...' : `${inactivePercentage}%`}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-2">
+                <p className="text-xs text-gray-100">
+                  Produtos inativos no sistema
                 </p>
               </div>
             </div>

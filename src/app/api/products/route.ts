@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     const has_anymarket_sync_log = searchParams.get('has_anymarket_sync_log');
     const is_active = searchParams.get('is_active');
     const is_visible = searchParams.get('is_visible');
+    const has_images = searchParams.get('has_images');
 
     if (brand_id) {
       conditions.push(`p.brand_id = ?`);
@@ -89,6 +90,14 @@ export async function GET(request: NextRequest) {
         conditions.push(`p.is_visible = 1`);
       } else if (is_visible === 'false') {
         conditions.push(`p.is_visible = 0`);
+      }
+    }
+
+    if (has_images) {
+      if (has_images === 'true') {
+        conditions.push(`EXISTS (SELECT 1 FROM images i JOIN skus s ON i.sku_id = s.id WHERE s.product_id = p.id)`);
+      } else if (has_images === 'false') {
+        conditions.push(`NOT EXISTS (SELECT 1 FROM images i JOIN skus s ON i.sku_id = s.id WHERE s.product_id = p.id)`);
       }
     }
 
