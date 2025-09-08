@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
     const has_marketplace_description = searchParams.get('has_marketplace_description');
     const has_anymarket_ref_id = searchParams.get('has_anymarket_ref_id');
     const has_anymarket_sync_log = searchParams.get('has_anymarket_sync_log');
+    const is_active = searchParams.get('is_active');
+    const is_visible = searchParams.get('is_visible');
 
     if (brand_id) {
       conditions.push(`p.brand_id = ?`);
@@ -71,6 +73,22 @@ export async function GET(request: NextRequest) {
         conditions.push(`EXISTS (SELECT 1 FROM anymarket_sync_logs sl WHERE sl.product_id = p.id AND sl.success = true)`);
       } else {
         conditions.push(`NOT EXISTS (SELECT 1 FROM anymarket_sync_logs sl WHERE sl.product_id = p.id AND sl.success = true)`);
+      }
+    }
+
+    if (is_active) {
+      if (is_active === 'true') {
+        conditions.push(`p.is_active = 1`);
+      } else if (is_active === 'false') {
+        conditions.push(`p.is_active = 0`);
+      }
+    }
+
+    if (is_visible) {
+      if (is_visible === 'true') {
+        conditions.push(`p.is_visible = 1`);
+      } else if (is_visible === 'false') {
+        conditions.push(`p.is_visible = 0`);
       }
     }
 

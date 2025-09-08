@@ -20,7 +20,9 @@ export function useProducts(options: UseProductsOptions = {}) {
       has_image_analysis: '',
       has_marketplace_description: '',
       has_anymarket_ref_id: '',
-      has_anymarket_sync_log: ''
+      has_anymarket_sync_log: '',
+      is_active: '',
+      is_visible: ''
     },
     initialSort = { field: 'created_at', direction: 'desc' }
   } = options;

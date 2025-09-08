@@ -247,32 +247,6 @@ export default function ImportPage() {
             </div>
           </div>
 
-          {/* Melhorias da Nova Versão */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">🚀 Novas Melhorias</h3>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                <p className="text-sm text-gray-600">Processamento em lote otimizado</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                <p className="text-sm text-gray-600">Barra de progresso em tempo real</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                <p className="text-sm text-gray-600">Processamento paralelo (5x mais rápido)</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                <p className="text-sm text-gray-600">Tratamento de erros melhorado</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                <p className="text-sm text-gray-600">Possibilidade de cancelar importação</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

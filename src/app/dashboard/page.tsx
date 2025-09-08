@@ -6,6 +6,12 @@ import Layout from '@/components/Layout';
 
 export default function DashboardPage() {
   const [totalProducts, setTotalProducts] = useState<number>(0);
+  const [activeProducts, setActiveProducts] = useState<number>(0);
+  const [visibleProducts, setVisibleProducts] = useState<number>(0);
+  const [activeAndVisibleProducts, setActiveAndVisibleProducts] = useState<number>(0);
+  const [activePercentage, setActivePercentage] = useState<number>(0);
+  const [visiblePercentage, setVisiblePercentage] = useState<number>(0);
+  const [activeAndVisiblePercentage, setActiveAndVisiblePercentage] = useState<number>(0);
   const [productsWithImageAnalysis, setProductsWithImageAnalysis] = useState<number>(0);
   const [productsWithoutImageAnalysis, setProductsWithoutImageAnalysis] = useState<number>(0);
   const [imageAnalysisPercentage, setImageAnalysisPercentage] = useState<number>(0);
@@ -16,22 +22,30 @@ export default function DashboardPage() {
   const [productsWithoutSync, setProductsWithoutSync] = useState<number>(0);
   const [syncPercentage, setSyncPercentage] = useState<number>(0);
   const [productsInAnymarket, setProductsInAnymarket] = useState<number>(0);
+  const [anymarketPercentage, setAnymarketPercentage] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTotalProducts = async () => {
+  const fetchProductStats = async () => {
     try {
-      const response = await fetch('/api/products?limit=1');
+      const response = await fetch('/api/products/stats');
       const data = await response.json();
       
       if (data.success) {
-        setTotalProducts(data.data.total || 0);
+        const stats = data.data;
+        setTotalProducts(stats.total || 0);
+        setActiveProducts(stats.active || 0);
+        setVisibleProducts(stats.visible || 0);
+        setActiveAndVisibleProducts(stats.activeAndVisible || 0);
+        setActivePercentage(stats.percentages.active || 0);
+        setVisiblePercentage(stats.percentages.visible || 0);
+        setActiveAndVisiblePercentage(stats.percentages.activeAndVisible || 0);
       } else {
         console.error('API retornou erro:', data);
-        throw new Error(data.message || 'Erro ao buscar total de produtos');
+        throw new Error(data.message || 'Erro ao buscar estatísticas de produtos');
       }
     } catch (error) {
-      console.error('Erro ao buscar total de produtos:', error);
+      console.error('Erro ao buscar estatísticas de produtos:', error);
       throw error;
     }
   };
@@ -143,10 +157,15 @@ export default function DashboardPage() {
       const response = await fetch('/api/products?has_anymarket_ref_id=true&limit=1');
       const data = await response.json();
       
-      console.log('🌐 Produtos no Anymarket:', data);
-      
       if (data.success) {
-        setProductsInAnymarket(data.data.total || 0);
+        const anymarketCount = data.data.total || 0;
+        setProductsInAnymarket(anymarketCount);
+        
+        // Calcular percentual baseado no total de produtos
+        if (totalProducts > 0) {
+          const percentage = Math.round((anymarketCount / totalProducts) * 100);
+          setAnymarketPercentage(percentage);
+        }
       } else {
         console.error('API retornou erro:', data);
         throw new Error(data.message || 'Erro ao buscar produtos no Anymarket');
@@ -162,7 +181,7 @@ export default function DashboardPage() {
       try {
         setError(null); // Limpa erros anteriores
         await Promise.all([
-          fetchTotalProducts(),
+          fetchProductStats(),
           fetchProductsWithImageAnalysis(),
           fetchProductsWithoutImageAnalysis(),
           fetchProductsWithMarketplaceDescription(),
@@ -181,6 +200,14 @@ export default function DashboardPage() {
     
     fetchAllData();
   }, []);
+
+  // Recalcular percentual do Anymarket quando total de produtos mudar
+  useEffect(() => {
+    if (totalProducts > 0 && productsInAnymarket > 0) {
+      const percentage = Math.round((productsInAnymarket / totalProducts) * 100);
+      setAnymarketPercentage(percentage);
+    }
+  }, [totalProducts, productsInAnymarket]);
 
   // Calcular percentuais quando os dados mudarem
   useEffect(() => {
@@ -251,9 +278,25 @@ export default function DashboardPage() {
                 </div>
               </div>
               
+              {/* Estatísticas detalhadas */}
+              <div className="mt-4 space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-orange-100">Ativos:</span>
+                  <span className="text-white font-medium">
+                    {loading ? '...' : `${activeProducts.toLocaleString()} (${activePercentage}%)`}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-orange-100">Visíveis:</span>
+                  <span className="text-white font-medium">
+                    {loading ? '...' : `${visibleProducts.toLocaleString()} (${visiblePercentage}%)`}
+                  </span>
+                </div>
+              </div>
+              
               {/* Rodapé */}
-              <div className="text-left mt-4">
-                <p className="text-sm text-orange-100">
+              <div className="text-left mt-2">
+                <p className="text-xs text-orange-100">
                   Produtos cadastrados no sistema
                 </p>
               </div>
@@ -403,17 +446,21 @@ export default function DashboardPage() {
                     productsInAnymarket.toLocaleString()
                   )}
                 </div>
-                {/* Debug info */}
-                {!loading && (
-                  <div className="text-xs text-indigo-200 mt-1">
-                    Debug: {productsInAnymarket}
-                  </div>
-                )}
+              </div>
+              
+              {/* Estatísticas detalhadas */}
+              <div className="mt-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-indigo-100">Percentual:</span>
+                  <span className="text-white font-medium">
+                    {loading ? '...' : `${anymarketPercentage}%`}
+                  </span>
+                </div>
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-4">
-                <p className="text-sm text-indigo-100">
+              <div className="text-left mt-2">
+                <p className="text-xs text-indigo-100">
                   Produtos disponíveis no Anymarket
                 </p>
               </div>

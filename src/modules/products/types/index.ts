@@ -59,6 +59,8 @@ export interface ProductFilters {
   has_marketplace_description: string;
   has_anymarket_ref_id: string;
   has_anymarket_sync_log: string;
+  is_active: string;
+  is_visible: string;
 }
 
 export interface ProductListResponse {
