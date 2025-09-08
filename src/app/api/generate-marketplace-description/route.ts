@@ -41,8 +41,17 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Iniciando geração de descrição do Marketplace...');
     
-    const body = await request.json();
-    console.log('📝 Body recebido:', body);
+    let body;
+    try {
+      body = await request.json();
+      console.log('📝 Body recebido:', body);
+    } catch (parseError) {
+      console.error('❌ Erro ao fazer parse do JSON:', parseError);
+      return NextResponse.json({
+        success: false,
+        message: 'Erro ao processar dados da requisição'
+      }, { status: 400 });
+    }
     
     const { productId, forceRegenerate = false } = body;
 
@@ -54,25 +63,44 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Validar se productId é um número
+    const numericProductId = parseInt(productId);
+    if (isNaN(numericProductId)) {
+      console.log('❌ productId inválido:', productId);
+      return NextResponse.json({
+        success: false,
+        message: 'productId deve ser um número válido'
+      }, { status: 400 });
+    }
+
     console.log('🔄 Gerando descrição do Marketplace para produto ID:', productId);
 
     // 1. Buscar dados completos do produto
     console.log('🔍 Buscando dados do produto...');
-    const productQuery = `
-      SELECT 
-        p.*,
-        b.name as brand_name,
-        c.name as category_name
-      FROM products p
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      WHERE p.id = ?
-    `;
+    let products;
+    try {
+      const productQuery = `
+        SELECT 
+          p.*,
+          b.name as brand_name,
+          c.name as category_name
+        FROM products p
+        LEFT JOIN brands b ON p.brand_id = b.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.id = ?
+      `;
 
-    const products = await executeQuery(productQuery, [productId]);
-    console.log('📊 Resultado da busca do produto:', products?.length || 0, 'registros');
+      products = await executeQuery(productQuery, [numericProductId]);
+      console.log('📊 Resultado da busca do produto:', products?.length || 0, 'registros');
+    } catch (dbError) {
+      console.error('❌ Erro ao buscar produto no banco:', dbError);
+      return NextResponse.json({
+        success: false,
+        message: 'Erro ao buscar produto no banco de dados'
+      }, { status: 500 });
+    }
     
-    if (products.length === 0) {
+    if (!products || products.length === 0) {
       console.log('❌ Produto não encontrado');
       return NextResponse.json({
         success: false,
@@ -98,10 +126,10 @@ export async function POST(request: NextRequest) {
         LIMIT 1
       `;
       
-      const analyses = await executeQuery(analysisQuery, [productId]);
+      const analyses = await executeQuery(analysisQuery, [numericProductId]);
       console.log('📊 Análises encontradas:', analyses?.length || 0);
       
-      if (analyses.length > 0) {
+      if (analyses && analyses.length > 0) {
         imageAnalysis = analyses[0];
         console.log('🖼️ Análise de imagem encontrada');
       } else {
@@ -109,28 +137,35 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.log('⚠️ Erro ao buscar análise de imagens:', error);
+      // Não falhar a operação por causa da análise de imagens
+      imageAnalysis = null;
     }
 
     // 3. Verificar se já existe descrição (se não for regeneração forçada)
     if (!forceRegenerate) {
       console.log('🔍 Verificando se já existe descrição...');
-      const existingQuery = `SELECT * FROM meli WHERE product_id = ?`;
-      const existing = await executeQuery(existingQuery, [productId]);
-      console.log('📊 Descrições existentes:', existing?.length || 0);
-      
-      if (existing.length > 0) {
-        console.log('✅ Descrição já existe, retornando...');
-        return NextResponse.json({
-          success: true,
-          data: existing[0],
-          message: 'Descrição já existe'
-        });
+      try {
+        const existingQuery = `SELECT * FROM meli WHERE product_id = ?`;
+        const existing = await executeQuery(existingQuery, [numericProductId]);
+        console.log('📊 Descrições existentes:', existing?.length || 0);
+        
+        if (existing && existing.length > 0) {
+          console.log('✅ Descrição já existe, retornando...');
+          return NextResponse.json({
+            success: true,
+            data: existing[0],
+            message: 'Descrição já existe'
+          });
+        }
+      } catch (error) {
+        console.log('⚠️ Erro ao verificar descrições existentes:', error);
+        // Continuar com a geração mesmo se houver erro na verificação
       }
     }
 
     // 4. Gerar descrição usando OpenAI
     console.log('🤖 Chamando OpenAI...');
-    const openaiResponse = await generateMeliDescriptionWithOpenAI(product, imageAnalysis, productId);
+    const openaiResponse = await generateMeliDescriptionWithOpenAI(product, imageAnalysis, numericProductId);
     console.log('🤖 Resposta da OpenAI:', openaiResponse.success ? 'Sucesso' : 'Erro');
     
     if (!openaiResponse.success) {
@@ -146,37 +181,50 @@ export async function POST(request: NextRequest) {
 
     // 5. Salvar no banco de dados
     console.log('💾 Salvando no banco de dados...');
-    const saveResponse = await fetch(`${request.nextUrl.origin}/api/marketplace`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        productId,
-        title,
-        description,
-        clothing_type,
-        sleeve_type,
-        gender,
-        color,
-        modelo,
-        seller_sku,
-        wedge_shape,
-        is_sportive,
-        main_color,
-        item_condition,
-        brand,
-        tokensUsed,
-        agentUsed: 'Agente Marketplace',
-        modelUsed: 'gpt-4o-mini'
-      })
-    });
+    let saveResult;
+    try {
+      const saveResponse = await fetch(`${request.nextUrl.origin}/api/marketplace`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: numericProductId,
+          title,
+          description,
+          clothing_type,
+          sleeve_type,
+          gender,
+          color,
+          modelo,
+          seller_sku,
+          wedge_shape,
+          is_sportive,
+          main_color,
+          item_condition,
+          brand,
+          tokensUsed,
+          agentUsed: 'Agente Marketplace',
+          modelUsed: 'gpt-4o-mini'
+        })
+      });
 
-    const saveResult = await saveResponse.json();
-    console.log('💾 Resultado do salvamento:', saveResult.success ? 'Sucesso' : 'Erro');
-    
-    if (!saveResult.success) {
-      console.log('❌ Erro ao salvar:', saveResult.message);
+      if (!saveResponse.ok) {
+        throw new Error(`HTTP error! status: ${saveResponse.status}`);
+      }
+
+      saveResult = await saveResponse.json();
+      console.log('💾 Resultado do salvamento:', saveResult.success ? 'Sucesso' : 'Erro');
+      
+      if (!saveResult.success) {
+        console.log('❌ Erro ao salvar:', saveResult.message);
+        return NextResponse.json({
+          success: false,
+          message: 'Erro ao salvar descrição no banco de dados'
+        }, { status: 500 });
+      }
+    } catch (saveError) {
+      console.error('❌ Erro ao salvar no banco:', saveError);
       return NextResponse.json({
         success: false,
         message: 'Erro ao salvar descrição no banco de dados'
@@ -224,13 +272,18 @@ async function generateMeliDescriptionWithOpenAI(product: any, imageAnalysis: an
     
     // Buscar chave da OpenAI das configurações do banco
     console.log('🔍 Buscando chave da OpenAI...');
-    const settings = await executeQuery(`
-      SELECT config_value 
-      FROM system_config 
-      WHERE config_key = 'openai_api_key'
-    `);
-
-    console.log('📊 Configurações encontradas:', settings?.length || 0);
+    let settings;
+    try {
+      settings = await executeQuery(`
+        SELECT config_value 
+        FROM system_config 
+        WHERE config_key = 'openai_api_key'
+      `);
+      console.log('📊 Configurações encontradas:', settings?.length || 0);
+    } catch (dbError) {
+      console.error('❌ Erro ao buscar configuração da OpenAI:', dbError);
+      throw new Error('Erro ao acessar configurações do banco de dados');
+    }
 
     if (!settings || settings.length === 0) {
       console.log('⚠️ Chave da OpenAI não configurada no banco');
@@ -492,47 +545,64 @@ LEMBRE-SE: A descrição deve usar APENAS o novo título otimizado, NUNCA o nome
 Retorne APENAS o JSON com as informações solicitadas.`;
 
     console.log('🌐 Chamando API da OpenAI...');
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        max_tokens: 3000,
-        temperature: 0.7,
-        response_format: { type: 'json_object' }
-      }),
-    });
+    let response;
+    try {
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          max_tokens: 3000,
+          temperature: 0.7,
+          response_format: { type: 'json_object' }
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('❌ Erro na API OpenAI:', response.status, errorData);
-      throw new Error(`Erro na API OpenAI: ${response.status} - ${errorData}`);
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('❌ Erro na API OpenAI:', response.status, errorData);
+        throw new Error(`Erro na API OpenAI: ${response.status} - ${errorData}`);
+      }
+    } catch (fetchError) {
+      console.error('❌ Erro na requisição para OpenAI:', fetchError);
+      throw new Error(`Erro na requisição para OpenAI: ${fetchError.message}`);
     }
 
-    const data = await response.json();
-    console.log('✅ Resposta da OpenAI recebida');
-
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    let data;
+    try {
+      data = await response.json();
+      console.log('✅ Resposta da OpenAI recebida');
+    } catch (jsonError) {
+      console.error('❌ Erro ao fazer parse da resposta JSON:', jsonError);
       throw new Error('Resposta inválida da OpenAI');
     }
 
-
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('❌ Estrutura de resposta inválida:', data);
+      throw new Error('Resposta inválida da OpenAI');
+    }
 
     const content = data.choices[0].message.content;
     console.log('📝 Conteúdo recebido:', content?.substring(0, 100) + '...');
+
+    if (!content) {
+      console.error('❌ Conteúdo vazio na resposta da OpenAI');
+      throw new Error('Resposta vazia da OpenAI');
+    }
 
     let parsedContent;
     try {
       parsedContent = JSON.parse(content);
     } catch (parseError) {
       console.error('❌ Erro ao fazer parse do JSON:', parseError);
+      console.error('❌ Conteúdo que causou erro:', content);
       throw new Error('Resposta da OpenAI não é um JSON válido');
     }
 
@@ -544,8 +614,15 @@ Retorne APENAS o JSON com as informações solicitadas.`;
     }
 
     // Gerar título único
-    const uniqueTitle = await generateUniqueTitle(finalTitle, productId);
-    console.log('🔍 Título único gerado:', uniqueTitle);
+    let uniqueTitle;
+    try {
+      uniqueTitle = await generateUniqueTitle(finalTitle, productId);
+      console.log('🔍 Título único gerado:', uniqueTitle);
+    } catch (titleError) {
+      console.error('❌ Erro ao gerar título único:', titleError);
+      // Usar título original se houver erro na verificação de duplicatas
+      uniqueTitle = finalTitle;
+    }
 
     return {
       success: true,
