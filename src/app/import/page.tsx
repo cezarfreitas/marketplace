@@ -158,7 +158,7 @@ export default function ImportPage() {
                   onChange={(e) => setRefIdList(e.target.value)}
                   placeholder="Cole aqui os RefIds dos produtos...&#10;&#10;Exemplos:&#10;XHDCAMM0I20B1&#10;880010, 12345&#10;XHDCAMM0I20B1 880010 12345"
                   className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-sm"
-                  disabled={productImporting}
+                  disabled={isImporting}
                 />
                 <div className="mt-2 text-right">
                   <span className="text-xs text-gray-500">
