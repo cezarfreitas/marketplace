@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { vtexService } from '@/lib/vtex-service';
 import { executeQuery } from '@/lib/db-ultra-simple';
 
+// Função auxiliar para garantir que valores undefined sejam convertidos para null
+function sanitizeParams(params: any[]): any[] {
+  return params.map(param => param === undefined ? null : param);
+}
+
 interface ImportProgress {
   total: number;
   processed: number;
@@ -131,14 +136,14 @@ async function processBatchImport(refIds: string[], progressId: string) {
              VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
              ON DUPLICATE KEY UPDATE 
              name = VALUES(name), is_active = VALUES(is_active), title = VALUES(title), updated_at = NOW()`,
-            [
+            sanitizeParams([
               brand.id,
               brand.name,
               brand.isActive,
               brand.title || null,
               brand.metaTagDescription || null,
               brand.imageUrl || null
-            ]
+            ])
           );
         }
 
@@ -149,13 +154,13 @@ async function processBatchImport(refIds: string[], progressId: string) {
              VALUES (?, ?, ?, ?, ?, NOW(), NOW())
              ON DUPLICATE KEY UPDATE 
              name = VALUES(name), is_active = VALUES(is_active), title = VALUES(title), updated_at = NOW()`,
-            [
+            sanitizeParams([
               category.id,
               category.name,
               category.isActive,
               category.title || null,
               category.metaTagDescription || null
-            ]
+            ])
           );
         }
 
@@ -166,7 +171,7 @@ async function processBatchImport(refIds: string[], progressId: string) {
            ON DUPLICATE KEY UPDATE 
            name = VALUES(name), description = VALUES(description), brand_id = VALUES(brand_id), 
            category_id = VALUES(category_id), is_active = VALUES(is_active), is_visible = VALUES(is_visible), updated_at = NOW()`,
-          [
+          sanitizeParams([
             product.Id,
             product.Name,
             product.Description,
@@ -175,7 +180,7 @@ async function processBatchImport(refIds: string[], progressId: string) {
             product.RefId,
             product.IsActive,
             product.IsVisible
-          ]
+          ])
         );
 
         // Buscar e inserir SKUs
@@ -186,14 +191,14 @@ async function processBatchImport(refIds: string[], progressId: string) {
              VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
              ON DUPLICATE KEY UPDATE 
              name = VALUES(name), is_active = VALUES(is_active), is_visible = VALUES(is_visible), updated_at = NOW()`,
-            [
+            sanitizeParams([
               sku.Id,
               product.Id,
               sku.Name,
               sku.RefId,
               sku.IsActive,
               sku.IsVisible
-            ]
+            ])
           );
         }
 
@@ -205,6 +210,7 @@ async function processBatchImport(refIds: string[], progressId: string) {
         const errorMsg = `Erro ao importar ${refId}: ${error.message}`;
         progress.errors.push(errorMsg);
         console.error(`❌ ${errorMsg}`);
+        console.error(`❌ Stack trace:`, error.stack);
       } finally {
         progress.processed++;
       }
