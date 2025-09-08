@@ -572,7 +572,8 @@ Retorne APENAS o JSON com as informações solicitadas.`;
       }
     } catch (fetchError) {
       console.error('❌ Erro na requisição para OpenAI:', fetchError);
-      throw new Error(`Erro na requisição para OpenAI: ${fetchError.message}`);
+      const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+      throw new Error(`Erro na requisição para OpenAI: ${errorMessage}`);
     }
 
     let data;
