@@ -18,14 +18,14 @@ export async function GET(request: NextRequest) {
     
     // Busca por texto
     if (search) {
-      conditions.push(`(p.name LIKE ? OR p.description LIKE ? OR p.title LIKE ? OR b.name LIKE ? OR c.name LIKE ?)`);
+      conditions.push(`(p.name LIKE ? OR p.description LIKE ? OR p.title LIKE ? OR p.ref_id LIKE ? OR b.name LIKE ? OR c.name LIKE ?)`);
       const searchTerm = `%${search}%`;
-      searchParams_array.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+      searchParams_array.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     // Filtros adicionais
-    const brand_id = searchParams.get('brand_id');
-    const category_id = searchParams.get('category_id');
+    const brand_id = searchParams.getAll('brand_id');
+    const category_id = searchParams.getAll('category_id');
     const has_image_analysis = searchParams.get('has_image_analysis');
     const has_marketplace_description = searchParams.get('has_marketplace_description');
     const has_anymarket_ref_id = searchParams.get('has_anymarket_ref_id');
@@ -33,15 +33,27 @@ export async function GET(request: NextRequest) {
     const is_active = searchParams.get('is_active');
     const is_visible = searchParams.get('is_visible');
     const has_images = searchParams.get('has_images');
+    const stock_operator = searchParams.get('stock_operator');
+    const stock_value = searchParams.get('stock_value');
 
-    if (brand_id) {
-      conditions.push(`p.brand_id = ?`);
-      searchParams_array.push(brand_id);
+    if (brand_id && brand_id.length > 0) {
+      // Filtrar valores vazios
+      const validBrandIds = brand_id.filter(id => id && id.trim() !== '');
+      if (validBrandIds.length > 0) {
+        const placeholders = validBrandIds.map(() => '?').join(',');
+        conditions.push(`p.brand_id IN (${placeholders})`);
+        searchParams_array.push(...validBrandIds);
+      }
     }
 
-    if (category_id) {
-      conditions.push(`p.category_id = ?`);
-      searchParams_array.push(category_id);
+    if (category_id && category_id.length > 0) {
+      // Filtrar valores vazios
+      const validCategoryIds = category_id.filter(id => id && id.trim() !== '');
+      if (validCategoryIds.length > 0) {
+        const placeholders = validCategoryIds.map(() => '?').join(',');
+        conditions.push(`p.category_id IN (${placeholders})`);
+        searchParams_array.push(...validCategoryIds);
+      }
     }
 
 
@@ -101,6 +113,35 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Filtros de estoque
+    if (stock_operator && stock_value !== null && stock_value !== '') {
+      const stockValue = parseInt(stock_value);
+      if (!isNaN(stockValue)) {
+        switch (stock_operator) {
+          case 'eq':
+            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) = ?`);
+            searchParams_array.push(stockValue);
+            break;
+          case 'gt':
+            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) > ?`);
+            searchParams_array.push(stockValue);
+            break;
+          case 'gte':
+            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) >= ?`);
+            searchParams_array.push(stockValue);
+            break;
+          case 'lt':
+            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) < ?`);
+            searchParams_array.push(stockValue);
+            break;
+          case 'lte':
+            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) <= ?`);
+            searchParams_array.push(stockValue);
+            break;
+        }
+      }
+    }
+
     if (conditions.length > 0) {
       whereClause = `WHERE ${conditions.join(' AND ')}`;
     }
@@ -125,7 +166,11 @@ export async function GET(request: NextRequest) {
          JOIN skus s ON i.sku_id = s.id 
          WHERE s.product_id = p.id 
          ORDER BY i.created_at ASC 
-         LIMIT 1) as first_image_url
+         LIMIT 1) as first_image_url,
+        COALESCE((SELECT SUM(st.total_quantity) 
+                  FROM stock st 
+                  JOIN skus s ON st.sku_id = s.id 
+                  WHERE s.product_id = p.id), 0) as total_stock
       FROM products p
       LEFT JOIN brands b ON p.brand_id = b.id
       LEFT JOIN categories c ON p.category_id = c.id

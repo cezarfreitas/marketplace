@@ -126,6 +126,10 @@ export class VTEXService {
     this.baseUrl = `https://${config.accountName}.${config.environment}.com.br`;
   }
 
+  public getConfig() {
+    return this.config;
+  }
+
   private getHeaders() {
     return {
       'Accept': 'application/json',
@@ -242,6 +246,7 @@ export class VTEXService {
     category: VTEXCategory;
     skus: VTEXSKU[];
     images: VTEXImage[];
+    stock: any[];
   }> {
     console.log(`🔄 Iniciando importação completa do produto ${productId}...`);
 
@@ -320,21 +325,85 @@ export class VTEXService {
       console.log(`📋 Buscando SKUs do produto ${product.Id}...`);
       const skus = await this.getProductSKUs(product.Id);
 
-      // 5. Buscar imagens de todos os SKUs
-      console.log(`🖼️ Buscando imagens dos SKUs...`);
+      // 5. Buscar imagens dos SKUs até encontrar
+      console.log(`🖼️ Buscando imagens em ${skus.length} SKUs...`);
       const allImages: VTEXImage[] = [];
+      let imagesFound = false;
       
-      for (const sku of skus) {
+      for (let i = 0; i < skus.length; i++) {
+        const sku = skus[i];
+        console.log(`🔍 Verificando SKU ${i + 1}/${skus.length}: ${sku.Id} (${sku.Name || 'N/A'})`);
+        
         try {
           const skuImages = await this.getSKUImages(sku.Id);
-          allImages.push(...skuImages);
+          console.log(`📊 SKU ${sku.Id}: ${skuImages.length} imagens encontradas`);
+          
+          if (skuImages.length > 0) {
+            console.log(`✅ Imagens encontradas no SKU ${sku.Id}! Parando busca.`);
+            allImages.push(...skuImages);
+            imagesFound = true;
+            break; // Parar assim que encontrar imagens
+          } else {
+            console.log(`❌ SKU ${sku.Id} não possui imagens, tentando próximo...`);
+          }
         } catch (error) {
           console.warn(`⚠️ Erro ao buscar imagens do SKU ${sku.Id}:`, error);
+          // Continuar para o próximo SKU em caso de erro
         }
       }
+      
+      if (!imagesFound) {
+        console.log(`❌ Nenhuma imagem encontrada em nenhum dos ${skus.length} SKUs`);
+      }
+
+      // 6. Buscar dados de estoque de todos os SKUs
+      console.log(`📦 6. Buscando dados de estoque de ${skus.length} SKUs...`);
+      const allStockData: any[] = [];
+      let stockSuccessCount = 0;
+      let stockErrorCount = 0;
+      
+      for (const sku of skus) {
+        console.log(`🔍 Buscando estoque do SKU ${sku.Id}...`);
+        
+        try {
+          const stockApiUrl = `https://${this.config.accountName}.${this.config.environment}.com.br/api/logistics/pvt/inventory/skus/${sku.Id}`;
+          
+          const stockResponse = await fetch(stockApiUrl, {
+            method: 'GET',
+            headers: {
+              'X-VTEX-API-AppKey': this.config.appKey,
+              'X-VTEX-API-AppToken': this.config.appToken,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (stockResponse.ok) {
+            const stockData = await stockResponse.json();
+            console.log(`📊 SKU ${sku.Id}: ${stockData.balance?.length || 0} warehouses encontrados`);
+            
+            if (stockData.balance && Array.isArray(stockData.balance)) {
+              allStockData.push({
+                skuId: sku.Id,
+                skuName: sku.Name || 'N/A',
+                balance: stockData.balance
+              });
+              stockSuccessCount++;
+            }
+          } else {
+            console.log(`⚠️ Erro na API de estoque para SKU ${sku.Id}: ${stockResponse.status}`);
+            stockErrorCount++;
+          }
+        } catch (error) {
+          console.error(`❌ Erro ao buscar estoque do SKU ${sku.Id}:`, error);
+          stockErrorCount++;
+        }
+      }
+      
+      console.log(`📊 Resumo do estoque: ${stockSuccessCount} SKUs processados, ${stockErrorCount} erros`);
 
       console.log(`✅ Importação completa do produto RefId ${refId} finalizada!`);
-      console.log(`📊 Resumo: 1 produto, 1 marca, 1 categoria, ${skus.length} SKUs, ${allImages.length} imagens`);
+      console.log(`📊 Resumo: 1 produto, 1 marca, 1 categoria, ${skus.length} SKUs, ${allImages.length} imagens, estoque de ${stockSuccessCount} SKUs`);
 
       return {
         product,
@@ -342,6 +411,7 @@ export class VTEXService {
         category,
         skus,
         images: allImages,
+        stock: allStockData,
       };
     } catch (error) {
       console.error(`❌ Erro na importação do produto RefId ${refId}:`, error);

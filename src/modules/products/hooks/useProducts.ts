@@ -15,15 +15,18 @@ export function useProducts(options: UseProductsOptions = {}) {
     initialLimit = 20,
     initialFilters = {
       search: '',
-      brand_id: '',
-      category_id: '',
+      brand_id: [],
+      category_id: [],
       has_image_analysis: '',
       has_marketplace_description: '',
       has_anymarket_ref_id: '',
       has_anymarket_sync_log: '',
       is_active: '',
       is_visible: '',
-      has_images: ''
+      has_images: '',
+      stock_status: '',
+      stock_operator: '',
+      stock_value: ''
     },
     initialSort = { field: 'created_at', direction: 'desc' }
   } = options;

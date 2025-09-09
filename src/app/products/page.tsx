@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
-import { Package, Trash2, X, ExternalLink, Copy, Check, Image, Loader2, Eye, Camera, RefreshCw } from 'lucide-react';
+import { Package, Trash2, X, ExternalLink, Copy, Check, Image, Loader2, Eye, Camera, RefreshCw, Warehouse, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { 
   useProducts, 
   useProductModal, 
@@ -32,6 +33,7 @@ export default function ProductsPage() {
   const [selectedProductForAnalysis, setSelectedProductForAnalysis] = useState<Product | null>(null);
   const [imageAnalysisData, setImageAnalysisData] = useState<any>(null);
   const [analyzingImages, setAnalyzingImages] = useState(false);
+  const [analyzingSingleImage, setAnalyzingSingleImage] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [existingAnalysis, setExistingAnalysis] = useState<any>(null);
   const [currentAnalysisData, setCurrentAnalysisData] = useState<any>(null);
@@ -74,6 +76,17 @@ export default function ProductsPage() {
     currentProduct: '',
     isRunning: false
   });
+
+  // Estados para atualização de estoque em lote
+  const [batchStockProgress, setBatchStockProgress] = useState({
+    current: 0,
+    total: 0,
+    currentProduct: '',
+    isRunning: false
+  });
+
+  // Estado para exportação
+  const [isExporting, setIsExporting] = useState(false);
 
   // Função para buscar produtos que já têm análise
   const fetchProductsWithAnalysis = async () => {
@@ -247,7 +260,7 @@ export default function ProductsPage() {
         isRunning: true
       });
       
-      setAnalyzingImages(true);
+      // Não usar setAnalyzingSingleImage(true) para análise em lote - apenas para análise individual
       
       try {
         let successCount = 0;
@@ -317,7 +330,7 @@ export default function ProductsPage() {
         console.error('Erro na análise em lote:', error);
         alert('Erro durante a análise em lote. Verifique o console para mais detalhes.');
       } finally {
-        setAnalyzingImages(false);
+        setAnalyzingSingleImage(false);
         setBatchAnalysisProgress({
           current: 0,
           total: 0,
@@ -474,6 +487,168 @@ export default function ProductsPage() {
     }
   };
 
+  // Função para atualizar estoque em lote
+  const handleUpdateStockBatch = async () => {
+    if (selectedProducts.length === 0) return;
+    
+    if (confirm(`Deseja atualizar o estoque de ${selectedProducts.length} produtos selecionados?`)) {
+      // Encontrar os produtos selecionados
+      const selectedProductsData = products.filter(p => selectedProducts.includes(p.id));
+      
+      // Inicializar progresso
+      setBatchStockProgress({
+        current: 0,
+        total: selectedProductsData.length,
+        currentProduct: '',
+        isRunning: true
+      });
+
+      try {
+        let successCount = 0;
+        let errorCount = 0;
+        
+        // Processar cada produto sequencialmente
+        for (let i = 0; i < selectedProductsData.length; i++) {
+          const product = selectedProductsData[i];
+          
+          try {
+            // Atualizar progresso
+            setBatchStockProgress(prev => ({
+              ...prev,
+              current: i + 1,
+              currentProduct: product.name
+            }));
+            
+            console.log(`🔄 Atualizando estoque do produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
+            
+            // Chamar API para atualizar estoque
+            const response = await fetch(`/api/products/${product.id}/stock`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+              console.log(`✅ Estoque atualizado para: ${product.name}`);
+              successCount++;
+            } else {
+              console.error(`❌ Falha na atualização para: ${product.name}`, result.error);
+              errorCount++;
+            }
+            
+            // Pequena pausa entre atualizações para não sobrecarregar a API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+          } catch (error) {
+            console.error(`❌ Erro ao atualizar estoque para ${product.name}:`, error);
+            errorCount++;
+          }
+        }
+        
+        // Finalizar progresso
+        setBatchStockProgress(prev => ({
+          ...prev,
+          isRunning: false
+        }));
+        
+        // Recarregar dados
+        await fetchProducts();
+        
+        // Mostrar resultado
+        alert(`Atualização de estoque concluída!\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`);
+        
+      } catch (error) {
+        console.error('❌ Erro na atualização de estoque em lote:', error);
+        setBatchStockProgress(prev => ({
+          ...prev,
+          isRunning: false
+        }));
+        alert('Erro durante a atualização de estoque em lote');
+      }
+    }
+  };
+
+  // Função para exportar produtos selecionados para XLSX
+  const handleExportSelected = async () => {
+    if (selectedProducts.length === 0) return;
+    
+    setIsExporting(true);
+    
+    try {
+      // Buscar dados completos dos produtos selecionados
+      const selectedProductsData = products.filter(p => selectedProducts.includes(p.id));
+      
+      // Preparar dados para exportação
+      const exportData = selectedProductsData.map(product => ({
+        'ID': product.id,
+        'Nome': product.name,
+        'Título': product.title || '',
+        'RefId': product.ref_id || '',
+        'ID Anymarket': product.anymarket_id || '',
+        'Marca': product.brand_name || '',
+        'Categoria': product.category_name || '',
+        'Departamento': product.department_name || '',
+        'SKUs': product.sku_count || 0,
+        'Imagens': product.image_count || 0,
+        'Estoque Total': product.total_stock || 0,
+        'Ativo': product.is_active ? 'Sim' : 'Não',
+        'Visível': product.is_visible ? 'Sim' : 'Não',
+        'Data Criação': product.created_at ? new Date(product.created_at).toLocaleDateString('pt-BR') : '',
+        'Data Atualização': product.updated_at ? new Date(product.updated_at).toLocaleDateString('pt-BR') : ''
+      }));
+
+      // Criar workbook
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Configurar largura das colunas
+      const columnWidths = [
+        { wch: 8 },   // ID
+        { wch: 40 },  // Nome
+        { wch: 30 },  // Título
+        { wch: 15 },  // RefId
+        { wch: 15 },  // ID Anymarket
+        { wch: 20 },  // Marca
+        { wch: 25 },  // Categoria
+        { wch: 20 },  // Departamento
+        { wch: 8 },   // SKUs
+        { wch: 10 },  // Imagens
+        { wch: 12 },  // Estoque Total
+        { wch: 8 },   // Ativo
+        { wch: 10 },  // Visível
+        { wch: 12 },  // Data Criação
+        { wch: 12 }   // Data Atualização
+      ];
+      worksheet['!cols'] = columnWidths;
+
+      // Adicionar worksheet ao workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Produtos');
+
+      // Gerar nome do arquivo com timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      const fileName = `produtos_selecionados_${timestamp}.xlsx`;
+
+      // Exportar arquivo
+      XLSX.writeFile(workbook, fileName);
+
+      console.log(`✅ Arquivo exportado: ${fileName}`);
+      console.log(`📊 ${selectedProductsData.length} produtos exportados`);
+
+    } catch (error) {
+      console.error('❌ Erro ao exportar produtos:', error);
+      alert('Erro ao exportar produtos. Verifique o console para mais detalhes.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleAnalyzeImages = async (product: Product) => {
     setSelectedProductForAnalysis(product);
     
@@ -542,7 +717,7 @@ export default function ProductsPage() {
     console.log('🔄 Iniciando análise para produto:', selectedProductForAnalysis.name, 'ID:', selectedProductForAnalysis.id);
 
     try {
-      setAnalyzingImages(true);
+      setAnalyzingSingleImage(true);
       setAnalysisError(null);
       
       // Adicionar timestamp para evitar cache
@@ -580,7 +755,7 @@ export default function ProductsPage() {
       console.error('❌ Erro na análise:', error);
       setAnalysisError('Erro ao analisar imagens');
     } finally {
-      setAnalyzingImages(false);
+      setAnalyzingSingleImage(false);
     }
   };
 
@@ -591,7 +766,7 @@ export default function ProductsPage() {
     }
 
     try {
-      setAnalyzingImages(true);
+      setAnalyzingSingleImage(true);
       setAnalysisError(null);
       
       // Buscar dados completos da análise
@@ -658,7 +833,7 @@ export default function ProductsPage() {
       console.error('Erro ao visualizar análise existente:', error);
       setAnalysisError('Erro ao carregar análise existente');
     } finally {
-      setAnalyzingImages(false);
+      setAnalyzingSingleImage(false);
     }
   };
 
@@ -821,7 +996,7 @@ export default function ProductsPage() {
     console.log('🔄 Iniciando análise para produto:', selectedProductForAnalysis.name, 'ID:', selectedProductForAnalysis.id);
 
     try {
-      setAnalyzingImages(true);
+      setAnalyzingSingleImage(true);
       setAnalysisError(null);
       
       // Fechar modais
@@ -865,7 +1040,7 @@ export default function ProductsPage() {
       console.error('❌ Erro ao analisar imagens:', error);
       alert(`Erro de conexão: ${(error as Error).message}`);
     } finally {
-      setAnalyzingImages(false);
+      setAnalyzingSingleImage(false);
     }
   };
 
@@ -881,7 +1056,7 @@ export default function ProductsPage() {
 
       {/* Ações em Lote */}
       {selectedProducts.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 relative z-[55]">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 relative z-[100]">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-sm text-gray-600 mb-2">
@@ -890,7 +1065,7 @@ export default function ProductsPage() {
               
               {/* Barra de Progresso - Análise de Imagens */}
               {batchAnalysisProgress.isRunning && (
-                <div className="w-full relative z-[60] mb-3">
+                <div className="w-full relative z-[110] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Analisando: {batchAnalysisProgress.currentProduct}</span>
                     <span>{batchAnalysisProgress.current}/{batchAnalysisProgress.total}</span>
@@ -911,7 +1086,7 @@ export default function ProductsPage() {
 
               {/* Barra de Progresso - Marketplace */}
               {batchMarketplaceProgress.isRunning && (
-                <div className="w-full relative z-[60] mb-3">
+                <div className="w-full relative z-[110] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Gerando Marketplace: {batchMarketplaceProgress.currentProduct}</span>
                     <span>{batchMarketplaceProgress.current}/{batchMarketplaceProgress.total}</span>
@@ -932,7 +1107,7 @@ export default function ProductsPage() {
 
               {/* Barra de Progresso - Anymarket */}
               {batchAnymarketProgress.isRunning && (
-                <div className="w-full relative z-[60] mb-3">
+                <div className="w-full relative z-[110] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Sincronizando Anymarket: {batchAnymarketProgress.currentProduct}</span>
                     <span>{batchAnymarketProgress.current}/{batchAnymarketProgress.total}</span>
@@ -950,24 +1125,45 @@ export default function ProductsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Barra de Progresso - Atualização de Estoque */}
+              {batchStockProgress.isRunning && (
+                <div className="w-full relative z-[110] mb-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span>Atualizando Estoque: {batchStockProgress.currentProduct}</span>
+                    <span>{batchStockProgress.current}/{batchStockProgress.total}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-purple-600 h-2 rounded-full transition-all duration-300 ease-out"
+                      style={{ 
+                        width: `${batchStockProgress.total > 0 ? (batchStockProgress.current / batchStockProgress.total) * 100 : 0}%` 
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {Math.round((batchStockProgress.current / batchStockProgress.total) * 100)}% concluído
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="flex space-x-2 ml-4">
               <button
                 onClick={handleAnalyzeSelectedImages}
-                disabled={analyzingImages || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning}
+                disabled={batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning}
                 className="px-4 py-2 text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {analyzingImages ? (
+                {batchAnalysisProgress.isRunning ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Camera className="h-4 w-4 mr-2" />
                 )}
-                {analyzingImages ? 'Analisando...' : 'Analisar Imagens'}
+                {batchAnalysisProgress.isRunning ? 'Analisando...' : 'Analisar Imagens'}
               </button>
               <button
                 onClick={handleGenerateMeliBatch}
-                disabled={batchMarketplaceProgress.isRunning || analyzingImages || batchAnymarketProgress.isRunning}
+                disabled={batchMarketplaceProgress.isRunning || batchAnalysisProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning}
                 className="px-4 py-2 text-yellow-600 border border-yellow-300 rounded-lg hover:bg-yellow-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {batchMarketplaceProgress.isRunning ? (
@@ -979,7 +1175,7 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={handleAnymarketSyncBatch}
-                disabled={batchAnymarketProgress.isRunning || analyzingImages || batchMarketplaceProgress.isRunning}
+                disabled={batchAnymarketProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchStockProgress.isRunning}
                 className="px-4 py-2 text-green-600 border border-green-300 rounded-lg hover:bg-green-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {batchAnymarketProgress.isRunning ? (
@@ -990,8 +1186,32 @@ export default function ProductsPage() {
                 {batchAnymarketProgress.isRunning ? 'Sincronizando...' : 'Anymarket'}
               </button>
               <button
+                onClick={handleUpdateStockBatch}
+                disabled={batchStockProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning}
+                className="px-4 py-2 text-purple-600 border border-purple-300 rounded-lg hover:bg-purple-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {batchStockProgress.isRunning ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Warehouse className="h-4 w-4 mr-2" />
+                )}
+                {batchStockProgress.isRunning ? 'Atualizando...' : 'Atualizar Estoque'}
+              </button>
+              <button
+                onClick={handleExportSelected}
+                disabled={isExporting || batchStockProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning}
+                className="px-4 py-2 text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                {isExporting ? 'Exportando...' : 'Exportar XLSX'}
+              </button>
+              <button
                 onClick={handleDeleteSelected}
-                disabled={analyzingImages || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning}
+                disabled={isExporting || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning}
                 className="px-4 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -1003,29 +1223,31 @@ export default function ProductsPage() {
       )}
 
       {/* Tabela de Produtos */}
-      <ProductTable
-        products={products}
-        loading={loading}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalProducts={totalProducts}
-        itemsPerPage={itemsPerPage}
-        sort={sort}
-        selectedProducts={selectedProducts}
-        onSort={updateSort}
-        onPageChange={updatePage}
-        onItemsPerPageChange={updateItemsPerPage}
-        onProductSelect={handleSelectProduct}
-        onSelectAll={handleSelectAll}
-        onViewProduct={handleViewProduct}
-        onDeleteProduct={handleDeleteProduct}
-        onAnalyzeImages={handleAnalyzeImages}
-        onGenerateMarketplaceDescription={handleGenerateMarketplaceDescription}
-        onSyncAnymarketing={handleSyncAnymarketing}
-        productsWithAnalysis={productsWithAnalysis}
-        productsWithMarketplace={productsWithMarketplace}
-        productsWithAnymarketSync={productsWithAnymarketSync}
-      />
+      <div className={isExporting || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning ? 'pointer-events-none opacity-75' : ''}>
+        <ProductTable
+          products={products}
+          loading={loading}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalProducts={totalProducts}
+          itemsPerPage={itemsPerPage}
+          sort={sort}
+          selectedProducts={selectedProducts}
+          onSort={updateSort}
+          onPageChange={updatePage}
+          onItemsPerPageChange={updateItemsPerPage}
+          onProductSelect={handleSelectProduct}
+          onSelectAll={handleSelectAll}
+          onViewProduct={handleViewProduct}
+          onDeleteProduct={handleDeleteProduct}
+          onAnalyzeImages={handleAnalyzeImages}
+          onGenerateMarketplaceDescription={handleGenerateMarketplaceDescription}
+          onSyncAnymarketing={handleSyncAnymarketing}
+          productsWithAnalysis={productsWithAnalysis}
+          productsWithMarketplace={productsWithMarketplace}
+          productsWithAnymarketSync={productsWithAnymarketSync}
+        />
+      </div>
 
       {/* Modal de Detalhes do Produto */}
       {console.log('🔍 Estado do modal - showModal:', showModal, 'selectedProduct:', selectedProduct?.name)}
@@ -1795,10 +2017,10 @@ export default function ProductsPage() {
                     <div className="flex space-x-3">
                       <button
                         onClick={() => handleGenerateNewAnalysis(true)}
-                        disabled={analyzingImages}
+                        disabled={analyzingSingleImage}
                         className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                       >
-                        {analyzingImages ? (
+                        {analyzingSingleImage ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin mr-2" />
                             Regenerando...
@@ -1844,10 +2066,10 @@ export default function ProductsPage() {
                       </p>
                       <button
                         onClick={() => handleGenerateNewAnalysis(false)}
-                        disabled={analyzingImages}
+                        disabled={analyzingSingleImage}
                         className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center mx-auto"
                       >
-                        {analyzingImages ? (
+                        {analyzingSingleImage ? (
                           <>
                             <Loader2 className="w-5 h-5 animate-spin mr-2" />
                             Analisando...
@@ -2200,10 +2422,10 @@ export default function ProductsPage() {
                   <>
                     <button
                       onClick={handleViewExistingAnalysis}
-                      disabled={analyzingImages}
+                      disabled={analyzingSingleImage}
                       className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     >
-                      {analyzingImages ? (
+                      {analyzingSingleImage ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin mr-2" />
                           Carregando...
@@ -2218,10 +2440,10 @@ export default function ProductsPage() {
                     
                     <button
                       onClick={handleGenerateAnalysis}
-                      disabled={analyzingImages}
+                      disabled={analyzingSingleImage}
                       className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     >
-                      {analyzingImages ? (
+                      {analyzingSingleImage ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin mr-2" />
                           Regenerando...
@@ -2237,10 +2459,10 @@ export default function ProductsPage() {
                 ) : (
                   <button
                     onClick={handleGenerateAnalysis}
-                    disabled={analyzingImages}
+                    disabled={analyzingSingleImage}
                     className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                   >
-                    {analyzingImages ? (
+                    {analyzingSingleImage ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
                         Gerando Análise...
@@ -2270,8 +2492,8 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Loading de Análise */}
-      {analyzingImages && (
+      {/* Loading de Análise - Apenas para análise individual */}
+      {analyzingSingleImage && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-4" />

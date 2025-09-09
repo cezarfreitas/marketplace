@@ -182,24 +182,49 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Buscar imagens do primeiro SKU na VTEX
+    // Buscar imagens em todos os SKUs até encontrar imagens
     let images: any[] = [];
-        const imageResults: any[] = [];
+    const imageResults: any[] = [];
+    let skuWithImages: any = null;
     
-    if (firstSkuId) {
-      console.log(`🖼️ Buscando imagens do primeiro SKU ${firstSkuId} na VTEX...`);
-      try {
-        images = await vtexService.getSKUImages(firstSkuId);
-        console.log(`✅ ${images.length} imagens encontradas`);
+    if (skus.length > 0) {
+      console.log(`🖼️ Buscando imagens em ${skus.length} SKUs...`);
+      
+      // Tentar buscar imagens em cada SKU até encontrar
+      for (let i = 0; i < skus.length; i++) {
+        const sku = skus[i];
+        console.log(`🔍 Verificando SKU ${i + 1}/${skus.length}: ${sku.Id} (${sku.Name || 'N/A'})`);
         
-        // Buscar ID interno do primeiro SKU
-        const [firstSkuRow] = await executeQuery(
+        try {
+          const skuImages = await vtexService.getSKUImages(sku.Id);
+          console.log(`📊 SKU ${sku.Id}: ${skuImages.length} imagens encontradas`);
+          
+          if (skuImages.length > 0) {
+            console.log(`✅ Imagens encontradas no SKU ${sku.Id}! Parando busca.`);
+            images = skuImages;
+            skuWithImages = sku;
+            break; // Parar assim que encontrar imagens
+          } else {
+            console.log(`❌ SKU ${sku.Id} não possui imagens, tentando próximo...`);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Erro ao buscar imagens do SKU ${sku.Id}:`, (error as Error).message);
+          // Continuar para o próximo SKU em caso de erro
+        }
+      }
+      
+      // Se encontrou imagens, inserir no banco
+      if (images.length > 0 && skuWithImages) {
+        console.log(`🖼️ Inserindo ${images.length} imagens do SKU ${skuWithImages.Id}...`);
+        
+        // Buscar ID interno do SKU que tem imagens
+        const [skuRow] = await executeQuery(
           'SELECT id FROM skus WHERE vtex_id = ?',
-          [firstSkuId]
+          [skuWithImages.Id]
         );
-        const firstSkuInternalId = (firstSkuRow as any)[0]?.id;
+        const skuInternalId = (skuRow as any)[0]?.id;
         
-        if (firstSkuInternalId) {
+        if (skuInternalId) {
           // Inserir imagens no banco
           for (const image of images) {
             console.log(`🖼️ Inserindo imagem ${image.Id}...`);
@@ -211,7 +236,7 @@ export async function POST(request: NextRequest) {
               [
                 image.Id,
                 image.ArchiveId || null,
-                firstSkuInternalId, // Usar ID interno do SKU
+                skuInternalId, // Usar ID interno do SKU que tem imagens
                 image.Name || null,
                 image.IsMain || false,
                 image.Text || null,
@@ -225,20 +250,118 @@ export async function POST(request: NextRequest) {
             console.log(`✅ Imagem ${image.Id} inserida`);
           }
         }
-      } catch (error) {
-        console.warn(`⚠️ Erro ao buscar imagens do SKU ${firstSkuId}:`, (error as Error).message);
+      } else {
+        console.log(`❌ Nenhuma imagem encontrada em nenhum dos ${skus.length} SKUs`);
       }
     }
     
+    // 6. Importar estoque de todos os SKUs
+    console.log(`\n📦 6. Importando estoque de ${skus.length} SKUs...`);
+    const stockResults: any[] = [];
+    let stockSuccessCount = 0;
+    let stockErrorCount = 0;
+    
+    for (const sku of skus) {
+      if (!sku.Id) continue;
+      
+      console.log(`🔍 Importando estoque do SKU ${sku.Id}...`);
+      
+      try {
+        // Buscar dados de estoque da API VTEX
+        const config = vtexService.getConfig();
+        const stockApiUrl = `https://${config.accountName}.${config.environment}.com.br/api/logistics/pvt/inventory/skus/${sku.Id}`;
+        
+        const stockResponse = await fetch(stockApiUrl, {
+          method: 'GET',
+          headers: {
+            'X-VTEX-API-AppKey': config.appKey,
+            'X-VTEX-API-AppToken': config.appToken,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (stockResponse.ok) {
+          const stockData = await stockResponse.json();
+          console.log(`📊 SKU ${sku.Id}: ${stockData.balance?.length || 0} warehouses encontrados`);
+          
+          // Buscar ID interno do SKU
+          const [skuRow] = await executeQuery(
+            'SELECT id FROM skus WHERE vtex_id = ?',
+            [sku.Id]
+          );
+          const skuInternalId = (skuRow as any)[0]?.id;
+          
+          if (skuInternalId && stockData.balance && Array.isArray(stockData.balance)) {
+            // Inserir dados de estoque no banco
+            for (const balance of stockData.balance) {
+              try {
+                await executeQuery(`
+                  INSERT INTO stock (
+                    sku_id, vtex_sku_id, warehouse_id, warehouse_name,
+                    total_quantity, reserved_quantity, has_unlimited_quantity,
+                    time_to_refill, date_of_supply_utc, lead_time
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ON DUPLICATE KEY UPDATE
+                    total_quantity = VALUES(total_quantity),
+                    reserved_quantity = VALUES(reserved_quantity),
+                    has_unlimited_quantity = VALUES(has_unlimited_quantity),
+                    time_to_refill = VALUES(time_to_refill),
+                    date_of_supply_utc = VALUES(date_of_supply_utc),
+                    lead_time = VALUES(lead_time),
+                    updated_at = CURRENT_TIMESTAMP
+                `, [
+                  skuInternalId,
+                  sku.Id,
+                  balance.warehouseId,
+                  balance.warehouseName,
+                  balance.totalQuantity || 0,
+                  balance.reservedQuantity || 0,
+                  balance.hasUnlimitedQuantity || false,
+                  balance.timeToRefill,
+                  balance.dateOfSupplyUtc ? new Date(balance.dateOfSupplyUtc) : null,
+                  balance.leadTime
+                ]);
+                
+                console.log(`✅ Estoque inserido: ${balance.warehouseName} - Qtd: ${balance.totalQuantity}`);
+                stockResults.push({
+                  skuId: sku.Id,
+                  warehouseId: balance.warehouseId,
+                  warehouseName: balance.warehouseName,
+                  totalQuantity: balance.totalQuantity,
+                  reservedQuantity: balance.reservedQuantity
+                });
+                
+              } catch (insertError) {
+                console.error(`❌ Erro ao inserir estoque para warehouse ${balance.warehouseId}:`, (insertError as Error).message);
+                stockErrorCount++;
+              }
+            }
+            
+            stockSuccessCount++;
+          }
+        } else {
+          console.log(`⚠️ Erro na API de estoque para SKU ${sku.Id}: ${stockResponse.status}`);
+          stockErrorCount++;
+        }
+      } catch (error) {
+        console.error(`❌ Erro ao importar estoque do SKU ${sku.Id}:`, (error as Error).message);
+        stockErrorCount++;
+      }
+    }
+    
+    console.log(`📊 Resumo do estoque: ${stockSuccessCount} SKUs processados, ${stockErrorCount} erros`);
+    
     return NextResponse.json({
       success: true,
-      message: `Produto ${refId}, marca, categoria, ${skus.length} SKUs e ${images.length} imagens importados com sucesso!`,
+      message: `Produto ${refId}, marca, categoria, ${skus.length} SKUs, ${images.length} imagens e estoque de ${stockSuccessCount} SKUs importados com sucesso!`,
       data: {
         product: product,
         brand: brand,
         category: category,
         skus: skus,
         images: images,
+        stock: stockResults,
         productId: product.Id,
         productName: product.Name,
         brandId: brand.id,
@@ -247,13 +370,17 @@ export async function POST(request: NextRequest) {
         categoryName: category.Name,
         skuCount: skus.length,
         imageCount: images.length,
+        stockCount: stockResults.length,
+        stockSuccessCount: stockSuccessCount,
+        stockErrorCount: stockErrorCount,
         firstSkuId: firstSkuId,
         insertResult: {
           brand: brandResult,
           category: categoryResult,
           product: productResult,
           skus: skuResults,
-          images: imageResults
+          images: imageResults,
+          stock: stockResults
         }
       }
     });

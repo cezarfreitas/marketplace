@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Image as ImageIcon, FileText, RefreshCw, Globe } from 'lucide-react';
+import { Package, Image as ImageIcon, FileText, RefreshCw, Globe, Minus, Info, AlertTriangle } from 'lucide-react';
 import Layout from '@/components/Layout';
 
 export default function DashboardPage() {
@@ -29,6 +29,8 @@ export default function DashboardPage() {
   const [withoutImagesPercentage, setWithoutImagesPercentage] = useState<number>(0);
   const [inactiveProducts, setInactiveProducts] = useState<number>(0);
   const [inactivePercentage, setInactivePercentage] = useState<number>(0);
+  const [productsWithoutStock, setProductsWithoutStock] = useState<number>(0);
+  const [withoutStockPercentage, setWithoutStockPercentage] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -188,6 +190,30 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchProductsWithoutStock = async () => {
+    try {
+      const response = await fetch('/api/products?total_stock=0&limit=1');
+      const data = await response.json();
+      
+      if (data.success) {
+        const withoutStockCount = data.data.total || 0;
+        setProductsWithoutStock(withoutStockCount);
+        
+        // Calcular percentual baseado no total de produtos
+        if (totalProducts > 0) {
+          const percentage = Math.round((withoutStockCount / totalProducts) * 100);
+          setWithoutStockPercentage(percentage);
+        }
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar produtos sem estoque');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos sem estoque:', error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     const fetchAllData = async () => {
       try {
@@ -200,7 +226,8 @@ export default function DashboardPage() {
           fetchProductsWithoutMarketplaceDescription(),
           fetchProductsWithAnymarketSync(),
           fetchProductsWithoutSync(),
-          fetchProductsInAnymarket()
+          fetchProductsInAnymarket(),
+          fetchProductsWithoutStock()
         ]);
       } catch (error) {
         console.error('Erro ao buscar dados do dashboard:', error);
@@ -337,9 +364,18 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-center">
                   {!loading && (productsWithoutImageAnalysis > 0 || imageAnalysisPercentage > 0) && (
-                    <p className="text-xs text-green-200">
-                      {productsWithoutImageAnalysis.toLocaleString()} / {imageAnalysisPercentage}%
-                    </p>
+                    <div className="text-sm text-green-200 flex items-center justify-center gap-1">
+                      <Minus className="h-3 w-3" />
+                      <span>{productsWithoutImageAnalysis.toLocaleString()}</span>
+                      <span>/</span>
+                      <span>{imageAnalysisPercentage}%</span>
+                      <div className="group relative">
+                        <Info className="h-3 w-3 cursor-help" />
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                          Sem análise / % com análise
+                        </div>
+                      </div>
+                    </div>
                   )}
                   {loading && (
                     <div className="animate-pulse bg-green-300 h-3 w-20 rounded mx-auto"></div>
@@ -378,9 +414,18 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-center">
                   {!loading && (productsWithoutMarketplaceDescription > 0 || marketplaceDescriptionPercentage > 0) && (
-                    <p className="text-xs text-blue-200">
-                      {productsWithoutMarketplaceDescription.toLocaleString()} / {marketplaceDescriptionPercentage}%
-                    </p>
+                    <div className="text-sm text-blue-200 flex items-center justify-center gap-1">
+                      <Minus className="h-3 w-3" />
+                      <span>{productsWithoutMarketplaceDescription.toLocaleString()}</span>
+                      <span>/</span>
+                      <span>{marketplaceDescriptionPercentage}%</span>
+                      <div className="group relative">
+                        <Info className="h-3 w-3 cursor-help" />
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                          Sem descrição / % com descrição
+                        </div>
+                      </div>
+                    </div>
                   )}
                   {loading && (
                     <div className="animate-pulse bg-blue-300 h-3 w-20 rounded mx-auto"></div>
@@ -451,28 +496,26 @@ export default function DashboardPage() {
               
               {/* Conteúdo centralizado */}
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-6xl font-bold text-white text-center leading-none">
-                  {loading ? (
-                    <div className="animate-pulse bg-indigo-300 h-16 w-32 rounded"></div>
-                  ) : (
-                    productsInAnymarket.toLocaleString()
-                  )}
-                </div>
-              </div>
-              
-              {/* Estatísticas detalhadas */}
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-indigo-100">No Anymarket:</span>
-                  <span className="text-white font-medium">
-                    {loading ? '...' : `${productsInAnymarket.toLocaleString()} (${anymarketPercentage}%)`}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-indigo-100">Não no Anymarket:</span>
-                  <span className="text-white font-medium">
-                    {loading ? '...' : `${productsNotInAnymarket.toLocaleString()} (${notInAnymarketPercentage}%)`}
-                  </span>
+                <div className="text-center">
+                  <div className="text-6xl font-bold text-white leading-none">
+                    {loading ? (
+                      <div className="animate-pulse bg-indigo-300 h-16 w-32 rounded"></div>
+                    ) : (
+                      productsInAnymarket.toLocaleString()
+                    )}
+                  </div>
+                  <div className="text-sm text-indigo-200 mt-2 flex items-center justify-center gap-1">
+                    <Minus className="h-3 w-3" />
+                    <span>{loading ? '...' : `${(totalProducts - productsInAnymarket).toLocaleString()}`}</span>
+                    <span>/</span>
+                    <span>{loading ? '...' : `${anymarketPercentage}%`}</span>
+                    <div className="group relative">
+                      <Info className="h-3 w-3 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        Diferença do total / % no Anymarket
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -498,22 +541,26 @@ export default function DashboardPage() {
               
               {/* Conteúdo centralizado */}
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-6xl font-bold text-white text-center leading-none">
-                  {loading ? (
-                    <div className="animate-pulse bg-red-300 h-16 w-32 rounded"></div>
-                  ) : (
-                    productsWithoutImages.toLocaleString()
-                  )}
-                </div>
-              </div>
-              
-              {/* Estatísticas detalhadas */}
-              <div className="mt-4">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-red-100">Percentual:</span>
-                  <span className="text-white font-medium">
-                    {loading ? '...' : `${withoutImagesPercentage}%`}
-                  </span>
+                <div className="text-center">
+                  <div className="text-6xl font-bold text-white leading-none">
+                    {loading ? (
+                      <div className="animate-pulse bg-red-300 h-16 w-32 rounded"></div>
+                    ) : (
+                      productsWithoutImages.toLocaleString()
+                    )}
+                  </div>
+                  <div className="text-sm text-red-200 mt-2 flex items-center justify-center gap-1">
+                    <Minus className="h-3 w-3" />
+                    <span>{loading ? '...' : `${(totalProducts - productsWithoutImages).toLocaleString()}`}</span>
+                    <span>/</span>
+                    <span>{loading ? '...' : `${withoutImagesPercentage}%`}</span>
+                    <div className="group relative">
+                      <Info className="h-3 w-3 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        Diferença do total / % sem imagem
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -539,22 +586,26 @@ export default function DashboardPage() {
               
               {/* Conteúdo centralizado */}
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-6xl font-bold text-white text-center leading-none">
-                  {loading ? (
-                    <div className="animate-pulse bg-gray-300 h-16 w-32 rounded"></div>
-                  ) : (
-                    inactiveProducts.toLocaleString()
-                  )}
-                </div>
-              </div>
-              
-              {/* Estatísticas detalhadas */}
-              <div className="mt-4">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-100">Percentual:</span>
-                  <span className="text-white font-medium">
-                    {loading ? '...' : `${inactivePercentage}%`}
-                  </span>
+                <div className="text-center">
+                  <div className="text-6xl font-bold text-white leading-none">
+                    {loading ? (
+                      <div className="animate-pulse bg-gray-300 h-16 w-32 rounded"></div>
+                    ) : (
+                      inactiveProducts.toLocaleString()
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-200 mt-2 flex items-center justify-center gap-1">
+                    <Minus className="h-3 w-3" />
+                    <span>{loading ? '...' : `${(totalProducts - inactiveProducts).toLocaleString()}`}</span>
+                    <span>/</span>
+                    <span>{loading ? '...' : `${inactivePercentage}%`}</span>
+                    <div className="group relative">
+                      <Info className="h-3 w-3 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        Diferença do total / % inativos
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -562,6 +613,51 @@ export default function DashboardPage() {
               <div className="text-left mt-2">
                 <p className="text-xs text-gray-100">
                   Produtos inativos no sistema
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Produtos sem Estoque */}
+          <div className="aspect-square">
+            <div className="bg-yellow-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-yellow-200 p-6 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center mr-3">
+                  <AlertTriangle className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-yellow-100">Sem Estoque</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-6xl font-bold text-white leading-none">
+                    {loading ? (
+                      <div className="animate-pulse bg-yellow-300 h-16 w-32 rounded"></div>
+                    ) : (
+                      productsWithoutStock.toLocaleString()
+                    )}
+                  </div>
+                  <div className="text-sm text-yellow-200 mt-2 flex items-center justify-center gap-1">
+                    <Minus className="h-3 w-3" />
+                    <span>{loading ? '...' : `${(totalProducts - productsWithoutStock).toLocaleString()}`}</span>
+                    <span>/</span>
+                    <span>{loading ? '...' : `${withoutStockPercentage}%`}</span>
+                    <div className="group relative">
+                      <Info className="h-3 w-3 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        Diferença do total / % sem estoque
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-2">
+                <p className="text-xs text-yellow-100">
+                  Produtos com estoque zerado
                 </p>
               </div>
             </div>

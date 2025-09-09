@@ -39,6 +39,7 @@ export interface Product {
   category_name?: string;
   department_name?: string;
   anymarket_id?: string;
+  total_stock?: number;
   
   // Dados detalhados do modal
   stats?: {
@@ -53,8 +54,8 @@ export interface Product {
 
 export interface ProductFilters {
   search: string;
-  brand_id: string;
-  category_id: string;
+  brand_id: string | string[];
+  category_id: string | string[];
   has_image_analysis: string;
   has_marketplace_description: string;
   has_anymarket_ref_id: string;
@@ -62,6 +63,9 @@ export interface ProductFilters {
   is_active: string;
   is_visible: string;
   has_images: string;
+  stock_status: string;
+  stock_operator: string; // 'eq', 'gt', 'gte', 'lt', 'lte'
+  stock_value: string; // valor numérico para comparação
 }
 
 export interface ProductListResponse {

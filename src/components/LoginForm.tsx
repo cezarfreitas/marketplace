@@ -70,8 +70,8 @@ export default function LoginForm() {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             IA Generator SEO
           </h1>
-          <p className="text-gray-600 flex items-center justify-center">
-            Feito com <Heart className="w-4 h-4 mx-1 text-red-500 animate-pulse" /> por IDE | Negócios Digitais
+          <p className="text-lg text-gray-700 mb-3 font-medium">
+            AI-Powered E-commerce Descriptions
           </p>
         </div>
 
@@ -154,12 +154,13 @@ export default function LoginForm() {
           </button>
         </form>
 
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-gray-500 flex items-center justify-center">
-            IA Generator SEO - Feito com <Heart className="w-3 h-3 mx-1 text-red-500 animate-pulse" /> por IDE | Negócios Digitais
-          </p>
-        </div>
+      </div>
+      
+      {/* Footer */}
+      <div className="text-center mt-6">
+        <p className="text-gray-600 flex items-center justify-center">
+          Feito com <Heart className="w-4 h-4 mx-1 text-red-500 fill-red-500 animate-pulse" /> por IDE | Negócios Digitais
+        </p>
       </div>
     </div>
   );

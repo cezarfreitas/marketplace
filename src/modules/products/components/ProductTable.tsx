@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { Product, ProductSortOptions } from '../types';
 import { formatDate, formatNumber, getProductImageUrl } from '../utils/formatters';
+import { StockTooltip } from './StockTooltip';
 import { 
   Eye, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Image,
-  Camera, FileText, RefreshCw, MoreVertical
+  Camera, FileText, RefreshCw
 } from 'lucide-react';
 
 interface ProductTableProps {
@@ -58,29 +59,6 @@ export function ProductTable({
   // Debug: verificar se a lista está chegando
   console.log('🔍 ProductTable - productsWithMarketplace:', productsWithMarketplace);
   console.log('🔍 ProductTable - productsWithAnymarketSync:', productsWithAnymarketSync);
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-
-  // Função para fechar menu quando clicar fora
-  const handleMenuToggle = (productId: number) => {
-    setOpenMenuId(openMenuId === productId ? null : productId);
-  };
-
-  // Fechar menu quando clicar fora
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (openMenuId !== null) {
-        setOpenMenuId(null);
-      }
-    };
-
-    if (openMenuId !== null) {
-      document.addEventListener('click', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [openMenuId]);
 
   // Função para truncar texto
   const truncateText = (text: string, maxLength: number = 30): string => {
@@ -120,8 +98,8 @@ export function ProductTable({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-      <div className="overflow-x-auto">
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 relative">
+      <div className="overflow-x-auto" style={{ position: 'relative', zIndex: 1 }}>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
             <tr>
@@ -140,6 +118,11 @@ export function ProductTable({
                 <div className="flex items-center space-x-1">
                   <span>Produto</span>
                   {getSortIcon('name')}
+                </div>
+              </th>
+              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-20">
+                <div className="flex items-center justify-center space-x-1">
+                  <span>Estoque</span>
                 </div>
               </th>
               <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -173,18 +156,18 @@ export function ProductTable({
                 </div>
               </th>
               <th 
-                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-20 cursor-pointer hover:bg-gray-200 transition-colors"
+                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-16 cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={() => onSort('image_count')}
               >
                 <div className="flex items-center justify-center space-x-1">
-                  <span>Imagens</span>
+                  <span>Imgs</span>
                   {getSortIcon('image_count')}
                 </div>
               </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-40">
+              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                 Ferramentas
               </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
+              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
                 Ações
               </th>
             </tr>
@@ -240,6 +223,22 @@ export function ProductTable({
                     </div>
                   </div>
                 </td>
+                <td className="px-4 py-4 whitespace-nowrap text-center">
+                  <div className="flex items-center justify-center">
+                    <StockTooltip 
+                      productId={product.id} 
+                      totalStock={product.total_stock || 0}
+                    >
+                      <span className={`inline-flex items-center justify-center w-12 h-8 rounded-full text-sm font-semibold border cursor-help ${
+                        (product.total_stock || 0) > 0 
+                          ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' 
+                          : 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200'
+                      }`}>
+                        {product.total_stock || 0}
+                      </span>
+                    </StockTooltip>
+                  </div>
+                </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div className="flex items-center">
                     <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200 font-medium">
@@ -255,28 +254,28 @@ export function ProductTable({
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
                   <div className="flex items-center">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
                       {product.brand_name || 'N/A'}
                     </span>
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
                   <div className="flex items-center">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
                       {product.category_name || 'N/A'}
                     </span>
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-center">
                   <div className="flex items-center justify-center">
-                    <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 text-sm font-semibold border border-emerald-200">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 text-sm font-semibold border border-emerald-200">
                       {product.sku_count || 0}
                     </span>
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-center">
                   <div className="flex items-center justify-center">
-                    <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 text-sm font-semibold border border-indigo-200">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-sm font-semibold border border-indigo-200">
                       {product.image_count || 0}
                     </span>
                   </div>
@@ -341,7 +340,7 @@ export function ProductTable({
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
                     <button 
                       onClick={() => onViewProduct(product)}
                       className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200"
@@ -349,55 +348,13 @@ export function ProductTable({
                     >
                       <Eye className="h-4 w-4" />
                     </button>
-                    
-                    {/* Menu dropdown com três pontos */}
-                    <div className="relative">
-                      <button
-                        onClick={() => handleMenuToggle(product.id)}
-                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200 border border-transparent hover:border-gray-200"
-                        title="Mais opções"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                      
-                      {/* Menu dropdown */}
-                      {openMenuId === product.id && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-[9999]">
-                          <div className="py-1">
-                            <button
-                              onClick={() => {
-                                onAnalyzeImages(product);
-                                setOpenMenuId(null);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                            >
-                              <Camera className="h-4 w-4" />
-                              <span>Analisar Imagens</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                onGenerateMarketplaceDescription(product);
-                                setOpenMenuId(null);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                            >
-                              <span className="h-4 w-4 flex items-center justify-center font-bold text-sm">M</span>
-                              <span>Marketplace</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                onDeleteProduct(product);
-                                setOpenMenuId(null);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span>Excluir produto</span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => onDeleteProduct(product)}
+                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 border border-transparent hover:border-red-200"
+                      title="Excluir produto"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </td>
               </tr>

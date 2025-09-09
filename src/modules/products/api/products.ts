@@ -7,17 +7,30 @@ export class ProductsAPI {
    * Buscar lista de produtos com paginação e filtros
    */
   static async getProducts(options: ProductPaginationOptions): Promise<ProductListResponse> {
-    const queryParams = new URLSearchParams({
-      page: options.page.toString(),
-      limit: options.limit.toString(),
-      ...(options.sort && {
-        sort: options.sort.field,
-        order: options.sort.direction
-      }),
-      ...(options.filters && Object.fromEntries(
-        Object.entries(options.filters).filter(([_, value]) => value !== '')
-      ))
-    });
+    const queryParams = new URLSearchParams();
+    
+    // Parâmetros básicos
+    queryParams.append('page', options.page.toString());
+    queryParams.append('limit', options.limit.toString());
+    
+    // Ordenação
+    if (options.sort) {
+      queryParams.append('sort', options.sort.field);
+      queryParams.append('order', options.sort.direction);
+    }
+    
+    // Filtros
+    if (options.filters) {
+      Object.entries(options.filters).forEach(([key, value]) => {
+        if (Array.isArray(value) && value.length > 0) {
+          // Para arrays, adicionar cada valor como parâmetro separado
+          value.forEach(v => queryParams.append(key, v));
+        } else if (value !== '') {
+          // Para valores únicos
+          queryParams.append(key, value);
+        }
+      });
+    }
 
     const response = await fetch(`${API_BASE}?${queryParams}`);
     
