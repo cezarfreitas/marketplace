@@ -237,6 +237,36 @@ export class VTEXService {
     return this.makeRequest<VTEXImage[]>(url);
   }
 
+  async getSKUStock(skuId: number): Promise<any[]> {
+    try {
+      const stockApiUrl = `https://${this.config.accountName}.${this.config.environment}.com.br/api/logistics/pvt/inventory/skus/${skuId}`;
+      
+      const stockResponse = await fetch(stockApiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-VTEX-API-AppKey': this.config.appKey,
+          'X-VTEX-API-AppToken': this.config.appToken,
+        },
+      });
+
+      if (stockResponse.ok) {
+        const stockData = await stockResponse.json();
+        if (stockData.balance && Array.isArray(stockData.balance)) {
+          return [{
+            skuId: skuId,
+            balance: stockData.balance
+          }];
+        }
+      }
+      return [];
+    } catch (error) {
+      console.warn(`⚠️ Erro ao buscar stock do SKU ${skuId}:`, error);
+      return [];
+    }
+  }
+
   /**
    * Importar produto completo (produto + marca + categoria + SKUs + imagens)
    */
@@ -280,8 +310,21 @@ export class VTEXService {
         }
       }
 
+      // 6. Buscar stock de todos os SKUs
+      console.log(`📦 Buscando stock dos SKUs...`);
+      const allStock: any[] = [];
+      
+      for (const sku of skus) {
+        try {
+          const skuStock = await this.getSKUStock(sku.Id);
+          allStock.push(...skuStock);
+        } catch (error) {
+          console.warn(`⚠️ Erro ao buscar stock do SKU ${sku.Id}:`, error);
+        }
+      }
+
       console.log(`✅ Importação completa do produto ${productId} finalizada!`);
-      console.log(`📊 Resumo: 1 produto, 1 marca, 1 categoria, ${skus.length} SKUs, ${allImages.length} imagens`);
+      console.log(`📊 Resumo: 1 produto, 1 marca, 1 categoria, ${skus.length} SKUs, ${allImages.length} imagens, ${allStock.length} registros de stock`);
 
       return {
         product,
@@ -289,6 +332,7 @@ export class VTEXService {
         category,
         skus,
         images: allImages,
+        stock: allStock,
       };
     } catch (error) {
       console.error(`❌ Erro na importação do produto ${productId}:`, error);
@@ -305,6 +349,7 @@ export class VTEXService {
     category: VTEXCategory;
     skus: VTEXSKU[];
     images: VTEXImage[];
+    stock: any[];
   }> {
     console.log(`🔄 Iniciando importação completa do produto RefId ${refId}...`);
 

@@ -128,7 +128,7 @@ export async function POST(
     };
 
     let updatedSkus = 0;
-    let errors = [];
+    const errors = [];
 
     // Atualizar estoque de cada SKU
     for (const sku of skus) {

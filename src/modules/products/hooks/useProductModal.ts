@@ -13,15 +13,11 @@ export function useProductModal() {
 
   // Função para abrir modal com produto
   const openModal = useCallback(async (product: Product) => {
-    console.log('🔄 Abrindo modal para produto:', product.name, 'ID:', product.id);
-    
     setSelectedProduct(product);
     setShowModal(true);
     setModalLoading(true);
 
     try {
-      console.log('📡 Buscando detalhes completos para produto ID:', product.id);
-      
       // Buscar todos os detalhes do produto de uma vez
       const response = await fetch(`/api/products/${product.id}/details`);
       
@@ -33,11 +29,6 @@ export function useProductModal() {
       
       if (result.success) {
         const productDetails = result.data;
-        console.log('✅ Detalhes carregados:', {
-          skus: productDetails.skus?.length || 0,
-          images: productDetails.images?.length || 0,
-          analysisLogs: productDetails.analysisLogs?.length || 0
-        });
 
         // Atualizar o produto com dados completos
         setSelectedProduct(productDetails);
@@ -51,18 +42,16 @@ export function useProductModal() {
             const syncLogsResult = await syncLogsResponse.json();
             if (syncLogsResult.success) {
               setProductSyncLogs(syncLogsResult.data || []);
-              console.log('✅ Logs de sincronização carregados:', syncLogsResult.data?.length || 0);
             }
           }
         } catch (syncError) {
-          console.log('⚠️ Erro ao carregar logs de sincronização (não crítico):', syncError);
           setProductSyncLogs([]);
         }
       } else {
         throw new Error(result.message || 'Erro ao carregar detalhes');
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar dados do produto:', error);
+      // Silently handle error
     } finally {
       setModalLoading(false);
     }
@@ -85,7 +74,7 @@ export function useProductModal() {
       setCopiedText(type);
       setTimeout(() => setCopiedText(null), 2000);
     } catch (error) {
-      console.error('Erro ao copiar:', error);
+      // Silently handle error
     }
   }, []);
 
