@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Package, Image as ImageIcon, FileText, RefreshCw, Globe, Minus, Info, AlertTriangle } from 'lucide-react';
 import Layout from '@/components/Layout';
 
@@ -166,7 +166,7 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchProductsInAnymarket = async () => {
+  const fetchProductsInAnymarket = useCallback(async () => {
     try {
       const response = await fetch('/api/products?has_anymarket_ref_id=true&limit=1');
       const data = await response.json();
@@ -188,9 +188,9 @@ export default function DashboardPage() {
       console.error('Erro ao buscar produtos no Anymarket:', error);
       throw error;
     }
-  };
+  }, [totalProducts]);
 
-  const fetchProductsWithoutStock = async () => {
+  const fetchProductsWithoutStock = useCallback(async () => {
     try {
       const response = await fetch('/api/products?total_stock=0&limit=1');
       const data = await response.json();
@@ -212,7 +212,7 @@ export default function DashboardPage() {
       console.error('Erro ao buscar produtos sem estoque:', error);
       throw error;
     }
-  };
+  }, [totalProducts]);
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -238,7 +238,7 @@ export default function DashboardPage() {
     };
     
     fetchAllData();
-  }, []);
+  }, [fetchProductsInAnymarket, fetchProductsWithoutStock]);
 
   // Recalcular percentual do Anymarket quando total de produtos mudar
   useEffect(() => {
@@ -274,7 +274,7 @@ export default function DashboardPage() {
       const syncPercentage = (productsWithAnymarketSync / totalProducts) * 100;
       setSyncPercentage(Math.round(syncPercentage * 10) / 10);
     }
-  }, [totalProducts, productsWithImageAnalysis, productsWithMarketplaceDescription, productsWithAnymarketSync]);
+  }, [totalProducts, productsWithImageAnalysis, productsWithMarketplaceDescription, productsWithAnymarketSync, productsInAnymarket, productsWithoutImageAnalysis, productsWithoutMarketplaceDescription, productsWithoutSync]);
 
   return (
     <Layout title="Dashboard" subtitle="Visão geral do sistema">

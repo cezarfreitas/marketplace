@@ -107,6 +107,9 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 </div>
                 <div className="ml-3">
                   <h1 className="text-lg font-bold text-gray-900">IA Generator SEO</h1>
+                  <p className="text-xs text-gray-600">
+                    AI-Powered E-commerce
+                  </p>
                 </div>
               </div>
               <button

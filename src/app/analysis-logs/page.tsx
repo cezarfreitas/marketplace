@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/Layout';
 import Card from '@/components/Card';
 import { 
@@ -70,11 +70,7 @@ export default function AnalysisLogsPage() {
   });
   const [selectedLog, setSelectedLog] = useState<AnalysisLog | null>(null);
 
-  useEffect(() => {
-    loadLogs();
-  }, [currentPage, filters]);
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -103,7 +99,11 @@ export default function AnalysisLogsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, filters]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   const handleDeleteLog = async (id: number) => {
     if (!confirm('Tem certeza que deseja deletar este log?')) return;

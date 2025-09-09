@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Package } from 'lucide-react';
 
 interface StockTooltipProps {
@@ -24,14 +24,7 @@ export function StockTooltip({ productId, totalStock, children }: StockTooltipPr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Buscar dados de estoque quando o tooltip for mostrado
-  useEffect(() => {
-    if (isVisible && stockData.length === 0 && !loading) {
-      fetchStockData();
-    }
-  }, [isVisible, productId]);
-
-  const fetchStockData = async () => {
+  const fetchStockData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -48,7 +41,14 @@ export function StockTooltip({ productId, totalStock, children }: StockTooltipPr
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId]);
+
+  // Buscar dados de estoque quando o tooltip for mostrado
+  useEffect(() => {
+    if (isVisible && stockData.length === 0 && !loading) {
+      fetchStockData();
+    }
+  }, [isVisible, productId, fetchStockData, loading, stockData.length]);
 
   // Agrupar dados por SKU
   const groupedStock = stockData.reduce((acc, item) => {

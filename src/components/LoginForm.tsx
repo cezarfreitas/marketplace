@@ -152,15 +152,15 @@ export default function LoginForm() {
               'Entrar'
             )}
           </button>
+
+          {/* Footer */}
+          <div className="text-center mt-4">
+            <p className="text-gray-600 flex items-center justify-center text-sm">
+              Feito com <Heart className="w-4 h-4 mx-1 text-red-500 fill-red-500 animate-pulse" /> por IDE | Negócios Digitais
+            </p>
+          </div>
         </form>
 
-      </div>
-      
-      {/* Footer */}
-      <div className="text-center mt-6">
-        <p className="text-gray-600 flex items-center justify-center">
-          Feito com <Heart className="w-4 h-4 mx-1 text-red-500 fill-red-500 animate-pulse" /> por IDE | Negócios Digitais
-        </p>
       </div>
     </div>
   );

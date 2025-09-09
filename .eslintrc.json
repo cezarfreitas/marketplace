@@ -5,7 +5,8 @@
   "rules": {
     "prefer-const": "error",
     "no-var": "error",
-    "no-console": "off"
+    "no-console": "off",
+    "jsx-a11y/alt-text": "off"
   },
   "ignorePatterns": [
     "node_modules/",
