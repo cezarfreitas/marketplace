@@ -192,7 +192,7 @@ export default function DashboardPage() {
 
   const fetchProductsWithoutStock = useCallback(async () => {
     try {
-      const response = await fetch('/api/products?total_stock=0&limit=1');
+      const response = await fetch('/api/products?stock_operator=eq&stock_value=0&limit=1');
       const data = await response.json();
       
       if (data.success) {

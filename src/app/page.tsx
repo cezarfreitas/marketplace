@@ -7,8 +7,8 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirecionar automaticamente para a página de produtos
-    router.push('/products');
+    // Redirecionar automaticamente para o dashboard
+    router.push('/dashboard');
   }, [router]);
 
   return (
