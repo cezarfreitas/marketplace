@@ -8,8 +8,8 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/uploads/:path*',
-        destination: '/api/serve-image?file=:path*',
+        source: '/uploads/crop-images/:filename',
+        destination: '/api/serve-image?file=:filename',
       },
     ]
   },
