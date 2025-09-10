@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { vtexService } from '@/lib/vtex-service';
 import { executeQuery } from '@/lib/db-ultra-simple';
+import { checkBuildEnvironment } from '@/lib/build-check';
 
 export async function POST(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+    
     console.log('📥 Recebendo requisição de importação...');
     const body = await request.json();
     console.log('📦 Body recebido:', body);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { createVtexServiceFromDB } from '@/lib/vtex-service';
 import { executeQuery } from '@/lib/db-ultra-simple';
 
@@ -21,6 +22,11 @@ const importProgress = new Map<string, ImportProgress>();
 
 export async function POST(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const body = await request.json();
     const { refIds, batchId } = body;
 
@@ -67,6 +73,11 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const { searchParams } = new URL(request.url);
     const progressId = searchParams.get('progressId');
 

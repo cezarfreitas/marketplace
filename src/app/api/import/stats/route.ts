@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { importService } from '@/lib/import-service';
 import { executeQuery } from '@/lib/database';
 
 export async function GET(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     // Buscar estatísticas gerais de importação
     const importStats = await importService.getImportStats();
     const importHistory = await importService.getImportHistory(20);

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database';
+import { checkBuildEnvironment, getBuildErrorResponse } from '@/lib/build-check';
 
 // Função para consultar estoque de múltiplos SKUs na VTEX em paralelo
 async function consultarEstoqueVTEXParalelo(vtexSkuIds: string[], vtexAppKey: string | null, vtexAppToken: string | null, accountName: string | null, environment: string | null): Promise<{[skuId: string]: number}> {
@@ -157,8 +158,8 @@ async function atualizarEstoqueLocal(vtexSkuId: string, vtexStock: number, skuId
 export async function GET() {
   try {
     // Evitar execução durante o build do Next.js
-    if (process.env.NODE_ENV === 'production' && !process.env.RUNTIME_ENV) {
-      return new Response('API não disponível durante build', { status: 503 });
+    if (checkBuildEnvironment()) {
+      return getBuildErrorResponse();
     }
     
     console.log('🔄 Iniciando atualização de estoque em tempo real...');

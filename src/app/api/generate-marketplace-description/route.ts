@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 
 // Função para verificar se título já existe no banco
@@ -39,6 +40,11 @@ async function generateUniqueTitle(baseTitle: string, productId: number, maxAtte
 
 export async function POST(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     console.log('🔄 Iniciando geração de descrição do Marketplace...');
     
     let body;

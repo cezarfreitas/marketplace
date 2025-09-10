@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 import * as XLSX from 'xlsx';
 
 export async function POST(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     console.log('📤 Iniciando upload de arquivo Excel/CSV...');
     
     const formData = await request.formData();

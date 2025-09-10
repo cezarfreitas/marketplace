@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database';
+import { checkBuildEnvironment } from '@/lib/build-check';
 
 export async function POST() {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+    
     console.log('🔄 Iniciando atualização de estoque geral...');
 
     // Verificar se há SKUs com múltiplos registros na tabela stock

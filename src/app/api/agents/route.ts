@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery, executeModificationQuery } from '@/lib/database';
 
 export async function GET(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     console.log('🔄 Buscando agentes...');
 
     const agents = await executeQuery(`
@@ -40,6 +46,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const { name, description, function_type, model, max_tokens, temperature, system_prompt, guidelines_template, analysis_type, timeout, max_images } = await request.json();
 
     if (!name || !function_type || !model) {

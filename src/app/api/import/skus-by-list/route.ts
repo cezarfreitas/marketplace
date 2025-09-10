@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery, executeModificationQuery } from '@/lib/database';
 
 interface VTEXProduct {
@@ -80,6 +81,11 @@ interface VTEXSKUFile {
 
 export async function POST(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const { skus } = await request.json();
     
     if (!skus || !Array.isArray(skus) || skus.length === 0) {

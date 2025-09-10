@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 
 export async function DELETE(request: Request) {

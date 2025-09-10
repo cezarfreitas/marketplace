@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 
 interface AuxiliaryData {
@@ -7,6 +8,11 @@ interface AuxiliaryData {
 
 export async function POST(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const { brandId, guidelines, saveData, auxiliaryData: requestAuxiliaryData } = await request.json();
     
     if (!brandId) {

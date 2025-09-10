@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 
 // Função auxiliar para salvar logs de sincronização
@@ -48,6 +49,11 @@ async function saveSyncLog(productId: number, anymarketId: string, title: string
 
 export async function POST(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const { productId } = await request.json();
 
     if (!productId) {

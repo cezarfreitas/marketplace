@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database';
+import { checkBuildEnvironment } from '@/lib/build-check';
 
 export async function GET(request: NextRequest) {
   try {
     // Evitar execução durante o build do Next.js
-    if (process.env.NODE_ENV === 'production' && !process.env.RUNTIME_ENV) {
+    if (checkBuildEnvironment()) {
       return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
     }
     const { searchParams } = new URL(request.url);
