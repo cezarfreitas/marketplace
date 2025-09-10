@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
           isFile: stats.isFile(),
           isDirectory: stats.isDirectory()
         });
-      } catch (error) {
+      } catch (error: any) {
         fileDetails.push({
           name: file,
           error: error.message
