@@ -5,12 +5,19 @@ import { join } from 'path';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const fileName = searchParams.get('file');
+    let fileName = searchParams.get('file');
+    
+    // Se não há parâmetro file, tentar extrair do path
+    if (!fileName) {
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split('/');
+      fileName = pathParts[pathParts.length - 1];
+    }
     
     if (!fileName) {
       return NextResponse.json({
         success: false,
-        message: 'Parâmetro file é obrigatório'
+        message: 'Nome do arquivo não encontrado'
       }, { status: 400 });
     }
 
