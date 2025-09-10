@@ -1039,6 +1039,10 @@ export default function ProductsPage() {
       return;
     }
 
+    if (!confirm(`Deseja processar crop de imagens para ${productsToProcess.length} produtos selecionados?`)) {
+      return;
+    }
+
     setBatchCropProgress({
       current: 0,
       total: productsToProcess.length,
@@ -1048,6 +1052,7 @@ export default function ProductsPage() {
 
     let successCount = 0;
     let errorCount = 0;
+    const errors: string[] = [];
 
     for (let i = 0; i < productsToProcess.length; i++) {
       const product = productsToProcess[i];
@@ -1061,22 +1066,41 @@ export default function ProductsPage() {
       try {
         console.log(`🔄 Processando crop para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
         
-        // Simular processamento (aqui você pode chamar a API de crop diretamente)
-        // Por enquanto, vamos apenas marcar como processado
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Simular delay
-        
-        setProductsWithCroppedImages(prev => {
-          if (!prev.includes(product.id)) {
-            return [...prev, product.id];
-          }
-          return prev;
+        // Chamar API real de crop
+        const response = await fetch('/api/crop-images-vtex', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            productId: product.id,
+            anymarketId: product.anymarket_id
+          })
         });
+
+        const result = await response.json();
+
+        if (result.success) {
+          setProductsWithCroppedImages(prev => {
+            if (!prev.includes(product.id)) {
+              return [...prev, product.id];
+            }
+            return prev;
+          });
+          
+          successCount++;
+          console.log(`✅ Crop concluído para: ${product.name} - ${result.data.processedImages} imagens processadas`);
+        } else {
+          errorCount++;
+          const errorMsg = `${product.name}: ${result.message}`;
+          errors.push(errorMsg);
+          console.error(`❌ Erro no crop de ${product.name}:`, result.message);
+        }
         
-        successCount++;
-        console.log(`✅ Crop concluído para: ${product.name}`);
-        
-      } catch (error) {
+      } catch (error: any) {
         errorCount++;
+        const errorMsg = `${product.name}: ${error.message}`;
+        errors.push(errorMsg);
         console.error(`❌ Erro no crop de ${product.name}:`, error);
       }
     }
@@ -1088,7 +1112,17 @@ export default function ProductsPage() {
       isRunning: false
     });
 
-    alert(`Processamento em lote concluído!\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`);
+    // Mostrar resultado detalhado
+    let resultMessage = `Processamento em lote concluído!\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`;
+    
+    if (errors.length > 0) {
+      resultMessage += `\n\nErros encontrados:\n${errors.slice(0, 5).join('\n')}`;
+      if (errors.length > 5) {
+        resultMessage += `\n... e mais ${errors.length - 5} erro(s)`;
+      }
+    }
+    
+    alert(resultMessage);
   };
 
   const performAnymarketSync = async () => {
