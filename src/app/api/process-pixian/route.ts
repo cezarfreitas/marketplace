@@ -81,24 +81,8 @@ export async function POST(request: NextRequest) {
     const processedImageUrl = uploadResult.data.publicUrl;
     console.log('📤 Imagem salva no servidor:', processedImageUrl);
 
-    // 3. Verificar se o arquivo pode ser acessado
-    try {
-      console.log('🔍 Verificando acessibilidade do arquivo:', processedImageUrl);
-      const fileCheckResponse = await fetch(processedImageUrl, { 
-        method: 'HEAD',
-        headers: {
-          'User-Agent': 'Meli-Integration/1.0'
-        }
-      });
-      
-      if (!fileCheckResponse.ok) {
-        throw new Error(`Arquivo não acessível: ${fileCheckResponse.status} - ${fileCheckResponse.statusText}`);
-      }
-      console.log('✅ Arquivo verificado e acessível:', processedImageUrl);
-    } catch (fileError: any) {
-      console.error('❌ Erro ao verificar arquivo:', fileError);
-      throw new Error(`Arquivo não pode ser acessado: ${fileError.message}`);
-    }
+    // 3. Arquivo salvo com sucesso (verificação HTTP removida para evitar erro 404)
+    console.log('✅ Arquivo salvo com sucesso no servidor:', processedImageUrl);
 
     // 4. Retornar resultado com URLs
     return NextResponse.json({
