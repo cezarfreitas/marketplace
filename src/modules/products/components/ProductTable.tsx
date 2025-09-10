@@ -5,9 +5,10 @@ import { Product, ProductSortOptions } from '../types';
 import { formatDate, formatNumber, getProductImageUrl } from '../utils/formatters';
 import { StockTooltip } from './StockTooltip';
 import { 
-  Eye, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Image,
+  Eye, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon,
   Camera, FileText, RefreshCw, Crop
 } from 'lucide-react';
+import Image from 'next/image';
 
 interface ProductTableProps {
   products: Product[];
@@ -191,9 +192,11 @@ export function ProductTable({
                   <div className="flex items-center">
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
                       {product.first_image_url ? (
-                        <img
+                        <Image
                           src={getProductImageUrl(product)}
                           alt={product.name}
+                          width={40}
+                          height={40}
                           className="w-full h-full object-cover rounded-lg"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';

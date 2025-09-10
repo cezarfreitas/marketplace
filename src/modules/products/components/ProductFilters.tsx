@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ProductFilters } from '../types';
 import { Filter, X, RotateCcw } from 'lucide-react';
 
@@ -144,7 +144,7 @@ export function ProductFiltersComponent({
   }, [filters.brand_id, filters.category_id, brands, categories]);
 
   // Carregar marcas e categorias filtradas
-  const fetchFilterOptions = async () => {
+  const fetchFilterOptions = useCallback(async () => {
     setLoadingBrands(true);
     setLoadingCategories(true);
     try {
@@ -188,12 +188,25 @@ export function ProductFiltersComponent({
       setLoadingBrands(false);
       setLoadingCategories(false);
     }
-  };
+  }, [
+    filters.search,
+    filters.is_active,
+    filters.is_visible,
+    filters.has_images,
+    filters.has_image_analysis,
+    filters.has_marketplace_description,
+    filters.has_anymarket_ref_id,
+    filters.has_anymarket_sync_log,
+    filters.stock_operator,
+    filters.stock_value,
+    filters.brand_id,
+    filters.category_id
+  ]);
 
   // Carregar dados quando o componente montar
   useEffect(() => {
     fetchFilterOptions();
-  }, []);
+  }, [fetchFilterOptions]);
 
   // Recarregar opções quando os filtros mudarem
   useEffect(() => {
@@ -203,6 +216,7 @@ export function ProductFiltersComponent({
 
     return () => clearTimeout(timeoutId);
   }, [
+    fetchFilterOptions,
     filters.search,
     filters.is_active,
     filters.is_visible,
