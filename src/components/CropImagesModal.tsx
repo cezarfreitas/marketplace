@@ -608,183 +608,190 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-4xl max-h-[95vh] overflow-hidden">
-        {/* Header */}
-        <div className={`text-white p-6 ${processedProduct ? 'bg-gradient-to-r from-orange-600 to-orange-700' : 'bg-gradient-to-r from-blue-600 to-purple-600'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className={`w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center ${processedProduct ? 'bg-orange-500/30' : ''}`}>
-                  {processedProduct ? (
-                    <History className="h-6 w-6" />
-                  ) : (
-                    <ImageIcon className="h-6 w-6" />
-                  )}
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold">
-                    {processedProduct ? 'Produto Processado' : 'Imagens da VTEX'}
-                  </h2>
-                  <p className="text-blue-100 text-sm">{product.name}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 text-sm text-blue-100">
-                <span className="flex items-center gap-1">
-                  <span className={`w-2 h-2 rounded-full ${processedProduct ? 'bg-orange-400' : 'bg-green-400'}`}></span>
-                  ID: {product.anymarket_id}
-                </span>
-                {processedProduct && (
-                  <span className="flex items-center gap-1 bg-orange-500/30 px-2 py-1 rounded-full">
-                    <History className="h-3 w-3" />
-                    Processado {processedProduct.totalProcessingCount}x
-                  </span>
-                )}
-              </div>
-            </div>
-              <button
-                onClick={() => {
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              {processedProduct ? (
+                <History className="w-6 h-6 mr-3 text-orange-600" />
+              ) : (
+                <ImageIcon className="w-6 h-6 mr-3 text-blue-600" />
+              )}
+              {processedProduct ? 'Produto Processado' : 'Processar Imagens'}
+            </h2>
+            <button
+              onClick={() => {
                 if (!isProcessing) {
                   onClose();
                 }
-                }}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+              }}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
               disabled={isProcessing}
-              >
-                <X className="h-6 w-6" />
-              </button>
+            >
+              <X className="h-6 w-6" />
+            </button>
           </div>
-        </div>
 
-        {/* Progress Bar */}
-        {isProcessing && (
-        <div className="bg-gray-50 border-b border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-                <span className="font-medium text-gray-900">{currentStep}</span>
+          {/* Informações do Produto */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-gray-900 mb-3">Informações do Produto</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-gray-700">Nome:</span>
+                <p className="text-gray-600">{product.name}</p>
               </div>
-                    <span className="text-sm text-gray-600">
-                {progress.current}/{progress.total}
+              <div>
+                <span className="font-medium text-gray-700">ID Anymarket:</span>
+                <p className="text-gray-600 font-mono">{product.anymarket_id}</p>
+              </div>
+              {processedProduct && (
+                <>
+                  <div>
+                    <span className="font-medium text-gray-700">Status:</span>
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 ml-2">
+                      Processado {processedProduct.totalProcessingCount}x
                     </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
-              ></div>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Último Processamento:</span>
+                    <p className="text-gray-600">{new Date(processedProduct.lastProcessedAt).toLocaleString('pt-BR')}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Content */}
-        <div className="p-6">
-          {/* Botão de ação simplificado */}
-          {!isProcessing && logs.length === 0 && (
-            <div className="text-center py-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {processedProduct ? 'Reprocessar Imagens' : 'Processar Imagens'}
-              </h3>
-              
-              {processedProduct && (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-orange-800">
-                    Processado {processedProduct.totalProcessingCount}x • {new Date(processedProduct.lastProcessedAt).toLocaleDateString()}
-                  </p>
+          {/* Progress Bar */}
+          {isProcessing && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                  <span className="font-medium text-gray-900">{currentStep}</span>
                 </div>
-              )}
-              
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={handleProcessImages}
-                  className={`px-6 py-2 text-white rounded-lg flex items-center gap-2 font-medium ${
-                    processedProduct 
-                      ? 'bg-orange-600 hover:bg-orange-700'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                >
-                  <Play className="h-4 w-4" />
-                  {processedProduct ? 'Reprocessar' : 'Processar'}
-                </button>
-                
-                {processedProduct && (
-                  <button
-                    onClick={() => setShowLogsModal(true)}
-                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2 text-sm"
-                  >
-                    <History className="h-4 w-4" />
-                    Histórico
-                  </button>
-                )}
+                <span className="text-sm text-gray-600">
+                  {progress.current}/{progress.total}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+                ></div>
               </div>
             </div>
           )}
 
-          {/* Logs simplificados */}
-          {logs.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-md font-semibold text-gray-900">Progresso</h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">
-                    {logs.filter(l => l.level === 'success').length}✓ {logs.filter(l => l.level === 'error').length}✗
-                  </span>
-                  {!isProcessing && (
+          <div className="space-y-6">
+            {/* Ações */}
+            {!isProcessing && logs.length === 0 && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">
+                  {processedProduct ? 'Reprocessar Imagens' : 'Processar Imagens'}
+                </h3>
+                
+                {processedProduct && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-orange-800">
+                      Este produto já foi processado {processedProduct.totalProcessingCount} vez(es). 
+                      Última vez: {new Date(processedProduct.lastProcessedAt).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                )}
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleProcessImages}
+                    className={`px-6 py-2 text-white rounded-lg flex items-center gap-2 font-medium ${
+                      processedProduct 
+                        ? 'bg-orange-600 hover:bg-orange-700'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                  >
+                    <Play className="h-4 w-4" />
+                    {processedProduct ? 'Reprocessar' : 'Processar'}
+                  </button>
+                  
+                  {processedProduct && (
                     <button
-                      onClick={clearLogs}
-                      className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+                      onClick={() => setShowLogsModal(true)}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2 text-sm"
                     >
-                      Limpar
+                      <History className="h-4 w-4" />
+                      Ver Histórico
                     </button>
                   )}
                 </div>
               </div>
+            )}
 
-              <div className="space-y-1 max-h-64 overflow-y-auto">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className={`p-2 rounded border-l-4 ${getLogColor(log.level)}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {getLogIcon(log.level)}
-                      <p className="text-sm">{log.message}</p>
-                      <span className="text-xs text-gray-500 ml-auto">
-                        {log.timestamp.toLocaleTimeString()}
-                      </span>
-                    </div>
+            {/* Logs de Processamento */}
+            {logs.length > 0 && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900">Logs de Processamento</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">
+                      {logs.filter(l => l.level === 'success').length} sucessos, {logs.filter(l => l.level === 'error').length} erros
+                    </span>
+                    {!isProcessing && (
+                      <button
+                        onClick={clearLogs}
+                        className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Limpar
+                      </button>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
 
-          {/* Resultado simplificado */}
-          {!isProcessing && processedImages.length > 0 && (
-            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <h3 className="font-medium text-green-900">
-                  {processedImages.length} imagem(ns) processada(s)
-                </h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {logs.map((log) => (
+                    <div
+                      key={log.id}
+                      className={`p-3 rounded-lg border ${getLogColor(log.level)}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {getLogIcon(log.level)}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{log.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {log.timestamp.toLocaleTimeString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="text-sm text-green-700">
-                Imagens processadas com Pixian.ai e enviadas para Anymarket
-              </p>
-            </div>
-          )}
+            )}
 
-          {/* Botão fechar */}
-          {!isProcessing && logs.length > 0 && (
-            <div className="mt-4 text-center">
-              <button
-                onClick={onClose}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Fechar
-              </button>
-            </div>
-          )}
+            {/* Resultado */}
+            {!isProcessing && processedImages.length > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <h3 className="font-semibold text-green-900">Processamento Concluído</h3>
+                </div>
+                <p className="text-sm text-green-700">
+                  {processedImages.length} imagem(ns) processada(s) com Pixian.ai e enviada(s) para Anymarket
+                </p>
+              </div>
+            )}
+
+            {/* Botão Fechar */}
+            {!isProcessing && logs.length > 0 && (
+              <div className="flex justify-end">
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
