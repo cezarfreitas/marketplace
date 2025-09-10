@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     await writeFile(filePath, imageBuffer);
 
     // Gerar URL pública
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002';
     const publicUrl = `${baseUrl}/uploads/crop-images/${fileName}`;
 
     console.log('✅ Imagem salva:', filePath);
