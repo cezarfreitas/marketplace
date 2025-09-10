@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Package, Image as ImageIcon, FileText, RefreshCw, Globe, Minus, Info, AlertTriangle } from 'lucide-react';
+import { Package, Image as ImageIcon, FileText, RefreshCw, Globe, Minus, Info, AlertTriangle, Warehouse } from 'lucide-react';
 import Layout from '@/components/Layout';
 
 export default function DashboardPage() {
@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [inactivePercentage, setInactivePercentage] = useState<number>(0);
   const [productsWithoutStock, setProductsWithoutStock] = useState<number>(0);
   const [withoutStockPercentage, setWithoutStockPercentage] = useState<number>(0);
+  const [totalStock, setTotalStock] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -214,6 +215,24 @@ export default function DashboardPage() {
     }
   }, [totalProducts]);
 
+  const fetchTotalStock = useCallback(async () => {
+    try {
+      const response = await fetch('/api/tools/stock-stats');
+      const data = await response.json();
+      
+      if (data.success) {
+        const totalStockValue = data.data.totalStock || 0;
+        setTotalStock(totalStockValue);
+      } else {
+        console.error('API retornou erro:', data);
+        throw new Error(data.message || 'Erro ao buscar total de estoque');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar total de estoque:', error);
+      throw error;
+    }
+  }, []);
+
   useEffect(() => {
     const fetchAllData = async () => {
       try {
@@ -227,7 +246,8 @@ export default function DashboardPage() {
           fetchProductsWithAnymarketSync(),
           fetchProductsWithoutSync(),
           fetchProductsInAnymarket(),
-          fetchProductsWithoutStock()
+          fetchProductsWithoutStock(),
+          fetchTotalStock()
         ]);
       } catch (error) {
         console.error('Erro ao buscar dados do dashboard:', error);
@@ -238,7 +258,7 @@ export default function DashboardPage() {
     };
     
     fetchAllData();
-  }, [fetchProductsInAnymarket, fetchProductsWithoutStock]);
+  }, [fetchProductsInAnymarket, fetchProductsWithoutStock, fetchTotalStock]);
 
   // Recalcular percentual do Anymarket quando total de produtos mudar
   useEffect(() => {
@@ -294,7 +314,7 @@ export default function DashboardPage() {
           </div>
         )}
         {/* Grid de Cards em linha */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
           {/* Card de Total de Produtos */}
           <div className="aspect-square">
             <div className="bg-orange-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-orange-200 p-4 h-full flex flex-col">
@@ -339,6 +359,39 @@ export default function DashboardPage() {
               <div className="text-left mt-2 flex-shrink-0">
                 <p className="text-xs text-orange-100 leading-tight">
                   Produtos cadastrados no sistema
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Total de Estoque */}
+          <div className="aspect-square">
+            <div className="bg-teal-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-teal-200 p-4 h-full flex flex-col">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-teal-400 rounded-lg flex items-center justify-center mr-2">
+                  <Warehouse className="h-4 w-4 text-white" />
+                </div>
+                <p className="text-xs font-medium text-teal-100 leading-tight">Total de Estoque</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="flex-1 flex items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
+                    {loading ? (
+                      <div className="animate-pulse bg-teal-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
+                    ) : (
+                      <span className="break-all">{totalStock.toLocaleString()}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-left mt-2 flex-shrink-0">
+                <p className="text-xs text-teal-100 leading-tight">
+                  Quantidade total em estoque
                 </p>
               </div>
             </div>
