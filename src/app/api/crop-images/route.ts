@@ -166,6 +166,9 @@ export async function POST(request: NextRequest) {
         
         console.log('📋 JSON do upload:', JSON.stringify(anymarketUploadData));
 
+        console.log('🔑 Token sendo usado:', 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==');
+        console.log('🌐 URL da API:', `https://api.anymarket.com.br/v2/products/${anymarketId}/images`);
+        
         const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
           method: 'POST',
           headers: {
@@ -345,6 +348,9 @@ export async function POST(request: NextRequest) {
           
           console.log('📋 JSON do upload VTEX:', JSON.stringify(anymarketUploadData));
 
+          console.log('🔑 Token sendo usado (VTEX):', 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==');
+          console.log('🌐 URL da API (VTEX):', `https://api.anymarket.com.br/v2/products/${anymarketId}/images`);
+          
           const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
             method: 'POST',
             headers: {
