@@ -4,10 +4,6 @@ import { executeQuery } from '@/lib/database';
 
 export async function GET() {
   try {
-    // Evitar execução durante o build do Next.js
-    if (checkBuildEnvironment()) {
-      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
-    }
 
     // Query para obter estatísticas de produtos
     const statsQuery = `
