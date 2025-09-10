@@ -1,51 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readdir, stat, access } from 'fs/promises';
 import { join } from 'path';
-import { access, readdir } from 'fs/promises';
-import { getBaseUrl } from '@/lib/url-utils';
 
 export async function GET(request: NextRequest) {
   try {
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'crop-images');
+    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'crop-images');
+    
+    console.log('🔍 Verificando diretório:', uploadsDir);
     
     // Verificar se o diretório existe
     try {
-      await access(uploadDir);
+      await access(uploadsDir);
+      console.log('✅ Diretório existe');
     } catch (error) {
+      console.log('❌ Diretório não existe:', error);
       return NextResponse.json({
         success: false,
-        message: 'Diretório de uploads não existe',
-        error: error
-      }, { status: 404 });
+        message: 'Diretório não existe',
+        directory: uploadsDir,
+        error: error.message
+      });
     }
 
     // Listar arquivos no diretório
-    const files = await readdir(uploadDir);
-    
-    // Gerar URLs para os arquivos
-    const baseUrl = getBaseUrl(request);
-    const fileUrls = files.map(file => ({
-      fileName: file,
-      url: `${baseUrl}/uploads/crop-images/${file}`,
-      localPath: join(uploadDir, file)
-    }));
+    const files = await readdir(uploadsDir);
+    console.log('📁 Arquivos encontrados:', files);
 
-    // Testar acesso a alguns arquivos
-    const testResults = [];
-    for (const fileUrl of fileUrls.slice(0, 3)) { // Testar apenas os primeiros 3
+    const fileDetails = [];
+    for (const file of files) {
       try {
-        const response = await fetch(fileUrl.url, { method: 'HEAD' });
-        testResults.push({
-          fileName: fileUrl.fileName,
-          url: fileUrl.url,
-          accessible: response.ok,
-          status: response.status,
-          statusText: response.statusText
+        const filePath = join(uploadsDir, file);
+        const stats = await stat(filePath);
+        fileDetails.push({
+          name: file,
+          size: stats.size,
+          created: stats.birthtime,
+          modified: stats.mtime,
+          isFile: stats.isFile(),
+          isDirectory: stats.isDirectory()
         });
-      } catch (error: any) {
-        testResults.push({
-          fileName: fileUrl.fileName,
-          url: fileUrl.url,
-          accessible: false,
+      } catch (error) {
+        fileDetails.push({
+          name: file,
           error: error.message
         });
       }
@@ -53,22 +49,19 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Teste de acesso a arquivos concluído',
+      message: 'Verificação de arquivos concluída',
       data: {
-        uploadDir,
-        baseUrl,
+        directory: uploadsDir,
         totalFiles: files.length,
-        files: fileUrls,
-        testResults
+        files: fileDetails
       }
     });
 
   } catch (error: any) {
-    console.error('❌ Erro no teste de acesso a arquivos:', error);
-    
+    console.error('❌ Erro ao verificar arquivos:', error);
     return NextResponse.json({
       success: false,
-      message: 'Erro ao testar acesso a arquivos',
+      message: 'Erro ao verificar arquivos',
       error: error.message
     }, { status: 500 });
   }
