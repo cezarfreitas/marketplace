@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       const testResponse = await fetch(publicUrl, { method: 'HEAD' });
       httpAccessible = testResponse.ok;
       console.log('🔍 Teste HTTP:', testResponse.ok ? '✅ Acessível' : '❌ Não acessível');
-    } catch (error) {
+    } catch (error: any) {
       console.log('🔍 Teste HTTP: ❌ Erro:', error.message);
     }
 
