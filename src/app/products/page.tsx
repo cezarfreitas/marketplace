@@ -1040,6 +1040,22 @@ export default function ProductsPage() {
     isRunning: false
   });
 
+  // Estado para processamento "All" (todos os processamentos em sequência)
+  const [batchAllProgress, setBatchAllProgress] = useState({
+    current: 0,
+    total: 0,
+    currentProduct: '',
+    currentStep: '',
+    isRunning: false,
+    completedSteps: {
+      analysis: 0,
+      marketplace: 0,
+      anymarket: 0,
+      stock: 0,
+      crop: 0
+    }
+  });
+
   const handleBatchCropImages = async () => {
     console.log('🚀 Iniciando crop em lote...');
     console.log('📊 Produtos selecionados:', selectedProducts);
@@ -1168,6 +1184,364 @@ export default function ProductsPage() {
     }
     
     alert(resultMessage);
+  };
+
+  // Função para processar "All" - todos os processamentos em sequência
+  const handleBatchAll = async () => {
+    console.log('🚀 Iniciando processamento "All" em lote...');
+    console.log('📊 Produtos selecionados:', selectedProducts);
+
+    if (selectedProducts.length === 0) {
+      alert('Selecione pelo menos um produto para processar');
+      return;
+    }
+
+    const productsToProcess = products.filter(p => 
+      selectedProducts.includes(p.id) && 
+      p.anymarket_id
+    );
+
+    if (productsToProcess.length === 0) {
+      alert('Nenhum produto válido selecionado para processamento');
+      return;
+    }
+
+    if (!confirm(`Deseja processar TODOS os passos para ${productsToProcess.length} produtos selecionados?\n\n📸 Análise de Imagens\n📝 Marketplace\n🔄 Anymarket\n📦 Estoque\n✂️ Crop de Imagens`)) {
+      return;
+    }
+
+    setBatchAllProgress({
+      current: 0,
+      total: productsToProcess.length * 5, // 5 passos por produto
+      currentProduct: '',
+      currentStep: '',
+      isRunning: true,
+      completedSteps: {
+        analysis: 0,
+        marketplace: 0,
+        anymarket: 0,
+        stock: 0,
+        crop: 0
+      }
+    });
+
+    let totalSuccess = 0;
+    let totalErrors = 0;
+    const stepResults = {
+      analysis: { success: 0, errors: 0 },
+      marketplace: { success: 0, errors: 0 },
+      anymarket: { success: 0, errors: 0 },
+      stock: { success: 0, errors: 0 },
+      crop: { success: 0, errors: 0 }
+    };
+
+    try {
+      // 1. ANÁLISE DE IMAGENS
+      console.log('📸 === ETAPA 1: ANÁLISE DE IMAGENS ===');
+      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Análise de Imagens' }));
+      
+      for (let i = 0; i < productsToProcess.length; i++) {
+        const product = productsToProcess[i];
+        const stepIndex = i * 5 + 1;
+        
+        setBatchAllProgress(prev => ({
+          ...prev,
+          current: stepIndex,
+          currentProduct: product.name
+        }));
+
+        try {
+          console.log(`📸 Analisando produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+          
+          const response = await fetch('/api/analyze-images', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              productId: product.id,
+              timestamp: Date.now(),
+              forceNewAnalysis: true
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setProductsWithAnalysis(prev => {
+                if (!prev.includes(product.id)) {
+                  return [...prev, product.id];
+                }
+                return prev;
+              });
+              stepResults.analysis.success++;
+              totalSuccess++;
+            } else {
+              stepResults.analysis.errors++;
+              totalErrors++;
+            }
+          } else {
+            stepResults.analysis.errors++;
+            totalErrors++;
+          }
+        } catch (error) {
+          console.error(`❌ Erro na análise de ${product.name}:`, error);
+          stepResults.analysis.errors++;
+          totalErrors++;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // 2. MARKETPLACE
+      console.log('📝 === ETAPA 2: MARKETPLACE ===');
+      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Marketplace' }));
+      
+      for (let i = 0; i < productsToProcess.length; i++) {
+        const product = productsToProcess[i];
+        const stepIndex = i * 5 + 2;
+        
+        setBatchAllProgress(prev => ({
+          ...prev,
+          current: stepIndex,
+          currentProduct: product.name
+        }));
+
+        try {
+          console.log(`📝 Gerando Marketplace para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+          
+          const response = await fetch('/api/generate-marketplace-description', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: product.id,
+              forceRegenerate: false
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setProductsWithMarketplace(prev => {
+                if (!prev.includes(product.id)) {
+                  return [...prev, product.id];
+                }
+                return prev;
+              });
+              stepResults.marketplace.success++;
+              totalSuccess++;
+            } else {
+              stepResults.marketplace.errors++;
+              totalErrors++;
+            }
+          } else {
+            stepResults.marketplace.errors++;
+            totalErrors++;
+          }
+        } catch (error) {
+          console.error(`❌ Erro no Marketplace de ${product.name}:`, error);
+          stepResults.marketplace.errors++;
+          totalErrors++;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // 3. ANYMARKET (sincronização individual)
+      console.log('🔄 === ETAPA 3: ANYMARKET ===');
+      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Anymarket' }));
+      
+      for (let i = 0; i < productsToProcess.length; i++) {
+        const product = productsToProcess[i];
+        const stepIndex = i * 5 + 3;
+        
+        setBatchAllProgress(prev => ({
+          ...prev,
+          current: stepIndex,
+          currentProduct: product.name
+        }));
+
+        try {
+          console.log(`🔄 Sincronizando Anymarket para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+          
+          const response = await fetch('/api/anymarket/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: product.id
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setProductsWithAnymarketSync(prev => {
+                if (!prev.includes(product.id)) {
+                  return [...prev, product.id];
+                }
+                return prev;
+              });
+              stepResults.anymarket.success++;
+              totalSuccess++;
+            } else {
+              stepResults.anymarket.errors++;
+              totalErrors++;
+            }
+          } else {
+            stepResults.anymarket.errors++;
+            totalErrors++;
+          }
+        } catch (error) {
+          console.error(`❌ Erro no Anymarket de ${product.name}:`, error);
+          stepResults.anymarket.errors++;
+          totalErrors++;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // 4. ATUALIZAÇÃO DE ESTOQUE
+      console.log('📦 === ETAPA 4: ATUALIZAÇÃO DE ESTOQUE ===');
+      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Atualização de Estoque' }));
+      
+      for (let i = 0; i < productsToProcess.length; i++) {
+        const product = productsToProcess[i];
+        const stepIndex = i * 5 + 4;
+        
+        setBatchAllProgress(prev => ({
+          ...prev,
+          current: stepIndex,
+          currentProduct: product.name
+        }));
+
+        try {
+          console.log(`📦 Atualizando estoque para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+          
+          const response = await fetch(`/api/products/${product.id}/stock`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              stock: product.stock || 0
+            })
+          });
+
+          if (response.ok) {
+            stepResults.stock.success++;
+            totalSuccess++;
+          } else {
+            stepResults.stock.errors++;
+            totalErrors++;
+          }
+        } catch (error) {
+          console.error(`❌ Erro na atualização de estoque de ${product.name}:`, error);
+          stepResults.stock.errors++;
+          totalErrors++;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // 5. CROP DE IMAGENS
+      console.log('✂️ === ETAPA 5: CROP DE IMAGENS ===');
+      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Crop de Imagens' }));
+      
+      for (let i = 0; i < productsToProcess.length; i++) {
+        const product = productsToProcess[i];
+        const stepIndex = i * 5 + 5;
+        
+        setBatchAllProgress(prev => ({
+          ...prev,
+          current: stepIndex,
+          currentProduct: product.name
+        }));
+
+        try {
+          console.log(`✂️ Processando crop para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+          
+          const response = await fetch('/api/crop-images-vtex', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: product.id,
+              anymarketId: product.anymarket_id
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setProductsWithCroppedImages(prev => {
+                if (!prev.includes(product.id)) {
+                  return [...prev, product.id];
+                }
+                return prev;
+              });
+              stepResults.crop.success++;
+              totalSuccess++;
+            } else {
+              stepResults.crop.errors++;
+              totalErrors++;
+            }
+          } else {
+            stepResults.crop.errors++;
+            totalErrors++;
+          }
+        } catch (error) {
+          console.error(`❌ Erro no crop de ${product.name}:`, error);
+          stepResults.crop.errors++;
+          totalErrors++;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
+    } catch (error) {
+      console.error('❌ Erro geral no processamento All:', error);
+    } finally {
+      setBatchAllProgress({
+        current: 0,
+        total: 0,
+        currentProduct: '',
+        currentStep: '',
+        isRunning: false,
+        completedSteps: {
+          analysis: 0,
+          marketplace: 0,
+          anymarket: 0,
+          stock: 0,
+          crop: 0
+        }
+      });
+
+      // Mostrar resultado final detalhado
+      let resultMessage = `🎉 Processamento "All" concluído!\n\n`;
+      resultMessage += `📊 RESUMO GERAL:\n`;
+      resultMessage += `✅ Total de sucessos: ${totalSuccess}\n`;
+      resultMessage += `❌ Total de erros: ${totalErrors}\n\n`;
+      
+      resultMessage += `📸 ANÁLISE DE IMAGENS:\n`;
+      resultMessage += `✅ Sucessos: ${stepResults.analysis.success}\n`;
+      resultMessage += `❌ Erros: ${stepResults.analysis.errors}\n\n`;
+      
+      resultMessage += `📝 MARKETPLACE:\n`;
+      resultMessage += `✅ Sucessos: ${stepResults.marketplace.success}\n`;
+      resultMessage += `❌ Erros: ${stepResults.marketplace.errors}\n\n`;
+      
+      resultMessage += `🔄 ANYMARKET:\n`;
+      resultMessage += `✅ Sucessos: ${stepResults.anymarket.success}\n`;
+      resultMessage += `❌ Erros: ${stepResults.anymarket.errors}\n\n`;
+      
+      resultMessage += `📦 ESTOQUE:\n`;
+      resultMessage += `✅ Sucessos: ${stepResults.stock.success}\n`;
+      resultMessage += `❌ Erros: ${stepResults.stock.errors}\n\n`;
+      
+      resultMessage += `✂️ CROP DE IMAGENS:\n`;
+      resultMessage += `✅ Sucessos: ${stepResults.crop.success}\n`;
+      resultMessage += `❌ Erros: ${stepResults.crop.errors}`;
+      
+      alert(resultMessage);
+      
+      // Limpar seleção
+      setSelectedProducts([]);
+    }
   };
 
   const performAnymarketSync = async () => {
@@ -1412,12 +1786,36 @@ export default function ProductsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Barra de Progresso - Processamento "All" */}
+              {batchAllProgress.isRunning && (
+                <div className="w-full relative z-[110] mb-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span>Processamento All - {batchAllProgress.currentStep}: {batchAllProgress.currentProduct}</span>
+                    <span>{batchAllProgress.current}/{batchAllProgress.total}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 via-yellow-500 via-green-500 via-purple-500 to-orange-500 h-3 rounded-full transition-all duration-300 ease-out"
+                      style={{ 
+                        width: `${batchAllProgress.total > 0 ? (batchAllProgress.current / batchAllProgress.total) * 100 : 0}%` 
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {Math.round((batchAllProgress.current / batchAllProgress.total) * 100)}% concluído
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    📸 Análise → 📝 Marketplace → 🔄 Anymarket → 📦 Estoque → ✂️ Crop
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="flex space-x-2 ml-4">
               <button
                 onClick={handleAnalyzeSelectedImages}
-                disabled={batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning}
+                disabled={batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
                 className="px-4 py-2 text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {batchAnalysisProgress.isRunning ? (
@@ -1429,7 +1827,7 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={handleGenerateMeliBatch}
-                disabled={batchMarketplaceProgress.isRunning || batchAnalysisProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning}
+                disabled={batchMarketplaceProgress.isRunning || batchAnalysisProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
                 className="px-4 py-2 text-yellow-600 border border-yellow-300 rounded-lg hover:bg-yellow-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {batchMarketplaceProgress.isRunning ? (
@@ -1441,7 +1839,7 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={handleAnymarketSyncBatch}
-                disabled={batchAnymarketProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning}
+                disabled={batchAnymarketProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
                 className="px-4 py-2 text-green-600 border border-green-300 rounded-lg hover:bg-green-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {batchAnymarketProgress.isRunning ? (
@@ -1453,7 +1851,7 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={handleUpdateStockBatch}
-                disabled={batchStockProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchCropProgress.isRunning}
+                disabled={batchStockProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
                 className="px-4 py-2 text-purple-600 border border-purple-300 rounded-lg hover:bg-purple-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {batchStockProgress.isRunning ? (
@@ -1465,7 +1863,7 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={handleBatchCropImages}
-                disabled={batchCropProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning}
+                disabled={batchCropProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchAllProgress.isRunning}
                 className="px-4 py-2 text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {batchCropProgress.isRunning ? (
@@ -1476,8 +1874,20 @@ export default function ProductsPage() {
                 {batchCropProgress.isRunning ? 'Processando...' : 'Crop Imagens'}
               </button>
               <button
+                onClick={handleBatchAll}
+                disabled={batchAllProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning}
+                className="px-4 py-2 text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+              >
+                {batchAllProgress.isRunning ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <span className="h-4 w-4 mr-2 flex items-center justify-center font-bold text-sm">ALL</span>
+                )}
+                {batchAllProgress.isRunning ? 'Processando All...' : 'ALL'}
+              </button>
+              <button
                 onClick={handleExportSelected}
-                disabled={isExporting || batchStockProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchCropProgress.isRunning}
+                disabled={isExporting || batchStockProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
                 className="px-4 py-2 text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isExporting ? (
