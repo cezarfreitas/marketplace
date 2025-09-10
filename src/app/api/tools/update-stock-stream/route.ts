@@ -156,6 +156,11 @@ async function atualizarEstoqueLocal(vtexSkuId: string, vtexStock: number, skuId
 
 export async function GET() {
   try {
+    // Evitar execução durante o build do Next.js
+    if (process.env.NODE_ENV === 'production' && !process.env.RUNTIME_ENV) {
+      return new Response('API não disponível durante build', { status: 503 });
+    }
+    
     console.log('🔄 Iniciando atualização de estoque em tempo real...');
 
     // Criar um stream de resposta
