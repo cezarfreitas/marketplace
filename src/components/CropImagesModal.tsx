@@ -1,7 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Download, Loader2, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { 
+  X, Download, Loader2, Image as ImageIcon, CheckCircle, AlertCircle, 
+  Play, Pause, RotateCcw, Eye, EyeOff, Filter, Settings, 
+  Zap, Clock, FileImage, Upload, Trash2, RefreshCw
+} from 'lucide-react';
 
 interface CropImagesModalProps {
   isOpen: boolean;
@@ -40,9 +44,88 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
   const [processingProgress, setProcessingProgress] = useState({
     current: 0,
     total: 0,
-    currentImage: ''
+    currentImage: '',
+    stage: '',
+    details: ''
   });
   const [result, setResult] = useState<any>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'compare'>('grid');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'processed' | 'pending' | 'error'>('all');
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [showImagePreview, setShowImagePreview] = useState<string | null>(null);
+  const [processingStats, setProcessingStats] = useState({
+    startTime: 0,
+    endTime: 0,
+    totalTime: 0,
+    successCount: 0,
+    errorCount: 0
+  });
+
+  // Funções auxiliares
+  const getFilteredImages = useCallback(() => {
+    return originalImages.filter(image => {
+      const processed = processedImages.has(image.id);
+      const error = errors.has(image.id);
+      
+      switch (filterStatus) {
+        case 'processed': return processed;
+        case 'pending': return !processed && !error;
+        case 'error': return error;
+        default: return true;
+      }
+    });
+  }, [originalImages, processedImages, errors, filterStatus]);
+
+  const getImageStatus = useCallback((imageId: string) => {
+    if (processingImages.has(imageId)) return 'processing';
+    if (processedImages.has(imageId)) return 'processed';
+    if (errors.has(imageId)) return 'error';
+    return 'pending';
+  }, [processingImages, processedImages, errors]);
+
+  const formatTime = useCallback((seconds: number) => {
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds.toFixed(1)}s`;
+  }, []);
+
+  const handleSelectImage = useCallback((imageId: string) => {
+    setSelectedImages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(imageId)) {
+        newSet.delete(imageId);
+      } else {
+        newSet.add(imageId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    const filtered = getFilteredImages();
+    if (selectedImages.size === filtered.length) {
+      setSelectedImages(new Set());
+    } else {
+      setSelectedImages(new Set(filtered.map(img => img.id)));
+    }
+  }, [getFilteredImages, selectedImages.size]);
+
+  // Reset states when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setProcessingStats({
+        startTime: 0,
+        endTime: 0,
+        totalTime: 0,
+        successCount: 0,
+        errorCount: 0
+      });
+      setSelectedImages(new Set());
+      setShowImagePreview(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen || !product) {
     // Limpar resultado quando modal é fechado
@@ -125,11 +208,15 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
   const handleProcessAllImages = async () => {
     if (!product) return;
 
+    const startTime = Date.now();
     setIsProcessingAll(true);
+    setProcessingStats(prev => ({ ...prev, startTime }));
     setProcessingProgress({
       current: 0,
       total: originalImages.length,
-      currentImage: 'Iniciando processamento...'
+      currentImage: 'Iniciando processamento...',
+      stage: 'Preparando',
+      details: 'Conectando com a API do Pixian.ai'
     });
 
     try {
@@ -147,42 +234,62 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
       });
 
       const result = await response.json();
+      const endTime = Date.now();
+      const totalTime = (endTime - startTime) / 1000;
 
       if (result.success) {
         console.log('✅ Processo concluído:', result.data);
         setResult(result);
         
+        // Atualizar estatísticas
+        setProcessingStats(prev => ({
+          ...prev,
+          endTime,
+          totalTime,
+          successCount: result.data.successfulUploads || 0,
+          errorCount: result.data.totalErrors || 0
+        }));
+        
         // Atualizar o estado com os resultados processados
-        if (result.data.results) {
-          result.data.results.forEach((processedImage: any) => {
+        if (result.data.anymarketImages?.results) {
+          result.data.anymarketImages.results.forEach((processedImage: any) => {
             setProcessedImages(prev => new Map(prev).set(processedImage.imageId, {
               original: {
-                url: processedImage.originalImage || '',
+                url: processedImage.originalUrl || '',
                 base64: '',
                 size: 0
               },
               cropped: {
-                base64: processedImage.cropped_base64 || '',
-                size: processedImage.cropped_size || 0
+                base64: processedImage.croppedBase64 || '',
+                size: processedImage.croppedSize || 0
               }
             }));
           });
         }
 
         // Adicionar erros se houver
-        if (result.data.errors) {
-          result.data.errors.forEach((error: any) => {
+        if (result.data.anymarketImages?.errorDetails) {
+          result.data.anymarketImages.errorDetails.forEach((error: any) => {
             setErrors(prev => new Map(prev).set(error.imageId, error.error));
           });
         }
 
         setProcessingProgress({
-          current: result.data.processed || 0,
+          current: result.data.totalProcessed || 0,
           total: result.data.totalImages || originalImages.length,
-          currentImage: 'Concluído'
+          currentImage: 'Concluído com sucesso!',
+          stage: 'Finalizado',
+          details: `${result.data.successfulUploads || 0} imagens processadas, ${result.data.totalErrors || 0} erros`
         });
       } else {
         console.error('❌ Erro no processamento automático:', result);
+        setProcessingStats(prev => ({
+          ...prev,
+          endTime,
+          totalTime,
+          errorCount: 1
+        }));
+        
         let errorMessage = result.message;
         
         if (result.debug) {
@@ -204,11 +311,33 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
           }
         }
         
-        alert(`Erro no processamento:\n\n${errorMessage}`);
+        setProcessingProgress({
+          current: 0,
+          total: originalImages.length,
+          currentImage: 'Erro no processamento',
+          stage: 'Erro',
+          details: errorMessage
+        });
       }
     } catch (error: any) {
       console.error('❌ Erro ao processar imagens:', error);
-      alert(`Erro ao processar imagens: ${error.message}`);
+      const endTime = Date.now();
+      const totalTime = (endTime - startTime) / 1000;
+      
+      setProcessingStats(prev => ({
+        ...prev,
+        endTime,
+        totalTime,
+        errorCount: 1
+      }));
+      
+      setProcessingProgress({
+        current: 0,
+        total: originalImages.length,
+        currentImage: 'Erro de conexão',
+        stage: 'Erro',
+        details: error.message
+      });
     } finally {
       setIsProcessingAll(false);
     }
@@ -222,366 +351,648 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const filteredImages = getFilteredImages();
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-6xl max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-7xl max-h-[95vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              🖼️ Crop de Imagens - {product.name}
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              ID Anymarket: {product.anymarket_id} • {originalImages.length} imagens encontradas
-            </p>
-            <div className="mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-              🎨 Pixian.ai: 1500x1500px • Fundo branco • Margem 150px • Qualidade 90%
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <ImageIcon className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">Crop de Imagens</h2>
+                  <p className="text-blue-100 text-sm">{product.name}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-sm text-blue-100">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                  ID: {product.anymarket_id}
+                </span>
+                <span className="flex items-center gap-1">
+                  <FileImage className="h-4 w-4" />
+                  {originalImages.length} imagens
+                </span>
+                <span className="flex items-center gap-1">
+                  <Zap className="h-4 w-4" />
+                  Pixian.ai
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+                title="Configurações"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => {
+                  setResult(null);
+                  onClose();
+                }}
+                className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setResult(null);
-              onClose();
-            }}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
+        </div>
+
+        {/* Toolbar */}
+        <div className="bg-gray-50 border-b border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {/* Filtros */}
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-gray-500" />
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as any)}
+                  className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Todas ({originalImages.length})</option>
+                  <option value="pending">Pendentes ({originalImages.length - processedImages.size - errors.size})</option>
+                  <option value="processed">Processadas ({processedImages.size})</option>
+                  <option value="error">Com Erro ({errors.size})</option>
+                </select>
+              </div>
+
+              {/* Modo de visualização */}
+              <div className="flex items-center gap-1 bg-white rounded-lg p-1 border border-gray-300">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-md transition-colors ${
+                    viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  title="Grade"
+                >
+                  <div className="w-4 h-4 grid grid-cols-2 gap-0.5">
+                    <div className="bg-current rounded-sm"></div>
+                    <div className="bg-current rounded-sm"></div>
+                    <div className="bg-current rounded-sm"></div>
+                    <div className="bg-current rounded-sm"></div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-md transition-colors ${
+                    viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  title="Lista"
+                >
+                  <div className="w-4 h-4 flex flex-col gap-0.5">
+                    <div className="bg-current rounded-sm h-1"></div>
+                    <div className="bg-current rounded-sm h-1"></div>
+                    <div className="bg-current rounded-sm h-1"></div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setViewMode('compare')}
+                  className={`p-2 rounded-md transition-colors ${
+                    viewMode === 'compare' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  title="Comparar"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Seleção */}
+              {filteredImages.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSelectAll}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {selectedImages.size === filteredImages.length ? 'Desmarcar Todas' : 'Selecionar Todas'}
+                  </button>
+                  {selectedImages.size > 0 && (
+                    <span className="text-sm text-gray-600">
+                      {selectedImages.size} selecionadas
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Estatísticas */}
+              <div className="flex items-center gap-4 text-sm text-gray-600">
+                <span className="flex items-center gap-1">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  {processedImages.size}
+                </span>
+                <span className="flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4 text-red-500" />
+                  {errors.size}
+                </span>
+                {processingStats.totalTime > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-4 w-4 text-blue-500" />
+                    {formatTime(processingStats.totalTime)}
+                  </span>
+                )}
+              </div>
+
+              {/* Botão principal */}
+              <button
+                onClick={handleProcessAllImages}
+                disabled={isProcessingAll || processingImages.size > 0}
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 font-medium shadow-lg"
+              >
+                {isProcessingAll ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Zap className="h-5 w-5" />
+                )}
+                {isProcessingAll ? 'Processando...' : 'Processar Todas'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-          {/* Botão para processar */}
-          <div className="mb-6">
-            <button
-              onClick={handleProcessAllImages}
-              disabled={isProcessingAll || processingImages.size > 0}
-              className="w-full px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-3 text-lg font-medium"
-            >
-              {isProcessingAll ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <ImageIcon className="h-6 w-6" />
-              )}
-              {isProcessingAll ? 'Processando...' : 'Deletar e Processar no Pixian'}
-            </button>
-            
-            <div className="mt-3 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <p className="font-medium mb-2">🎨 Processo Completo com Rate Limiting:</p>
-              <ol className="list-decimal list-inside space-y-1 text-xs">
-                <li>Deletar todas as imagens do produto no Anymarket</li>
-                <li>Listar URLs das imagens dos SKUs da VTEX</li>
-                <li>Processar imagens no Pixian (3 por vez, com delay de 5s)</li>
-                <li>Aplicar backoff automático em caso de rate limit</li>
-                <li>Exibir imagens originais e cropadas lado a lado</li>
-              </ol>
-              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                <strong>⏳ Rate Limiting:</strong> Processamento otimizado para respeitar os limites da API do Pixian
-              </div>
-            </div>
-          </div>
+        <div className="p-6 overflow-y-auto max-h-[calc(95vh-200px)]">
           
-          {/* Barra de progresso */}
+          {/* Barra de progresso melhorada */}
           {isProcessingAll && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                <span>Processando imagens...</span>
-                <span>{processingProgress.current}/{processingProgress.total}</span>
+            <div className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 text-white animate-spin" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{processingProgress.stage}</h3>
+                    <p className="text-sm text-gray-600">{processingProgress.currentImage}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {processingProgress.current}/{processingProgress.total}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {Math.round((processingProgress.current / processingProgress.total) * 100)}%
+                  </div>
+                </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-3">
                 <div 
-                  className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
                 ></div>
               </div>
-              {processingProgress.currentImage && (
-                <p className="text-sm text-gray-500 mt-1">{processingProgress.currentImage}</p>
+              
+              {processingProgress.details && (
+                <div className="text-sm text-gray-600 bg-white/50 rounded-lg p-3">
+                  <p>{processingProgress.details}</p>
+                </div>
               )}
             </div>
           )}
 
-          {/* Grid de imagens */}
-          {originalImages.length === 0 ? (
+          {/* Estatísticas de processamento */}
+          {processingStats.totalTime > 0 && !isProcessingAll && (
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-8 w-8 text-green-600" />
+                  <div>
+                    <div className="text-2xl font-bold text-green-700">{processingStats.successCount}</div>
+                    <div className="text-sm text-green-600">Sucessos</div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-8 w-8 text-red-600" />
+                  <div>
+                    <div className="text-2xl font-bold text-red-700">{processingStats.errorCount}</div>
+                    <div className="text-sm text-red-600">Erros</div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-8 w-8 text-blue-600" />
+                  <div>
+                    <div className="text-2xl font-bold text-blue-700">{formatTime(processingStats.totalTime)}</div>
+                    <div className="text-sm text-blue-600">Tempo Total</div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                <div className="flex items-center gap-3">
+                  <Zap className="h-8 w-8 text-purple-600" />
+                  <div>
+                    <div className="text-2xl font-bold text-purple-700">
+                      {processingStats.totalTime > 0 ? Math.round(processingStats.successCount / processingStats.totalTime * 60) : 0}
+                    </div>
+                    <div className="text-sm text-purple-600">Imgs/min</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Visualização das imagens */}
+          {filteredImages.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <ImageIcon className="w-12 h-12 text-gray-400" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma imagem encontrada</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {originalImages.length === 0 ? 'Nenhuma imagem encontrada' : 'Nenhuma imagem corresponde ao filtro'}
+              </h3>
               <p className="text-gray-600 mb-4">
-                Este produto não possui imagens originais no Anymarket.
+                {originalImages.length === 0 
+                  ? 'Este produto não possui imagens originais no Anymarket.'
+                  : 'Tente alterar o filtro para ver mais imagens.'
+                }
               </p>
-              <p className="text-sm text-gray-500">
-                Você ainda pode usar o botão "Processar Imagens da VTEX" para buscar e processar imagens diretamente da VTEX.
-              </p>
+              {originalImages.length === 0 && (
+                <p className="text-sm text-gray-500">
+                  Você ainda pode usar o botão "Processar Imagens da VTEX" para buscar e processar imagens diretamente da VTEX.
+                </p>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {originalImages.map((image) => {
-              const isProcessing = processingImages.has(image.id);
-              const processed = processedImages.get(image.id);
-              const error = errors.get(image.id);
+            <>
+              {/* Modo Grade */}
+              {viewMode === 'grid' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filteredImages.map((image) => {
+                    const status = getImageStatus(image.id);
+                    const processed = processedImages.get(image.id);
+                    const error = errors.get(image.id);
+                    const isSelected = selectedImages.has(image.id);
 
-              return (
-                <div key={image.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  {/* Header da imagem */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="font-medium text-gray-900">
-                        {image.variation} {image.isMain && <span className="text-green-600">(Principal)</span>}
-                      </h3>
-                      <p className="text-sm text-gray-500">Imagem #{image.index}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isProcessing && <Loader2 className="h-4 w-4 animate-spin text-purple-600" />}
-                      {processed && <CheckCircle className="h-4 w-4 text-green-600" />}
-                      {error && <AlertCircle className="h-4 w-4 text-red-600" />}
-                    </div>
-                  </div>
+                    return (
+                      <div 
+                        key={image.id} 
+                        className={`bg-white rounded-xl border-2 transition-all duration-200 hover:shadow-lg ${
+                          isSelected ? 'border-blue-500 shadow-lg' : 'border-gray-200 hover:border-gray-300'
+                        } ${status === 'error' ? 'border-red-200' : status === 'processed' ? 'border-green-200' : ''}`}
+                      >
+                        {/* Header */}
+                        <div className="p-4 border-b border-gray-100">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleSelectImage(image.id)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <h3 className="font-semibold text-gray-900 text-sm">
+                                {image.variation}
+                              </h3>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {image.isMain && (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                                  Principal
+                                </span>
+                              )}
+                              <span className="text-xs text-gray-500">#{image.index}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Status */}
+                          <div className="flex items-center gap-2">
+                            {status === 'processing' && (
+                              <div className="flex items-center gap-1 text-purple-600">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span className="text-xs font-medium">Processando</span>
+                              </div>
+                            )}
+                            {status === 'processed' && (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <CheckCircle className="h-4 w-4" />
+                                <span className="text-xs font-medium">Processada</span>
+                              </div>
+                            )}
+                            {status === 'error' && (
+                              <div className="flex items-center gap-1 text-red-600">
+                                <AlertCircle className="h-4 w-4" />
+                                <span className="text-xs font-medium">Erro</span>
+                              </div>
+                            )}
+                            {status === 'pending' && (
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <Clock className="h-4 w-4" />
+                                <span className="text-xs font-medium">Pendente</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
-                  {/* Imagem original */}
-                  <div className="mb-3">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Original:</p>
-                    <div className="relative">
-                      <img
-                        src={image.originalImage}
-                        alt={`${image.variation} - Original`}
-                        className="w-full h-32 object-cover rounded border"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/placeholder-image.png';
-                        }}
-                      />
-                      <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-                        Original
-                      </div>
-                    </div>
-                  </div>
+                        {/* Imagem */}
+                        <div className="p-4">
+                          <div className="relative group">
+                            <img
+                              src={image.originalImage}
+                              alt={`${image.variation} - Original`}
+                              className="w-full h-40 object-cover rounded-lg border border-gray-200"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/placeholder-image.png';
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                              <button
+                                onClick={() => setShowImagePreview(image.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/90 text-gray-900 p-2 rounded-full hover:bg-white"
+                              >
+                                <Eye className="h-5 w-5" />
+                              </button>
+                            </div>
+                            <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                              Original
+                            </div>
+                          </div>
 
-                  {/* Imagem cropada */}
-                  {processed && (
-                    <div className="mb-3">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Cropada:</p>
-                      <div className="relative">
-                        <img
-                          src={processed.cropped.base64}
-                          alt={`${image.variation} - Cropada`}
-                          className="w-full h-32 object-cover rounded border"
-                        />
-                        <div className="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">
-                          Cropada
+                          {/* Imagem cropada */}
+                          {processed && (
+                            <div className="mt-3">
+                              <div className="relative">
+                                <img
+                                  src={processed.cropped.base64}
+                                  alt={`${image.variation} - Cropada`}
+                                  className="w-full h-40 object-cover rounded-lg border border-green-200"
+                                />
+                                <div className="absolute top-2 left-2 bg-green-600 text-white text-xs px-2 py-1 rounded">
+                                  Cropada
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Ações */}
+                          <div className="mt-4 flex gap-2">
+                            {status === 'pending' && (
+                              <button
+                                onClick={() => handleProcessImage(image.id, image.originalImage)}
+                                className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all flex items-center justify-center gap-2 font-medium"
+                              >
+                                <Zap className="h-4 w-4" />
+                                Processar
+                              </button>
+                            )}
+
+                            {status === 'processed' && (
+                              <button
+                                onClick={() => handleDownloadImage(processed.cropped.base64, `${product.name}-${image.variation}-cropada.png`)}
+                                className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                              >
+                                <Download className="h-4 w-4" />
+                                Baixar
+                              </button>
+                            )}
+
+                            {status === 'error' && (
+                              <button
+                                onClick={() => handleProcessImage(image.id, image.originalImage)}
+                                className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                                Tentar Novamente
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Informações */}
+                          {processed && (
+                            <div className="mt-3 text-xs text-gray-500 space-y-1">
+                              <div className="flex justify-between">
+                                <span>Original:</span>
+                                <span>{formatFileSize(processed.original.size)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Cropada:</span>
+                                <span>{formatFileSize(processed.cropped.size)}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Erro */}
+                          {error && (
+                            <div className="mt-3 text-xs text-red-600 bg-red-50 p-2 rounded-lg border border-red-200">
+                              {error}
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Botões de ação */}
-                  <div className="flex gap-2">
-                    {!processed && !isProcessing && !error && (
-                      <button
-                        onClick={() => handleProcessImage(image.id, image.originalImage)}
-                        className="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <ImageIcon className="h-4 w-4" />
-                        Cropar
-                      </button>
-                    )}
-
-                    {processed && (
-                      <button
-                        onClick={() => handleDownloadImage(processed.cropped.base64, `${product.name}-${image.variation}-cropada.png`)}
-                        className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Download className="h-4 w-4" />
-                        Baixar
-                      </button>
-                    )}
-
-                    {error && (
-                      <button
-                        onClick={() => handleProcessImage(image.id, image.originalImage)}
-                        className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-                      >
-                        Tentar Novamente
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Informações de tamanho */}
-                  {processed && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      <p>Original: {formatFileSize(processed.original.size)}</p>
-                      <p>Cropada: {formatFileSize(processed.cropped.size)}</p>
-                    </div>
-                  )}
-
-                  {/* Status de upload */}
-                  {processed && (
-                    <div className="mt-3 p-2 bg-green-50 rounded border border-green-200">
-                      <p className="text-xs font-medium text-green-800 mb-1">✅ Upload automático:</p>
-                      <p className="text-xs text-green-700">
-                        Imagem processada e enviada automaticamente para o Anymarket
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Mensagem de erro */}
-                  {error && (
-                    <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
-                      {error}
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
-              );
-            })}
-            </div>
+              )}
+
+              {/* Modo Lista */}
+              {viewMode === 'list' && (
+                <div className="space-y-4">
+                  {filteredImages.map((image) => {
+                    const status = getImageStatus(image.id);
+                    const processed = processedImages.get(image.id);
+                    const error = errors.get(image.id);
+                    const isSelected = selectedImages.has(image.id);
+
+                    return (
+                      <div 
+                        key={image.id} 
+                        className={`bg-white rounded-lg border-2 transition-all duration-200 ${
+                          isSelected ? 'border-blue-500' : 'border-gray-200'
+                        } ${status === 'error' ? 'border-red-200' : status === 'processed' ? 'border-green-200' : ''}`}
+                      >
+                        <div className="p-4 flex items-center gap-4">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleSelectImage(image.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          
+                          <div className="w-20 h-20 flex-shrink-0">
+                            <img
+                              src={image.originalImage}
+                              alt={`${image.variation} - Original`}
+                              className="w-full h-full object-cover rounded-lg border border-gray-200"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/placeholder-image.png';
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-gray-900 truncate">
+                                {image.variation}
+                              </h3>
+                              {image.isMain && (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                                  Principal
+                                </span>
+                              )}
+                              <span className="text-xs text-gray-500">#{image.index}</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              {status === 'processing' && (
+                                <div className="flex items-center gap-1 text-purple-600">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Processando</span>
+                                </div>
+                              )}
+                              {status === 'processed' && (
+                                <div className="flex items-center gap-1 text-green-600">
+                                  <CheckCircle className="h-4 w-4" />
+                                  <span>Processada</span>
+                                </div>
+                              )}
+                              {status === 'error' && (
+                                <div className="flex items-center gap-1 text-red-600">
+                                  <AlertCircle className="h-4 w-4" />
+                                  <span>Erro</span>
+                                </div>
+                              )}
+                              {status === 'pending' && (
+                                <div className="flex items-center gap-1 text-gray-500">
+                                  <Clock className="h-4 w-4" />
+                                  <span>Pendente</span>
+                                </div>
+                              )}
+                              
+                              {processed && (
+                                <span className="text-gray-500">
+                                  {formatFileSize(processed.cropped.size)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {status === 'pending' && (
+                              <button
+                                onClick={() => handleProcessImage(image.id, image.originalImage)}
+                                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all flex items-center gap-2"
+                              >
+                                <Zap className="h-4 w-4" />
+                                Processar
+                              </button>
+                            )}
+
+                            {status === 'processed' && (
+                              <button
+                                onClick={() => handleDownloadImage(processed.cropped.base64, `${product.name}-${image.variation}-cropada.png`)}
+                                className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                              >
+                                <Download className="h-4 w-4" />
+                                Baixar
+                              </button>
+                            )}
+
+                            {status === 'error' && (
+                              <button
+                                onClick={() => handleProcessImage(image.id, image.originalImage)}
+                                className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                                Tentar Novamente
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        {/* Seção de URLs dos SKUs */}
-        {result && result.data && result.data.skuImages && result.data.skuImages.images && result.data.skuImages.images.length > 0 && (
-          <div className="p-6 border-t border-gray-200 bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              🎨 Imagens Processadas no Pixian ({result.data.skuImages.processed}/{result.data.skuImages.total})
-            </h3>
-            <div className="space-y-3 max-h-60 overflow-y-auto">
-              {result.data.skuImages.images.map((image: any, index: number) => (
-                <div key={image.id} className="bg-white p-4 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <span className="font-medium text-gray-900">
-                        SKU: {image.sku_name} {image.sku_color && `(${image.sku_color})`}
-                      </span>
-                      {image.is_primary && (
-                        <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          Principal
-                        </span>
-                      )}
-                      {image.processing_success ? (
-                        <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                          ✅ Processada
-                        </span>
-                      ) : (
-                        <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                          ❌ Erro
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-sm text-gray-500">Posição: {image.position}</span>
-                  </div>
-
-                  {image.processing_success ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Imagem Original */}
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-2 block">Imagem Original:</label>
-                        <div className="relative">
-                          <img
-                            src={image.full_url}
-                            alt={`${image.sku_name} - Original`}
-                            className="w-full h-32 object-cover rounded border"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/placeholder-image.png';
-                            }}
-                          />
-                          <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-                            Original
-                          </div>
-                        </div>
-                        <div className="mt-2">
-                          <input
-                            type="text"
-                            value={image.full_url}
-                            readOnly
-                            className="w-full text-xs p-2 bg-gray-100 border rounded font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Imagem Cropada */}
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-2 block">Imagem Cropada:</label>
-                        <div className="relative">
-                          <img
-                            src={image.cropped_base64}
-                            alt={`${image.sku_name} - Cropada`}
-                            className="w-full h-32 object-cover rounded border"
-                          />
-                          <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
-                            Cropada
-                          </div>
-                        </div>
-                        <div className="mt-2 flex gap-2">
-                          <button
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = image.cropped_base64;
-                              link.download = `${image.sku_name}-cropada.jpg`;
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                            }}
-                            className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
-                          >
-                            📥 Baixar
-                          </button>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(image.cropped_base64)}
-                            className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
-                          >
-                            📋 Copiar Base64
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-red-50 border border-red-200 rounded p-3">
-                      <p className="text-sm text-red-800">
-                        <strong>Erro no processamento:</strong> {image.error || 'Erro desconhecido'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-          <div className="text-sm text-gray-600">
-            <div className="flex items-center gap-4">
-              <span>{processedImages.size} de {originalImages.length} imagens processadas</span>
-              {errors.size > 0 && (
-                <span className="text-red-600">{errors.size} com erro</span>
-              )}
+        <div className="bg-gray-50 border-t border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>{processedImages.size} processadas</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <span>{errors.size} com erro</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-gray-500" />
+                <span>{originalImages.length - processedImages.size - errors.size} pendentes</span>
+              </div>
               {isProcessingAll && (
-                <span className="text-purple-600">Processamento automático em andamento...</span>
+                <div className="flex items-center gap-2 text-purple-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Processando...</span>
+                </div>
               )}
             </div>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              Fechar
-            </button>
-            {processedImages.size > 0 && (
+            
+            <div className="flex items-center gap-3">
+              {selectedImages.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">
+                    {selectedImages.size} selecionadas
+                  </span>
+                  <button
+                    onClick={() => {
+                      selectedImages.forEach(imageId => {
+                        const image = originalImages.find(img => img.id === imageId);
+                        const processed = processedImages.get(imageId);
+                        if (image && processed) {
+                          handleDownloadImage(processed.cropped.base64, `${product.name}-${image.variation}-cropada.png`);
+                        }
+                      });
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Baixar Selecionadas
+                  </button>
+                </div>
+              )}
+              
+              {processedImages.size > 0 && (
+                <button
+                  onClick={() => {
+                    processedImages.forEach((processed, imageId) => {
+                      const image = originalImages.find(img => img.id === imageId);
+                      if (image) {
+                        handleDownloadImage(processed.cropped.base64, `${product.name}-${image.variation}-cropada.png`);
+                      }
+                    });
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Baixar Todas
+                </button>
+              )}
+              
               <button
                 onClick={() => {
-                  // Baixar todas as imagens cropadas
-                  processedImages.forEach((processed, imageId) => {
-                    const image = originalImages.find(img => img.id === imageId);
-                    if (image) {
-                      handleDownloadImage(processed.cropped.base64, `${product.name}-${image.variation}-cropada.png`);
-                    }
-                  });
+                  setResult(null);
+                  onClose();
                 }}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
               >
-                <Download className="h-4 w-4" />
-                Baixar Todas
+                Fechar
               </button>
-            )}
+            </div>
           </div>
         </div>
       </div>
