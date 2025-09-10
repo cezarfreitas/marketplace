@@ -12,245 +12,13 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('🖼️ Iniciando processamento automático de todas as imagens para produto:', productId);
+    console.log('🖼️ Iniciando busca de imagens da VTEX para produto:', productId);
 
-    // 1. Buscar imagens do produto no Anymarket
+    // Buscar imagens do produto no banco de dados (tabela images vinculada por sku_id)
     let imagesData;
     try {
-      const anymarketResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
-        method: 'GET',
-        headers: {
-          'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==',
-          'Content-Type': 'application/json',
-          'User-Agent': 'Meli-Integration/1.0',
-          'Accept': 'application/json'
-        },
-        cache: 'no-store'
-      });
-
-      if (!anymarketResponse.ok) {
-        throw new Error(`Erro ao buscar imagens: ${anymarketResponse.status}`);
-      }
-
-      imagesData = await anymarketResponse.json();
-      console.log('✅ Imagens encontradas:', imagesData.length);
-    } catch (error: any) {
-      console.error('❌ Erro ao buscar imagens:', error);
-      return NextResponse.json({
-        success: false,
-        message: 'Erro ao buscar imagens: ' + error.message
-      }, { status: 400 });
-    }
-
-    console.log('📊 Dados brutos das imagens:', JSON.stringify(imagesData, null, 2));
-
-    // Filtrar apenas imagens com originalImage
-    const originalImages = imagesData.filter((img: any) => img.originalImage);
-    
-    console.log(`🔍 Total de imagens: ${imagesData.length}`);
-    console.log(`🔍 Imagens com originalImage: ${originalImages.length}`);
-    
-    // Se não há imagens no Anymarket, continuar para etapa 2 (SKUs da VTEX)
-    if (imagesData.length === 0) {
-      console.log('⚠️ Nenhuma imagem encontrada no Anymarket, continuando para etapa 2 (SKUs da VTEX)');
-    }
-    
-    if (originalImages.length === 0) {
-      console.log('⚠️ Nenhuma imagem com originalImage no Anymarket, continuando para etapa 2 (SKUs da VTEX)');
-    }
-
-    console.log(`🔄 Processando ${originalImages.length} imagens...`);
-
-    const results = [];
-    const errors = [];
-
-    // Processar cada imagem
-    for (let i = 0; i < originalImages.length; i++) {
-      const image = originalImages[i];
-      console.log(`📸 Processando imagem ${i + 1}/${originalImages.length}: ${image.id}`);
-
-      try {
-        // 2. Processar no Pixian.ai usando JSON (formato curl)
-        const pixianData = {
-          image: {
-            url: image.originalImage
-          },
-          background: {
-            color: "#FFFFFF"
-          },
-          result: {
-            crop_to_foreground: true,
-            target_size: "1500 1500",
-            vertical_alignment: "middle",
-            margin: "0px 150px 0px 150px"
-          },
-          output: {
-            format: "jpeg",
-            jpeg_quality: 90
-          }
-        };
-
-        const pixianResponse = await fetch('https://api.pixian.ai/api/v2/remove-background', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic cHhnbmNzZm5hZHpqNGZiOmJnczNjcDM4bzVjdTlrY2FuOTI0ZDZyMDF0b2ZrbTAwc3R1ZWw5N3RndXRyMXVyYzdxZm4=',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(pixianData)
-        });
-
-        if (!pixianResponse.ok) {
-          const errorText = await pixianResponse.text();
-          throw new Error(`Erro no Pixian: ${pixianResponse.status} - ${errorText}`);
-        }
-
-        const croppedImageBuffer = await pixianResponse.arrayBuffer();
-        console.log('✅ Imagem processada no Pixian');
-
-        // 3. Salvar imagem processada no servidor
-        const fileName = `${anymarketId}_${image.id}.jpg`;
-        const croppedImageBase64 = Buffer.from(croppedImageBuffer).toString('base64');
-        
-        // Fazer upload da imagem para o servidor
-        const baseUrl = getBaseUrl(request);
-        const uploadResponse = await fetch(`${baseUrl}/api/upload-image`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            imageData: `data:image/jpeg;base64,${croppedImageBase64}`,
-            fileName: fileName
-          })
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error('Erro ao fazer upload da imagem para o servidor');
-        }
-
-        const uploadResult = await uploadResponse.json();
-        const newImageUrl = uploadResult.data.publicUrl;
-        console.log('📤 Imagem salva no servidor:', newImageUrl);
-        console.log('🔍 Debug newImageUrl:', {
-          uploadResult,
-          publicUrl: uploadResult.data?.publicUrl,
-          newImageUrl,
-          isEmpty: !newImageUrl || newImageUrl === ''
-        });
-
-        // Verificar se o arquivo realmente existe no servidor
-        if (!newImageUrl) {
-          throw new Error('URL da imagem não foi gerada corretamente');
-        }
-
-        // Aguardar um momento para garantir que o arquivo esteja disponível
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Verificar se o arquivo pode ser acessado
-        try {
-          const fileCheckResponse = await fetch(newImageUrl, { method: 'HEAD' });
-          if (!fileCheckResponse.ok) {
-            throw new Error(`Arquivo não acessível: ${fileCheckResponse.status} - ${fileCheckResponse.statusText}`);
-          }
-          console.log('✅ Arquivo verificado e acessível:', newImageUrl);
-        } catch (fileError: any) {
-          console.error('❌ Erro ao verificar arquivo:', fileError);
-          throw new Error(`Arquivo não pode ser acessado: ${fileError.message}`);
-        }
-
-        // 4. Fazer upload da nova imagem para o Anymarket (usando URL)
-        console.log(`📤 Enviando nova imagem para Anymarket...`);
-        
-        const anymarketUploadData = {
-          index: i, // Posição sequencial: 0, 1, 2, 3...
-          main: i === 0, // true apenas para a primeira imagem (index 0)
-          url: newImageUrl
-        };
-        
-        console.log('📋 Dados do upload:', {
-          index: anymarketUploadData.index,
-          main: anymarketUploadData.main,
-          url: newImageUrl
-        });
-        
-        console.log('📋 JSON do upload:', JSON.stringify(anymarketUploadData));
-
-        console.log('🔑 Token sendo usado:', 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==');
-        console.log('🌐 URL da API:', `https://api.anymarket.com.br/v2/products/${anymarketId}/images`);
-        
-        const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
-          },
-          body: JSON.stringify(anymarketUploadData)
-        });
-
-        if (!anymarketUploadResponse.ok) {
-          const errorText = await anymarketUploadResponse.text();
-          console.error(`❌ Erro no upload para Anymarket:`, {
-            status: anymarketUploadResponse.status,
-            statusText: anymarketUploadResponse.statusText,
-            error: errorText,
-            data: anymarketUploadData
-          });
-          throw new Error(`Erro no upload para Anymarket: ${anymarketUploadResponse.status} - ${errorText}`);
-        }
-
-        const anymarketResult = await anymarketUploadResponse.json();
-        console.log(`✅ Nova imagem enviada para Anymarket:`, {
-          newImageId: anymarketResult.id,
-          url: newImageUrl,
-          index: anymarketUploadData.index,
-          main: anymarketUploadData.main
-        });
-
-        results.push({
-          imageId: image.id,
-          newImageId: anymarketResult.id,
-          variation: image.variation || 'Sem variação',
-          index: i, // Posição sequencial: 0, 1, 2, 3...
-          main: i === 0, // true apenas para a primeira imagem
-          originalUrl: image.originalImage,
-          newUrl: newImageUrl,
-          croppedBase64: croppedImageBase64,
-          fileName: fileName,
-          success: true,
-          uploadedToAnymarket: true,
-          anymarketResponse: anymarketResult,
-          processingSteps: {
-            pixianProcessed: true,
-            serverUploaded: true,
-            newImageUploaded: true
-          }
-        });
-
-      } catch (error: any) {
-        console.error(`❌ Erro ao processar imagem ${image.id}:`, error);
-        errors.push({
-          imageId: image.id,
-          variation: image.variation || 'Sem variação',
-          error: error.message
-        });
-      }
-
-      // Pequena pausa entre processamentos
-      if (i < originalImages.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-    }
-
-    // ETAPA 2: Processar imagens dos SKUs da VTEX
-    console.log('🔄 ETAPA 2: Processando imagens dos SKUs da VTEX...');
-    
-    const skuResults = [];
-    const skuErrors = [];
-    
-    try {
-      // Buscar imagens dos SKUs da VTEX
       const { executeQuery } = await import('@/lib/database');
-      const skuImages = await executeQuery(`
+      imagesData = await executeQuery(`
         SELECT 
           i.id,
           i.file_location,
@@ -266,236 +34,51 @@ export async function POST(request: NextRequest) {
         ORDER BY i.is_main DESC, i.position ASC, i.id ASC
       `, [productId]);
 
-      console.log(`📸 Encontradas ${skuImages.length} imagens dos SKUs da VTEX`);
-
-      // Processar cada imagem da VTEX
-      for (let i = 0; i < skuImages.length; i++) {
-        const skuImage = skuImages[i];
-        console.log(`🎨 Processando imagem VTEX ${i + 1}/${skuImages.length}: ${skuImage.id}`);
-
-        try {
-          // Construir URL da imagem VTEX
-          const vtexImageUrl = `https://projetoinfluencer.${skuImage.file_location}`;
-          console.log('🔗 URL da imagem VTEX:', vtexImageUrl);
-
-          // Processar no Pixian.ai usando JSON (formato curl)
-          const pixianData = {
-            image: {
-              url: vtexImageUrl
-            },
-            background: {
-              color: "#FFFFFF"
-            },
-            result: {
-              crop_to_foreground: true,
-              target_size: "1500 1500",
-              vertical_alignment: "middle",
-              margin: "0px 150px 0px 150px"
-            },
-            output: {
-              format: "jpeg",
-              jpeg_quality: 90
-            }
-          };
-
-          const pixianResponse = await fetch('https://api.pixian.ai/api/v2/remove-background', {
-            method: 'POST',
-            headers: {
-              'Authorization': 'Basic cHhnbmNzZm5hZHpqNGZiOmJnczNjcDM4bzVjdTlrY2FuOTI0ZDZyMDF0b2ZrbTAwc3R1ZWw5N3RndXRyMXVyYzdxZm4=',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(pixianData)
-          });
-
-          if (!pixianResponse.ok) {
-            const errorText = await pixianResponse.text();
-            throw new Error(`Erro no Pixian: ${pixianResponse.status} - ${errorText}`);
-          }
-
-          const croppedImageBuffer = await pixianResponse.arrayBuffer();
-          console.log('✅ Imagem VTEX processada no Pixian');
-
-          // Salvar imagem processada no servidor
-          const fileName = `vtex_${skuImage.id}_${Date.now()}.jpg`;
-          const croppedImageBase64 = Buffer.from(croppedImageBuffer).toString('base64');
-          
-          const baseUrl = getBaseUrl(request);
-          const uploadResponse = await fetch(`${baseUrl}/api/upload-image`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              imageData: `data:image/jpeg;base64,${croppedImageBase64}`,
-              fileName: fileName
-            })
-          });
-
-          if (!uploadResponse.ok) {
-            throw new Error('Erro ao fazer upload da imagem VTEX para o servidor');
-          }
-
-          const uploadResult = await uploadResponse.json();
-          const newImageUrl = uploadResult.data.publicUrl;
-          console.log('📤 Imagem VTEX salva no servidor:', newImageUrl);
-          console.log('🔍 Debug newImageUrl VTEX:', {
-            uploadResult,
-            publicUrl: uploadResult.data?.publicUrl,
-            newImageUrl,
-            isEmpty: !newImageUrl || newImageUrl === ''
-          });
-
-          // Verificar se o arquivo realmente existe no servidor
-          if (!newImageUrl) {
-            throw new Error('URL da imagem VTEX não foi gerada corretamente');
-          }
-
-          // Aguardar um momento para garantir que o arquivo esteja disponível
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
-          // Verificar se o arquivo pode ser acessado
-          try {
-            const fileCheckResponse = await fetch(newImageUrl, { method: 'HEAD' });
-            if (!fileCheckResponse.ok) {
-              throw new Error(`Arquivo VTEX não acessível: ${fileCheckResponse.status} - ${fileCheckResponse.statusText}`);
-            }
-            console.log('✅ Arquivo VTEX verificado e acessível:', newImageUrl);
-          } catch (fileError: any) {
-            console.error('❌ Erro ao verificar arquivo VTEX:', fileError);
-            throw new Error(`Arquivo VTEX não pode ser acessado: ${fileError.message}`);
-          }
-
-          // Enviar para o Anymarket (usando URL)
-          // Continuar a sequência de índices das imagens do Anymarket
-          const totalAnymarketImages = originalImages.length;
-          const anymarketUploadData = {
-            index: totalAnymarketImages + i, // Continuar sequência: se Anymarket tinha 2 imagens (0,1), VTEX começa em 2,3,4...
-            main: false, // Imagens VTEX nunca são main (apenas a primeira do Anymarket é main)
-            url: newImageUrl
-          };
-          
-          console.log('📋 Dados do upload VTEX:', {
-            index: anymarketUploadData.index,
-            main: anymarketUploadData.main,
-            url: newImageUrl
-          });
-          
-          console.log('📋 JSON do upload VTEX:', JSON.stringify(anymarketUploadData));
-
-          console.log('🔑 Token sendo usado (VTEX):', 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==');
-          console.log('🌐 URL da API (VTEX):', `https://api.anymarket.com.br/v2/products/${anymarketId}/images`);
-          
-          const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
-            },
-            body: JSON.stringify(anymarketUploadData)
-          });
-
-          if (!anymarketUploadResponse.ok) {
-            const errorText = await anymarketUploadResponse.text();
-            throw new Error(`Erro no upload VTEX para Anymarket: ${anymarketUploadResponse.status} - ${errorText}`);
-          }
-
-          const anymarketResult = await anymarketUploadResponse.json();
-          console.log(`✅ Imagem VTEX enviada para Anymarket:`, {
-            newImageId: anymarketResult.id,
-            skuId: skuImage.sku_id,
-            skuName: skuImage.sku_name
-          });
-
-          skuResults.push({
-            imageId: skuImage.id,
-            skuId: skuImage.sku_id,
-            skuName: skuImage.sku_name,
-            newImageId: anymarketResult.id,
-            index: totalAnymarketImages + i, // Continuar sequência das imagens do Anymarket
-            main: false, // Imagens VTEX nunca são main
-            originalUrl: vtexImageUrl,
-            newUrl: newImageUrl,
-            croppedBase64: croppedImageBase64,
-            fileName: fileName,
-            success: true,
-            uploadedToAnymarket: true,
-            source: 'VTEX_SKU'
-          });
-
-        } catch (error: any) {
-          console.error(`❌ Erro ao processar imagem VTEX ${skuImage.id}:`, error);
-          skuErrors.push({
-            imageId: skuImage.id,
-            skuId: skuImage.sku_id,
-            skuName: skuImage.sku_name,
-            error: error.message,
-            source: 'VTEX_SKU'
-          });
-        }
-
-        // Pausa entre processamentos
-        if (i < skuImages.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
-
+      console.log('✅ Imagens encontradas no banco:', imagesData.length);
     } catch (error: any) {
-      console.error('❌ Erro na etapa 2 (SKUs VTEX):', error);
-      skuErrors.push({
-        error: error.message,
-        source: 'VTEX_SKU_FETCH'
-      });
+      console.error('❌ Erro ao buscar imagens do banco:', error);
+      return NextResponse.json({
+        success: false,
+        message: 'Erro ao buscar imagens do banco: ' + error.message
+      }, { status: 400 });
     }
 
-    // Calcular estatísticas finais
-    const totalProcessed = results.length + skuResults.length;
-    const totalErrors = errors.length + skuErrors.length;
-    const successfulUploads = results.filter(r => r.uploadedToAnymarket).length + skuResults.filter(r => r.uploadedToAnymarket).length;
-    
-    console.log(`📊 Estatísticas finais:`, {
-      anymarketImages: originalImages.length,
-      vtexImages: skuResults.length,
-      totalProcessed,
-      successfulUploads,
-      totalErrors
+    console.log('📊 Dados das imagens do banco:', JSON.stringify(imagesData, null, 2));
+
+    // Se não há imagens no banco, retornar erro
+    if (imagesData.length === 0) {
+      console.log('⚠️ Nenhuma imagem encontrada no banco de dados');
+      return NextResponse.json({
+        success: false,
+        message: 'Nenhuma imagem encontrada no banco de dados para este produto'
+      }, { status: 404 });
+    }
+
+    // Preparar URLs das imagens para processamento
+    const imageUrls = imagesData.map(image => {
+      const imageUrl = `https://projetoinfluencer.${image.file_location}`;
+      return {
+        id: image.id,
+        skuId: image.sku_id,
+        skuName: image.sku_name,
+        skuColor: image.sku_color,
+        url: imageUrl,
+        isPrimary: image.is_primary,
+        position: image.position
+      };
     });
 
+    console.log(`📋 URLs das imagens preparadas:`, imageUrls);
+
+    // Retornar apenas as URLs das imagens que serão processadas
     return NextResponse.json({
       success: true,
-      message: `${totalProcessed} imagens processadas e enviadas para o Anymarket com sucesso`,
+      message: `Encontradas ${imageUrls.length} imagens da VTEX para processar`,
       data: {
-        // Etapa 1: Imagens do Anymarket
-        anymarketImages: {
-          total: originalImages.length,
-          processed: results.length,
-          successfulUploads: results.filter(r => r.uploadedToAnymarket).length,
-          errors: errors.length,
-          results,
-          errorDetails: errors
-        },
-        // Etapa 2: Imagens dos SKUs da VTEX
-        vtexImages: {
-          total: skuResults.length + skuErrors.length,
-          processed: skuResults.length,
-          successfulUploads: skuResults.filter(r => r.uploadedToAnymarket).length,
-          errors: skuErrors.length,
-          results: skuResults,
-          errorDetails: skuErrors
-        },
-        // Estatísticas gerais
-        totalImages: originalImages.length + (skuResults.length + skuErrors.length),
-        totalProcessed,
-        totalErrors,
-        successfulUploads,
-        statistics: {
-          anymarketProcessed: results.length,
-          vtexProcessed: skuResults.length,
-          totalPixianProcessed: totalProcessed,
-          totalServerUploaded: totalProcessed,
-          totalAnymarketUploaded: successfulUploads,
-          successRate: `${((totalProcessed / (originalImages.length + (skuResults.length + skuErrors.length))) * 100).toFixed(1)}%`
-        },
-        note: 'Processo completo: Imagens do Anymarket + SKUs da VTEX processadas com Pixian.ai e enviadas para o Anymarket.'
+        totalImages: imageUrls.length,
+        images: imageUrls,
+        productId: productId,
+        anymarketId: anymarketId
       }
     });
 

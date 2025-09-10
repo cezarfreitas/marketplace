@@ -30,8 +30,14 @@ export async function POST(request: NextRequest) {
     try {
       await access(filePath);
       console.log('✅ Arquivo verificado no sistema de arquivos:', filePath);
+      
+      // Verificar tamanho do arquivo
+      const stats = await import('fs').then(fs => fs.promises.stat(filePath));
+      console.log('📊 Tamanho do arquivo salvo:', stats.size, 'bytes');
+      
     } catch (error) {
       console.error('❌ Erro: Arquivo não foi salvo corretamente:', filePath);
+      console.error('❌ Erro detalhado:', error);
       throw new Error('Falha ao salvar arquivo no sistema de arquivos');
     }
 
