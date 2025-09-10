@@ -21,6 +21,7 @@ interface CropImagesModalProps {
     isMain: boolean;
     index: number;
   }>;
+  onProcessingComplete?: (productId: number) => void;
 }
 
 interface VtexImage {
@@ -53,7 +54,7 @@ interface ProcessedProduct {
   lastProcessedImages: number;
 }
 
-export function CropImagesModal({ isOpen, onClose, product, originalImages }: CropImagesModalProps) {
+export function CropImagesModal({ isOpen, onClose, product, originalImages, onProcessingComplete }: CropImagesModalProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentStep, setCurrentStep] = useState('');
@@ -544,6 +545,11 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
               processedResults: processedResults
             }
           });
+        }
+
+        // Notificar que o processamento foi concluído com sucesso
+        if (onProcessingComplete && product && successCount > 0) {
+          onProcessingComplete(product.id);
         }
 
       } else {
