@@ -311,6 +311,16 @@ export default function ProductsPage() {
             
             if (result.success) {
               console.log(`✅ Análise concluída para: ${product.name}`);
+              
+              // Atualizar lista de produtos com análise em tempo real
+              setProductsWithAnalysis(prev => {
+                if (!prev.includes(product.id)) {
+                  console.log(`✅ Adicionando produto ${product.id} à lista de produtos com análise`);
+                  return [...prev, product.id];
+                }
+                return prev;
+              });
+              
               successCount++;
             } else {
               console.error(`❌ Falha na análise para: ${product.name}`, result.error);
@@ -332,8 +342,7 @@ export default function ProductsPage() {
         // Limpar seleção após análise
         setSelectedProducts([]);
         
-        // Atualizar lista de produtos com análise
-        await fetchProductsWithAnalysis();
+        // Lista já foi atualizada em tempo real durante o processamento
         
       } catch (error) {
         console.error('Erro na análise em lote:', error);
@@ -458,6 +467,16 @@ export default function ProductsPage() {
             
             if (result.success) {
               console.log(`✅ Descrição do Marketplace gerada para: ${product.name}`);
+              
+              // Atualizar lista de produtos com Marketplace em tempo real
+              setProductsWithMarketplace(prev => {
+                if (!prev.includes(product.id)) {
+                  console.log(`✅ Adicionando produto ${product.id} à lista de produtos com Marketplace`);
+                  return [...prev, product.id];
+                }
+                return prev;
+              });
+              
               successCount++;
             } else {
               console.error(`❌ Falha na geração para: ${product.name}`, result.error);
@@ -476,8 +495,7 @@ export default function ProductsPage() {
         // Mostrar resultado final
         alert(`Geração de descrições do Marketplace concluída!\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`);
         
-        // Atualizar lista de produtos com Marketplace
-        await fetchProductsWithMarketplace();
+        // Lista já foi atualizada em tempo real durante o processamento
         
         // Limpar seleção após geração
         setSelectedProducts([]);
