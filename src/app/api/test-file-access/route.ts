@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     try {
       await access(uploadsDir);
       console.log('✅ Diretório existe');
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ Diretório não existe:', error);
       return NextResponse.json({
         success: false,
