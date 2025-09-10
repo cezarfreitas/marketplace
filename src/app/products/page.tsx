@@ -11,6 +11,7 @@ import {
   ProductFiltersComponent,
   Product
 } from '@/modules/products';
+import { CropImagesModal } from '@/components/CropImagesModal';
 
 // Função auxiliar para formatar data
 const formatDate = (dateString: string | null | undefined): string => {
@@ -47,6 +48,14 @@ export default function ProductsPage() {
   const [generatingMarketplace, setGeneratingMarketplace] = useState(false);
   const [productsWithMarketplace, setProductsWithMarketplace] = useState<number[]>([]);
   const [productsWithAnymarketSync, setProductsWithAnymarketSync] = useState<number[]>([]);
+  const [productsWithCroppedImages, setProductsWithCroppedImages] = useState<number[]>([]);
+  
+  // Estados para modal de crop
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropModalData, setCropModalData] = useState<{
+    product: any;
+    originalImages: any[];
+  } | null>(null);
   
   // Estados para Anymarket Modal
   const [showSyncLogsModal, setShowSyncLogsModal] = useState(false);
@@ -925,6 +934,76 @@ export default function ProductsPage() {
     }
   };
 
+  const handleCropImages = async (product: Product) => {
+    console.log('🖼️ Iniciando busca de imagens para produto:', product.name);
+    
+    if (!product.anymarket_id) {
+      alert('Este produto não possui ID_ANY vinculado ao Anymarket');
+      return;
+    }
+
+    try {
+      console.log(`🔍 Buscando imagens do produto ${product.anymarket_id} no Anymarket...`);
+      
+      const response = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
+        method: 'GET',
+        headers: {
+          'gumgaToken': 'MjU5MDYwMTI2Lg==.xk0BLaBr6Xp5ErWLBXq/Fp7MebhAY9G8/cduGnJECoETHLw1AvWwEFcX5z68M0HtWzBJazQWW5eNBL+eMUnHjw==',
+          'Content-Type': 'application/json',
+          'User-Agent': 'Meli-Integration/1.0',
+          'Accept': 'application/json'
+        },
+        cache: 'no-store'
+      });
+
+      console.log('📡 Resposta recebida da API Anymarket:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erro na API do Anymarket:', response.status, errorText);
+        alert(`Erro ao buscar imagens: ${response.status} - ${response.statusText}`);
+        return;
+      }
+
+      const imagesData = await response.json();
+      console.log('📸 Dados das imagens recebidos:', imagesData);
+
+      // Filtrar apenas imagens com originalImage
+      const originalImages = imagesData
+        .filter((img: any) => img.originalImage)
+        .map((img: any, index: number) => ({
+          id: img.id || `img_${index}`,
+          variation: img.variation || 'Sem variação',
+          originalImage: img.originalImage,
+          isMain: img.isMain || img.main || false,
+          index: img.index || index + 1
+        }));
+
+      // Abrir modal sempre, mesmo sem imagens
+      setCropModalData({
+        product: {
+          id: product.id,
+          name: product.name,
+          anymarket_id: product.anymarket_id
+        },
+        originalImages
+      });
+      setShowCropModal(true);
+      
+      if (originalImages.length === 0) {
+        console.log(`📷 Nenhuma imagem original encontrada para o produto "${product.name}" (ID: ${product.anymarket_id})`);
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar imagens:', error);
+      alert(`Erro ao buscar imagens: ${error.message}`);
+    }
+  };
+
   const performAnymarketSync = async () => {
     if (!selectedProductForTool) return;
 
@@ -1243,9 +1322,11 @@ export default function ProductsPage() {
           onAnalyzeImages={handleAnalyzeImages}
           onGenerateMarketplaceDescription={handleGenerateMarketplaceDescription}
           onSyncAnymarketing={handleSyncAnymarketing}
+          onCropImages={handleCropImages}
           productsWithAnalysis={productsWithAnalysis}
           productsWithMarketplace={productsWithMarketplace}
           productsWithAnymarketSync={productsWithAnymarketSync}
+          productsWithCroppedImages={productsWithCroppedImages}
         />
       </div>
 
@@ -2525,6 +2606,17 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Crop de Imagens */}
+      <CropImagesModal
+        isOpen={showCropModal}
+        onClose={() => {
+          setShowCropModal(false);
+          setCropModalData(null);
+        }}
+        product={cropModalData?.product || null}
+        originalImages={cropModalData?.originalImages || []}
+      />
     </Layout>
   );
 }

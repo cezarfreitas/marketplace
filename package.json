@@ -17,6 +17,7 @@
     "bcryptjs": "^2.4.3",
     "date-fns": "2.30.0",
     "dotenv": "17.2.2",
+    "ftp": "^0.3.10",
     "jsonwebtoken": "9.0.2",
     "lucide-react": "0.294.0",
     "mysql2": "3.6.5",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/ftp": "^0.3.36",
     "@types/jsonwebtoken": "9.0.10",
     "@types/node": "20.10.4",
     "@types/react": "18.2.42",

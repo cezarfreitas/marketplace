@@ -6,7 +6,7 @@ import { formatDate, formatNumber, getProductImageUrl } from '../utils/formatter
 import { StockTooltip } from './StockTooltip';
 import { 
   Eye, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Image,
-  Camera, FileText, RefreshCw
+  Camera, FileText, RefreshCw, Crop
 } from 'lucide-react';
 
 interface ProductTableProps {
@@ -28,9 +28,11 @@ interface ProductTableProps {
   onAnalyzeImages: (product: Product) => void;
   onGenerateMarketplaceDescription: (product: Product) => void;
   onSyncAnymarketing: (product: Product) => void;
+  onCropImages: (product: Product) => void;
   productsWithAnalysis?: number[]; // IDs dos produtos que já têm análise
   productsWithMarketplace?: number[]; // IDs dos produtos que já têm descrição do Marketplace
   productsWithAnymarketSync?: number[]; // IDs dos produtos que já foram sincronizados com Anymarket
+  productsWithCroppedImages?: number[]; // IDs dos produtos que já têm imagens cropadas
 }
 
 export function ProductTable({
@@ -52,9 +54,11 @@ export function ProductTable({
   onAnalyzeImages,
   onGenerateMarketplaceDescription,
   onSyncAnymarketing,
+  onCropImages,
   productsWithAnalysis = [],
   productsWithMarketplace = [],
-  productsWithAnymarketSync = []
+  productsWithAnymarketSync = [],
+  productsWithCroppedImages = []
 }: ProductTableProps) {
   // Debug: verificar se a lista está chegando
   console.log('🔍 ProductTable - productsWithMarketplace:', productsWithMarketplace);
@@ -336,6 +340,22 @@ export function ProductTable({
                       title={productsWithAnymarketSync.includes(product.id) ? "Sincronizado com Anymarket" : "Sincronizar com Anymarket"}
                     >
                       <RefreshCw className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => onCropImages(product)}
+                      className={`p-2 rounded-lg transition-all duration-200 border border-transparent ${
+                        productsWithCroppedImages.includes(product.id)
+                          ? 'text-purple-800 bg-purple-400 border-purple-500 hover:bg-purple-500'
+                          : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50 hover:border-purple-200'
+                      }`}
+                      style={productsWithCroppedImages.includes(product.id) ? {
+                        backgroundColor: '#c084fc',
+                        color: '#6b21a8',
+                        borderColor: '#a855f7'
+                      } : {}}
+                      title={productsWithCroppedImages.includes(product.id) ? "Imagens já cropadas" : "Cropar imagens da Anymarketing"}
+                    >
+                      <Crop className="h-4 w-4" />
                     </button>
                   </div>
                 </td>

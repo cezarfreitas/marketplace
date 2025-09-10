@@ -148,6 +148,7 @@ export async function GET(request: Request) {
       INNER JOIN products p ON b.id = p.brand_id
       LEFT JOIN skus s ON p.id = s.product_id
       LEFT JOIN stock st ON s.id = st.sku_id
+      LEFT JOIN anymarket a ON p.ref_id = a.ref_id
       ${productWhereClause}
       ${categoryFilterForBrands}
       GROUP BY b.id, b.name
@@ -166,6 +167,7 @@ export async function GET(request: Request) {
       INNER JOIN products p ON c.id = p.category_id
       LEFT JOIN skus s ON p.id = s.product_id
       LEFT JOIN stock st ON s.id = st.sku_id
+      LEFT JOIN anymarket a ON p.ref_id = a.ref_id
       ${productWhereClause}
       ${brandFilterForCategories}
       GROUP BY c.id, c.name
