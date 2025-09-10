@@ -620,7 +620,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
               </p>
               {originalImages.length === 0 && (
                 <p className="text-sm text-gray-500">
-                  Você ainda pode usar o botão "Processar Imagens da VTEX" para buscar e processar imagens diretamente da VTEX.
+                  Você ainda pode usar o botão &quot;Processar Imagens da VTEX&quot; para buscar e processar imagens diretamente da VTEX.
                 </p>
               )}
             </div>
@@ -747,7 +747,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                               </button>
                             )}
 
-                            {status === 'processed' && (
+                            {status === 'processed' && processed && (
                               <button
                                 onClick={() => handleDownloadImage(processed.cropped.base64, `${product.name}-${image.variation}-cropada.png`)}
                                 className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
@@ -888,7 +888,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                               </button>
                             )}
 
-                            {status === 'processed' && (
+                            {status === 'processed' && processed && (
                               <button
                                 onClick={() => handleDownloadImage(processed.cropped.base64, `${product.name}-${image.variation}-cropada.png`)}
                                 className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"

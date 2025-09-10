@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
     });
 
     let anymarketImages = [];
-    let deletionResults = [];
-    let deletionErrors = [];
+    const deletionResults = [];
+    const deletionErrors = [];
 
     if (anymarketResponse.ok) {
       anymarketImages = await anymarketResponse.json();
@@ -122,8 +122,8 @@ export async function POST(request: NextRequest) {
 
         // 4. Processar cada imagem no Pixian com rate limiting
         console.log('🎨 Iniciando processamento no Pixian com rate limiting...');
-        const processedImages = [];
-        const processingErrors = [];
+        const processedImages: any[] = [];
+        const processingErrors: any[] = [];
         
         // Configurações de rate limiting
         const maxConcurrentThreads = 3; // Começar com 3 threads (conservador)
@@ -258,9 +258,9 @@ export async function POST(request: NextRequest) {
         deletion: {
           total: anymarketImages.length,
           deleted: deletionResults.length,
-          errors: deletionErrors.length,
+          errorCount: deletionErrors.length,
           results: deletionResults,
-          errors: deletionErrors
+          errorDetails: deletionErrors
         },
         skuImages: {
           total: skuImages.length,

@@ -240,7 +240,7 @@ export default function TestPixianPage() {
 
           {!isLoading && !error && !result && (
             <div className="text-center py-8 text-gray-500">
-              <p>Configure os parâmetros e clique em "Testar Pixian.ai" para começar</p>
+              <p>Configure os parâmetros e clique em &quot;Testar Pixian.ai&quot; para começar</p>
             </div>
           )}
         </Card>

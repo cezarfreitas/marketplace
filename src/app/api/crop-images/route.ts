@@ -232,8 +232,8 @@ export async function POST(request: NextRequest) {
     // ETAPA 2: Processar imagens dos SKUs da VTEX
     console.log('🔄 ETAPA 2: Processando imagens dos SKUs da VTEX...');
     
-    let skuResults = [];
-    let skuErrors = [];
+    const skuResults = [];
+    const skuErrors = [];
     
     try {
       // Buscar imagens dos SKUs da VTEX

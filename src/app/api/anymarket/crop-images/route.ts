@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
         summary: {
           totalImages: Array.isArray(imagesData) ? imagesData.length : 0,
           originalImages: processedImages.length,
-          variations: [...new Set(processedImages.map(img => img.variation))]
+          variations: Array.from(new Set(processedImages.map(img => img.variation)))
         }
       }
     });
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN products p ON cl.product_id = p.id
     `;
     
-    let params: any[] = [];
+    const params: any[] = [];
     
     if (productId) {
       query += ` WHERE cl.product_id = ?`;

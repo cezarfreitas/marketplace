@@ -232,9 +232,9 @@ export async function POST(request: NextRequest) {
       data: {
         totalVtexImages: vtexImages.length,
         processed: results.length,
-        errors: errors.length,
+        errorCount: errors.length,
         results,
-        errors,
+        errorDetails: errors,
         note: 'Imagens da VTEX processadas e enviadas automaticamente para o Anymarket.'
       }
     });
