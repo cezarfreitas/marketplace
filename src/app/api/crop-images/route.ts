@@ -130,6 +130,12 @@ export async function POST(request: NextRequest) {
         const uploadResult = await uploadResponse.json();
         const newImageUrl = uploadResult.data.publicUrl;
         console.log('📤 Imagem salva no servidor:', newImageUrl);
+        console.log('🔍 Debug newImageUrl:', {
+          uploadResult,
+          publicUrl: uploadResult.data?.publicUrl,
+          newImageUrl,
+          isEmpty: !newImageUrl || newImageUrl === ''
+        });
 
         // 4. Deletar imagem antiga do Anymarket
         console.log(`🗑️ Deletando imagem antiga ${image.id} do Anymarket...`);
@@ -330,6 +336,12 @@ export async function POST(request: NextRequest) {
           const uploadResult = await uploadResponse.json();
           const newImageUrl = uploadResult.data.publicUrl;
           console.log('📤 Imagem VTEX salva no servidor:', newImageUrl);
+          console.log('🔍 Debug newImageUrl VTEX:', {
+            uploadResult,
+            publicUrl: uploadResult.data?.publicUrl,
+            newImageUrl,
+            isEmpty: !newImageUrl || newImageUrl === ''
+          });
 
           // Enviar para o Anymarket (usando URL)
           // Continuar a sequência de índices das imagens do Anymarket

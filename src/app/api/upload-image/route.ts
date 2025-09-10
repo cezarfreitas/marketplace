@@ -28,6 +28,13 @@ export async function POST(request: NextRequest) {
     // Gerar URL pública
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://b2b-seo.jzo3qo.easypanel.host';
     const publicUrl = `${baseUrl}/uploads/crop-images/${fileName}`;
+    
+    console.log('🔍 Debug URL:', {
+      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+      baseUrl,
+      fileName,
+      publicUrl
+    });
 
     console.log('✅ Imagem salva:', filePath);
     console.log('📤 URL pública:', publicUrl);
