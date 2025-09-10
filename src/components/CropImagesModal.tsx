@@ -71,6 +71,11 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
   const [processedProduct, setProcessedProduct] = useState<ProcessedProduct | null>(null);
   const [isCheckingProcessed, setIsCheckingProcessed] = useState(false);
   const [processingLogId, setProcessingLogId] = useState<number | null>(null);
+  
+  // Estados para modal de logs
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [cropLogs, setCropLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   // Função para adicionar logs
   const addLog = useCallback((level: LogEntry['level'], message: string, details?: any) => {
@@ -119,6 +124,54 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
     }
   }, [addLog]);
 
+  // Função para carregar logs anteriores
+  const loadPreviousLogs = useCallback(async (productId: number) => {
+    try {
+      const response = await fetch(`/api/crop-logs?productId=${productId}&limit=10`);
+      const result = await response.json();
+      
+      if (result.success && result.data.logs.length > 0) {
+        // Converter logs do banco para formato do modal
+        const previousLogs: LogEntry[] = result.data.logs.map((log: any) => ({
+          id: log.id.toString(),
+          timestamp: new Date(log.started_at),
+          level: log.status === 'completed' ? 'success' : log.status === 'failed' ? 'error' : 'info',
+          message: `Processamento anterior: ${log.status === 'completed' ? 'Concluído' : log.status === 'failed' ? 'Falhou' : 'Processando'} - ${log.processed_images}/${log.total_images} imagens`,
+          details: {
+            logId: log.id,
+            status: log.status,
+            processedImages: log.processed_images,
+            totalImages: log.total_images,
+            processingTime: log.processing_time_seconds,
+            completedAt: log.completed_at
+          }
+        }));
+        
+        setLogs(prev => [...previousLogs, ...prev]);
+        addLog('info', `📜 Carregados ${previousLogs.length} log(s) anterior(es)`);
+      }
+    } catch (error: any) {
+      addLog('warning', '⚠️ Erro ao carregar logs anteriores', { error: error.message });
+    }
+  }, [addLog]);
+
+  // Função para carregar logs detalhados
+  const loadDetailedLogs = useCallback(async (productId: number) => {
+    setLoadingLogs(true);
+    try {
+      const response = await fetch(`/api/crop-logs?productId=${productId}&limit=50`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setCropLogs(result.data.logs);
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar logs detalhados:', error);
+    } finally {
+      setLoadingLogs(false);
+    }
+  }, []);
+
   // Reset states when modal opens
   useEffect(() => {
     if (isOpen && product) {
@@ -132,6 +185,20 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
       checkIfProductProcessed(product.id, product.anymarket_id);
     }
   }, [isOpen, product, clearLogs, checkIfProductProcessed]);
+
+  // Carregar logs anteriores quando produto for processado
+  useEffect(() => {
+    if (processedProduct && product) {
+      loadPreviousLogs(product.id);
+    }
+  }, [processedProduct, product, loadPreviousLogs]);
+
+  // Carregar logs detalhados quando modal de logs for aberto
+  useEffect(() => {
+    if (showLogsModal && product) {
+      loadDetailedLogs(product.id);
+    }
+  }, [showLogsModal, product, loadDetailedLogs]);
 
   if (!isOpen || !product) {
     return null;
@@ -642,7 +709,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                 
                 {processedProduct && (
                   <button
-                    onClick={() => window.open(`/crop-logs?productId=${product.id}`, '_blank')}
+                    onClick={() => setShowLogsModal(true)}
                     className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2 text-sm"
                   >
                     <History className="h-4 w-4" />
@@ -720,6 +787,115 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
           )}
         </div>
       </div>
+
+      {/* Modal de Logs Detalhados */}
+      {showLogsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                  <History className="w-6 h-6 mr-3 text-orange-600" />
+                  Histórico de Processamento
+                </h2>
+                <button
+                  onClick={() => setShowLogsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              {loadingLogs ? (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 text-orange-600 animate-spin mx-auto mb-4" />
+                  <p className="text-gray-600">Carregando histórico...</p>
+                </div>
+              ) : cropLogs.length === 0 ? (
+                <div className="text-center py-8">
+                  <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Nenhum histórico encontrado</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {cropLogs.map((log) => (
+                    <div key={log.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          {log.status === 'completed' ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                          ) : log.status === 'failed' ? (
+                            <AlertCircle className="h-5 w-5 text-red-500" />
+                          ) : (
+                            <Clock className="h-5 w-5 text-blue-500" />
+                          )}
+                          <h3 className="font-semibold text-gray-900">
+                            Processamento #{log.id}
+                          </h3>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          log.status === 'completed' 
+                            ? 'bg-green-100 text-green-800' 
+                            : log.status === 'failed'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {log.status === 'completed' ? 'Concluído' : 
+                           log.status === 'failed' ? 'Falhou' : 'Processando'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-3">
+                        <div>
+                          <span className="font-medium text-gray-700">Data:</span>
+                          <p className="text-gray-600">{new Date(log.started_at).toLocaleString('pt-BR')}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Imagens:</span>
+                          <p className="text-gray-600">{log.processed_images}/{log.total_images}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Tempo:</span>
+                          <p className="text-gray-600">{log.processing_time_seconds}s</p>
+                        </div>
+                      </div>
+
+                      {log.error_message && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                          <h4 className="font-medium text-red-900 mb-1">Erro:</h4>
+                          <p className="text-red-600 text-sm">{log.error_message}</p>
+                        </div>
+                      )}
+
+                      {log.details && (
+                        <details className="text-sm">
+                          <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-medium mb-2">
+                            Ver detalhes técnicos
+                          </summary>
+                          <div className="bg-white rounded border p-3">
+                            <pre className="text-xs text-gray-700 overflow-x-auto">
+                              {JSON.stringify(log.details, null, 2)}
+                            </pre>
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setShowLogsModal(false)}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
