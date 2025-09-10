@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getBaseUrl } from '@/lib/url-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
         const croppedImageBase64 = Buffer.from(croppedImageBuffer).toString('base64');
         
         // Fazer upload da imagem para o servidor
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${request.headers.get('origin') || 'https://b2b-seo.jzo3qo.easypanel.host'}`;
+        const baseUrl = getBaseUrl(request);
         const uploadResponse = await fetch(`${baseUrl}/api/upload-image`, {
           method: 'POST',
           headers: {
@@ -137,25 +138,27 @@ export async function POST(request: NextRequest) {
           isEmpty: !newImageUrl || newImageUrl === ''
         });
 
-        // 4. Deletar imagem antiga do Anymarket
-        console.log(`🗑️ Deletando imagem antiga ${image.id} do Anymarket...`);
-        const deleteResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images/${image.id}`, {
-          method: 'DELETE',
-          headers: {
-            'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==',
-            'Content-Type': 'application/json',
-            'User-Agent': 'Meli-Integration/1.0'
-          }
-        });
-
-        if (!deleteResponse.ok) {
-          console.warn(`⚠️ Erro ao deletar imagem antiga ${image.id}:`, deleteResponse.status);
-          // Continuar mesmo se não conseguir deletar
-        } else {
-          console.log(`✅ Imagem antiga ${image.id} deletada do Anymarket`);
+        // Verificar se o arquivo realmente existe no servidor
+        if (!newImageUrl) {
+          throw new Error('URL da imagem não foi gerada corretamente');
         }
 
-        // 5. Fazer upload da nova imagem para o Anymarket (usando URL)
+        // Aguardar um momento para garantir que o arquivo esteja disponível
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Verificar se o arquivo pode ser acessado
+        try {
+          const fileCheckResponse = await fetch(newImageUrl, { method: 'HEAD' });
+          if (!fileCheckResponse.ok) {
+            throw new Error(`Arquivo não acessível: ${fileCheckResponse.status} - ${fileCheckResponse.statusText}`);
+          }
+          console.log('✅ Arquivo verificado e acessível:', newImageUrl);
+        } catch (fileError: any) {
+          console.error('❌ Erro ao verificar arquivo:', fileError);
+          throw new Error(`Arquivo não pode ser acessado: ${fileError.message}`);
+        }
+
+        // 4. Fazer upload da nova imagem para o Anymarket (usando URL)
         console.log(`📤 Enviando nova imagem para Anymarket...`);
         
         const anymarketUploadData = {
@@ -219,7 +222,6 @@ export async function POST(request: NextRequest) {
           processingSteps: {
             pixianProcessed: true,
             serverUploaded: true,
-            oldImageDeleted: deleteResponse.ok,
             newImageUploaded: true
           }
         });
@@ -317,7 +319,7 @@ export async function POST(request: NextRequest) {
           const fileName = `vtex_${skuImage.id}_${Date.now()}.jpg`;
           const croppedImageBase64 = Buffer.from(croppedImageBuffer).toString('base64');
           
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${request.headers.get('origin') || 'https://b2b-seo.jzo3qo.easypanel.host'}`;
+          const baseUrl = getBaseUrl(request);
           const uploadResponse = await fetch(`${baseUrl}/api/upload-image`, {
             method: 'POST',
             headers: {
@@ -342,6 +344,26 @@ export async function POST(request: NextRequest) {
             newImageUrl,
             isEmpty: !newImageUrl || newImageUrl === ''
           });
+
+          // Verificar se o arquivo realmente existe no servidor
+          if (!newImageUrl) {
+            throw new Error('URL da imagem VTEX não foi gerada corretamente');
+          }
+
+          // Aguardar um momento para garantir que o arquivo esteja disponível
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Verificar se o arquivo pode ser acessado
+          try {
+            const fileCheckResponse = await fetch(newImageUrl, { method: 'HEAD' });
+            if (!fileCheckResponse.ok) {
+              throw new Error(`Arquivo VTEX não acessível: ${fileCheckResponse.status} - ${fileCheckResponse.statusText}`);
+            }
+            console.log('✅ Arquivo VTEX verificado e acessível:', newImageUrl);
+          } catch (fileError: any) {
+            console.error('❌ Erro ao verificar arquivo VTEX:', fileError);
+            throw new Error(`Arquivo VTEX não pode ser acessado: ${fileError.message}`);
+          }
 
           // Enviar para o Anymarket (usando URL)
           // Continuar a sequência de índices das imagens do Anymarket
@@ -429,14 +451,12 @@ export async function POST(request: NextRequest) {
     const totalProcessed = results.length + skuResults.length;
     const totalErrors = errors.length + skuErrors.length;
     const successfulUploads = results.filter(r => r.uploadedToAnymarket).length + skuResults.filter(r => r.uploadedToAnymarket).length;
-    const successfulDeletions = results.filter(r => r.processingSteps?.oldImageDeleted).length;
     
     console.log(`📊 Estatísticas finais:`, {
       anymarketImages: originalImages.length,
       vtexImages: skuResults.length,
       totalProcessed,
       successfulUploads,
-      successfulDeletions,
       totalErrors
     });
 
@@ -449,7 +469,6 @@ export async function POST(request: NextRequest) {
           total: originalImages.length,
           processed: results.length,
           successfulUploads: results.filter(r => r.uploadedToAnymarket).length,
-          successfulDeletions,
           errors: errors.length,
           results,
           errorDetails: errors
@@ -468,14 +487,12 @@ export async function POST(request: NextRequest) {
         totalProcessed,
         totalErrors,
         successfulUploads,
-        successfulDeletions,
         statistics: {
           anymarketProcessed: results.length,
           vtexProcessed: skuResults.length,
           totalPixianProcessed: totalProcessed,
           totalServerUploaded: totalProcessed,
           totalAnymarketUploaded: successfulUploads,
-          oldImagesDeleted: successfulDeletions,
           successRate: `${((totalProcessed / (originalImages.length + (skuResults.length + skuErrors.length))) * 100).toFixed(1)}%`
         },
         note: 'Processo completo: Imagens do Anymarket + SKUs da VTEX processadas com Pixian.ai e enviadas para o Anymarket.'

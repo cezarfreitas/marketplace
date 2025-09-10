@@ -24,6 +24,17 @@ interface CropImagesModalProps {
   }>;
 }
 
+interface VtexImage {
+  id: number;
+  file_location: string;
+  alt_text: string;
+  is_primary: boolean;
+  position: number;
+  sku_id: number;
+  sku_name: string;
+  sku_color: string;
+}
+
 interface ProcessedImage {
   original: {
     url: string;
@@ -61,6 +72,12 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
     successCount: 0,
     errorCount: 0
   });
+  
+  // Estados para imagens da VTEX
+  const [vtexImages, setVtexImages] = useState<VtexImage[]>([]);
+  const [isLoadingVtexImages, setIsLoadingVtexImages] = useState(false);
+  const [vtexImagesError, setVtexImagesError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'anymarket' | 'vtex'>('anymarket');
 
   // Funções auxiliares
   const getFilteredImages = useCallback(() => {
@@ -112,6 +129,32 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
     }
   }, [getFilteredImages, selectedImages.size]);
 
+  // Função para buscar imagens da VTEX
+  const fetchVtexImages = useCallback(async () => {
+    if (!product) return;
+    
+    setIsLoadingVtexImages(true);
+    setVtexImagesError(null);
+    
+    try {
+      const response = await fetch(`/api/vtex-images?productId=${product.id}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setVtexImages(result.data);
+        console.log('✅ Imagens da VTEX carregadas:', result.data.length);
+      } else {
+        setVtexImagesError(result.message);
+        console.error('❌ Erro ao carregar imagens da VTEX:', result.message);
+      }
+    } catch (error: any) {
+      setVtexImagesError(error.message);
+      console.error('❌ Erro ao carregar imagens da VTEX:', error);
+    } finally {
+      setIsLoadingVtexImages(false);
+    }
+  }, [product]);
+
   // Reset states when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -124,6 +167,9 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
       });
       setSelectedImages(new Set());
       setShowImagePreview(null);
+      setVtexImages([]);
+      setVtexImagesError(null);
+      setActiveTab('anymarket');
     }
   }, [isOpen]);
 
@@ -376,12 +422,41 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                 </span>
                 <span className="flex items-center gap-1">
                   <FileImage className="h-4 w-4" />
-                  {originalImages.length} imagens
+                  {activeTab === 'anymarket' ? originalImages.length : vtexImages.length} imagens
                 </span>
                 <span className="flex items-center gap-1">
                   <Zap className="h-4 w-4" />
                   Pixian.ai
                 </span>
+              </div>
+              
+              {/* Abas */}
+              <div className="flex items-center gap-1 mt-3">
+                <button
+                  onClick={() => setActiveTab('anymarket')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === 'anymarket'
+                      ? 'bg-white/20 text-white'
+                      : 'text-blue-100 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  Anymarket ({originalImages.length})
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('vtex');
+                    if (vtexImages.length === 0 && !isLoadingVtexImages) {
+                      fetchVtexImages();
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === 'vtex'
+                      ? 'bg-white/20 text-white'
+                      : 'text-blue-100 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  VTEX ({vtexImages.length})
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-2">

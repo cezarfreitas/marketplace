@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, access } from 'fs/promises';
 import { join } from 'path';
+import { getBaseUrl } from '@/lib/url-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,18 +26,31 @@ export async function POST(request: NextRequest) {
     const filePath = join(uploadDir, fileName);
     await writeFile(filePath, imageBuffer);
 
-    // Gerar URL pública
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://b2b-seo.jzo3qo.easypanel.host';
+    // Verificar se o arquivo foi realmente salvo
+    try {
+      await access(filePath);
+      console.log('✅ Arquivo verificado no sistema de arquivos:', filePath);
+    } catch (error) {
+      console.error('❌ Erro: Arquivo não foi salvo corretamente:', filePath);
+      throw new Error('Falha ao salvar arquivo no sistema de arquivos');
+    }
+
+    // Gerar URL pública automaticamente
+    const baseUrl = getBaseUrl(request);
     const publicUrl = `${baseUrl}/uploads/crop-images/${fileName}`;
     
     console.log('🔍 Debug URL:', {
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-      baseUrl,
+      detectedBaseUrl: baseUrl,
       fileName,
-      publicUrl
+      publicUrl,
+      filePath,
+      fileExists: true,
+      host: request.headers.get('host'),
+      protocol: request.headers.get('x-forwarded-proto')
     });
 
-    console.log('✅ Imagem salva:', filePath);
+    console.log('✅ Imagem salva e verificada:', filePath);
     console.log('📤 URL pública:', publicUrl);
 
     return NextResponse.json({
