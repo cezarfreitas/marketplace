@@ -1023,6 +1023,11 @@ export default function ProductsPage() {
   });
 
   const handleBatchCropImages = async () => {
+    console.log('🚀 Iniciando crop em lote...');
+    console.log('📊 Produtos selecionados:', selectedProducts);
+    console.log('📊 Total de produtos:', products.length);
+    console.log('📊 Produtos já processados:', productsWithCroppedImages);
+
     if (selectedProducts.length === 0) {
       alert('Selecione pelo menos um produto para processar');
       return;
@@ -1033,6 +1038,13 @@ export default function ProductsPage() {
       p.anymarket_id && 
       !productsWithCroppedImages.includes(p.id)
     );
+
+    console.log('📊 Produtos filtrados para processamento:', productsToProcess.map(p => ({
+      id: p.id,
+      name: p.name,
+      anymarket_id: p.anymarket_id,
+      alreadyProcessed: productsWithCroppedImages.includes(p.id)
+    })));
 
     if (productsToProcess.length === 0) {
       alert('Nenhum produto válido selecionado para processamento');
@@ -1065,9 +1077,15 @@ export default function ProductsPage() {
 
       try {
         console.log(`🔄 Processando crop para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+        console.log(`📋 Dados do produto:`, {
+          id: product.id,
+          name: product.name,
+          anymarket_id: product.anymarket_id
+        });
         
-        // Chamar API real de crop
-        const response = await fetch('/api/crop-images-vtex', {
+        // Chamar API de teste primeiro
+        console.log(`📡 Chamando API de teste /api/test-batch-crop...`);
+        const response = await fetch('/api/test-batch-crop', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -1078,18 +1096,26 @@ export default function ProductsPage() {
           })
         });
 
+        console.log(`📡 Resposta da API:`, {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+
         const result = await response.json();
+        console.log(`📊 Resultado da API:`, result);
 
         if (result.success) {
           setProductsWithCroppedImages(prev => {
             if (!prev.includes(product.id)) {
+              console.log(`✅ Adicionando produto ${product.id} à lista de processados`);
               return [...prev, product.id];
             }
             return prev;
           });
           
           successCount++;
-          console.log(`✅ Crop concluído para: ${product.name} - ${result.data.processedImages} imagens processadas`);
+          console.log(`✅ Crop concluído para: ${product.name} - ${result.data?.processed || 0} imagens processadas`);
         } else {
           errorCount++;
           const errorMsg = `${product.name}: ${result.message}`;
@@ -1102,6 +1128,7 @@ export default function ProductsPage() {
         const errorMsg = `${product.name}: ${error.message}`;
         errors.push(errorMsg);
         console.error(`❌ Erro no crop de ${product.name}:`, error);
+        console.error(`❌ Stack trace:`, error.stack);
       }
     }
 
