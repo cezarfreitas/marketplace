@@ -1419,7 +1419,7 @@ export default function ProductsPage() {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              stock: product.stock || 0
+              stock: product.total_stock || 0
             })
           });
 
