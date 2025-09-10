@@ -211,10 +211,92 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
           }
         }
 
-        // ETAPA 3: Enviar para Anymarket
+        // ETAPA 3: Deletar imagens antigas do Anymarket
         if (successCount > 0) {
-          setCurrentStep('Etapa 3: Enviando para Anymarket...');
-          addLog('info', '🛒 ETAPA 3: Enviando imagens processadas para Anymarket...');
+          setCurrentStep('Etapa 3: Deletando imagens antigas do Anymarket...');
+          addLog('info', '🗑️ ETAPA 3: Deletando imagens antigas do Anymarket...');
+
+          try {
+            // Primeiro, buscar as imagens existentes no Anymarket
+            addLog('info', '🔍 Buscando imagens existentes no Anymarket...');
+            
+            const existingImagesResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
+              }
+            });
+
+            if (existingImagesResponse.ok) {
+              const existingImages = await existingImagesResponse.json();
+              addLog('info', `📊 Encontradas ${existingImages.length} imagens existentes no Anymarket`);
+
+              // Deletar cada imagem existente
+              let deletedCount = 0;
+              let deleteErrorCount = 0;
+
+              for (let i = 0; i < existingImages.length; i++) {
+                const image = existingImages[i];
+                setCurrentStep(`Etapa 3: Deletando imagem ${i + 1}/${existingImages.length}...`);
+                
+                try {
+                  addLog('info', `🗑️ Deletando imagem ${i + 1}: ID ${image.id}`);
+
+                  const deleteResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images/${image.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
+                    }
+                  });
+
+                  if (deleteResponse.ok) {
+                    deletedCount++;
+                    addLog('success', `✅ Imagem ${i + 1} deletada com sucesso: ID ${image.id}`);
+                  } else {
+                    deleteErrorCount++;
+                    const errorText = await deleteResponse.text();
+                    addLog('error', `❌ Erro ao deletar imagem ${i + 1}: ID ${image.id}`, {
+                      error: errorText,
+                      status: deleteResponse.status
+                    });
+                  }
+                } catch (error: any) {
+                  deleteErrorCount++;
+                  addLog('error', `❌ Erro de conexão ao deletar imagem ${i + 1}: ID ${image.id}`, {
+                    error: error.message
+                  });
+                }
+
+                // Pequena pausa entre deleções
+                if (i < existingImages.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+              }
+
+              addLog('success', `✅ ETAPA 3: Deleção concluída! ${deletedCount} imagens deletadas, ${deleteErrorCount} erros`, {
+                totalFound: existingImages.length,
+                deletedCount: deletedCount,
+                deleteErrorCount: deleteErrorCount
+              });
+
+            } else {
+              const errorText = await existingImagesResponse.text();
+              addLog('warning', `⚠️ Não foi possível buscar imagens existentes no Anymarket`, {
+                error: errorText,
+                status: existingImagesResponse.status
+              });
+            }
+          } catch (error: any) {
+            addLog('error', '❌ Erro de conexão ao deletar imagens antigas', {
+              message: error.message
+            });
+          }
+
+          // ETAPA 4: Enviar para Anymarket
+          setCurrentStep('Etapa 4: Enviando para Anymarket...');
+          addLog('info', '🛒 ETAPA 4: Enviando imagens processadas para Anymarket...');
 
           try {
             const anymarketResponse = await fetch('/api/upload-anymarket', {
@@ -285,9 +367,9 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
           }
         }
         
-        // ETAPA 4: Mostrar resultados finais
-        setCurrentStep('Etapa 4: Exibindo resultados...');
-        addLog('success', `🎉 ETAPA 4: Processamento completo! ${successCount} imagens processadas com Pixian.ai`, {
+        // ETAPA 5: Mostrar resultados finais
+        setCurrentStep('Etapa 5: Exibindo resultados...');
+        addLog('success', `🎉 ETAPA 5: Processamento completo! ${successCount} imagens processadas com Pixian.ai`, {
           totalProcessed: successCount,
           totalErrors: errorCount,
           processedResults: processedResults
@@ -410,7 +492,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                 Processar Imagens da VTEX com Pixian.ai
               </h3>
               <p className="text-gray-600 mb-6">
-                Clique no botão abaixo para processar as imagens da VTEX com Pixian.ai e enviá-las para o Anymarket
+                Clique no botão abaixo para processar as imagens da VTEX com Pixian.ai, deletar as imagens antigas do Anymarket e enviar as novas
               </p>
                 <button
                 onClick={handleProcessImages}
