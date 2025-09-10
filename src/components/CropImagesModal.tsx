@@ -111,7 +111,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           productId: product.id,
           anymarketId: product.anymarket_id
         })
@@ -157,15 +157,15 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
             });
 
             const pixianResponse = await fetch('/api/process-pixian', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
                 imageUrl: image.url,
                 fileName: `vtex_${image.id}_${Date.now()}.jpg`
-              })
-            });
+        })
+      });
 
             const pixianResult = await pixianResponse.json();
 
@@ -211,9 +211,83 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
           }
         }
 
-        // ETAPA 3: Mostrar resultados finais
-        setCurrentStep('Etapa 3: Exibindo resultados...');
-        addLog('success', `🎉 ETAPA 3: Processamento concluído! ${successCount} imagens processadas com Pixian.ai`, {
+        // ETAPA 3: Enviar para Anymarket
+        if (successCount > 0) {
+          setCurrentStep('Etapa 3: Enviando para Anymarket...');
+          addLog('info', '🛒 ETAPA 3: Enviando imagens processadas para Anymarket...');
+
+          try {
+            const anymarketResponse = await fetch('/api/upload-anymarket', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                anymarketId: product.anymarket_id,
+                images: processedResults.map((result, index) => ({
+                  skuId: result.skuId || result.id,
+                  skuName: result.skuName,
+                  originalUrl: result.originalUrl,
+                  processedUrl: result.processedUrl,
+                  index: index,
+                  main: index === 0
+                }))
+              })
+            });
+
+            const anymarketResult = await anymarketResponse.json();
+
+            if (anymarketResult.success) {
+              addLog('success', `✅ ETAPA 3: Upload para Anymarket concluído! ${anymarketResult.data.totalProcessed} imagens enviadas`, {
+                totalProcessed: anymarketResult.data.totalProcessed,
+                totalErrors: anymarketResult.data.totalErrors,
+                successRate: anymarketResult.data.successRate,
+                results: anymarketResult.data.results,
+                errors: anymarketResult.data.errors
+              });
+
+              // Log detalhado de cada imagem enviada
+              anymarketResult.data.results.forEach((result: any, index: number) => {
+                addLog('success', `📤 Imagem ${index + 1} enviada para Anymarket: ${result.skuName}`, {
+                  skuId: result.skuId,
+                  skuName: result.skuName,
+                  newImageId: result.newImageId,
+                  index: result.index,
+                  main: result.main,
+                  processedUrl: result.processedUrl,
+                  anymarketResponse: result.anymarketResponse,
+                  requestDetails: result.requestDetails
+                });
+              });
+
+              // Log de erros se houver
+              if (anymarketResult.data.errors.length > 0) {
+                anymarketResult.data.errors.forEach((error: any, index: number) => {
+                  addLog('error', `❌ Erro no upload da imagem: ${error.skuName}`, {
+                    skuId: error.skuId,
+                    skuName: error.skuName,
+                    error: error.error,
+                    processedUrl: error.processedUrl
+                  });
+                });
+              }
+
+            } else {
+              addLog('error', '❌ Erro no upload para Anymarket', {
+                message: anymarketResult.message,
+                error: anymarketResult.error
+              });
+            }
+          } catch (error: any) {
+            addLog('error', '❌ Erro de conexão no upload para Anymarket', {
+              message: error.message
+            });
+          }
+        }
+        
+        // ETAPA 4: Mostrar resultados finais
+        setCurrentStep('Etapa 4: Exibindo resultados...');
+        addLog('success', `🎉 ETAPA 4: Processamento completo! ${successCount} imagens processadas com Pixian.ai`, {
           totalProcessed: successCount,
           totalErrors: errorCount,
           processedResults: processedResults
@@ -331,21 +405,21 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
             <div className="text-center py-8">
               <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <ImageIcon className="w-12 h-12 text-gray-400" />
-              </div>
+                  </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Processar Imagens da VTEX com Pixian.ai
               </h3>
               <p className="text-gray-600 mb-6">
-                Clique no botão abaixo para processar as imagens da VTEX com Pixian.ai e ver as URLs do resultado
+                Clique no botão abaixo para processar as imagens da VTEX com Pixian.ai e enviá-las para o Anymarket
               </p>
-              <button
+                <button
                 onClick={handleProcessImages}
                 className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all flex items-center gap-3 font-medium shadow-lg mx-auto"
               >
                 <Play className="h-5 w-5" />
-                Processar com Pixian.ai
-              </button>
-            </div>
+                Processar e Enviar para Anymarket
+                </button>
+              </div>
           )}
 
           {/* Logs */}
@@ -353,20 +427,20 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
             <div className="space-y-3">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Logs de Processamento</h3>
-                            <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">
                     {logs.filter(l => l.level === 'success').length} sucessos, {logs.filter(l => l.level === 'error').length} erros
                                 </span>
                   {!isProcessing && (
-                    <button
+                  <button
                       onClick={clearLogs}
                       className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
+                  >
                       Limpar
-                    </button>
-                            )}
-                          </div>
-                        </div>
+                  </button>
+                  )}
+                </div>
+            </div>
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {logs.map((log) => (
@@ -393,16 +467,16 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium text-gray-900">
                                         {index + 1}. {img.skuName}
-                                      </span>
+                </span>
                                       {img.isPrimary && (
                                         <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-full">
                                           Principal
-                                        </span>
-                                      )}
+                  </span>
+                )}
                                       <span className="bg-gray-600 text-white text-xs px-2 py-1 rounded">
                                         #{img.position}
                                       </span>
-                            </div>
+              </div>
                                     <span className="text-xs text-gray-500">
                                       SKU: {img.id}
                                     </span>
@@ -417,10 +491,10 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                                     <p className="text-xs text-blue-600 font-mono break-all">
                                       {img.url}
                                     </p>
-                          </div>
-                                </div>
+            </div>
+          </div>
                               ))}
-                            </div>
+        </div>
                           </div>
                         )}
 
@@ -446,9 +520,9 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                                 <p className="text-xs text-green-600 mt-1">
                                   Arquivo: {log.details.fileName}
                                 </p>
-                              </div>
-                              </div>
-                            </div>
+                  </div>
+                  </div>
+                </div>
                           )}
 
                         {/* Mostrar payload do Pixian */}
@@ -459,9 +533,9 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                               <pre className="text-xs text-gray-700 overflow-x-auto">
                                 {JSON.stringify(log.details.pixianPayload, null, 2)}
                               </pre>
-                            </div>
-                </div>
-              )}
+              </div>
+            </div>
+          )}
 
                         {/* Mostrar detalhes completos das requisições curl */}
                         {log.details?.requestDetails && (
@@ -473,33 +547,33 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                               <div className="mb-4 bg-purple-50 rounded border border-purple-200 p-3">
                                 <p className="text-xs font-medium text-purple-800 mb-2">🎨 Requisição para Pixian.ai:</p>
                                 <div className="space-y-2">
-                                  <div>
+                  <div>
                                     <p className="text-xs font-medium text-purple-700">Endpoint:</p>
                                     <p className="text-xs text-purple-600 font-mono">{log.details.requestDetails.pixian.endpoint}</p>
-                                  </div>
+                  </div>
                                   <div>
                                     <p className="text-xs font-medium text-purple-700">Método:</p>
                                     <p className="text-xs text-purple-600 font-mono">{log.details.requestDetails.pixian.method}</p>
-                                  </div>
+                </div>
                                   <div>
                                     <p className="text-xs font-medium text-purple-700">Headers:</p>
                                     <pre className="text-xs text-purple-600 overflow-x-auto">
                                       {JSON.stringify(log.details.requestDetails.pixian.headers, null, 2)}
                                     </pre>
-                                  </div>
-                                  <div>
+              </div>
+                  <div>
                                     <p className="text-xs font-medium text-purple-700">Payload:</p>
                                     <pre className="text-xs text-purple-600 overflow-x-auto">
                                       {JSON.stringify(log.details.requestDetails.pixian.payload, null, 2)}
                                     </pre>
-                                  </div>
+                  </div>
                                   <div>
                                     <p className="text-xs font-medium text-purple-700">Comando cURL:</p>
                                     <pre className="text-xs text-purple-600 overflow-x-auto bg-purple-100 p-2 rounded">
                                       {log.details.requestDetails.pixian.curlCommand}
                                     </pre>
-                                  </div>
-                                </div>
+                </div>
+              </div>
                               </div>
                             )}
 
@@ -508,37 +582,37 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                               <div className="mb-4 bg-blue-50 rounded border border-blue-200 p-3">
                                 <p className="text-xs font-medium text-blue-800 mb-2">📤 Requisição para Upload:</p>
                                 <div className="space-y-2">
-                                  <div>
+                  <div>
                                     <p className="text-xs font-medium text-blue-700">Endpoint:</p>
                                     <p className="text-xs text-blue-600 font-mono">{log.details.requestDetails.upload.endpoint}</p>
-                                  </div>
+                  </div>
                                   <div>
                                     <p className="text-xs font-medium text-blue-700">Método:</p>
                                     <p className="text-xs text-blue-600 font-mono">{log.details.requestDetails.upload.method}</p>
-                                  </div>
+                </div>
                                   <div>
                                     <p className="text-xs font-medium text-blue-700">Headers:</p>
                                     <pre className="text-xs text-blue-600 overflow-x-auto">
                                       {JSON.stringify(log.details.requestDetails.upload.headers, null, 2)}
                                     </pre>
-                                  </div>
-                                  <div>
+              </div>
+                  <div>
                                     <p className="text-xs font-medium text-blue-700">Payload:</p>
                                     <pre className="text-xs text-blue-600 overflow-x-auto">
                                       {JSON.stringify(log.details.requestDetails.upload.payload, null, 2)}
                                     </pre>
-                                  </div>
+                    </div>
                                   <div>
                                     <p className="text-xs font-medium text-blue-700">Comando cURL:</p>
                                     <pre className="text-xs text-blue-600 overflow-x-auto bg-blue-100 p-2 rounded">
                                       {log.details.requestDetails.upload.curlCommand}
                                     </pre>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
+                </div>
+              </div>
+            </div>
+          )}
 
-                          </div>
+              </div>
                         )}
                         
                         {log.details && 
@@ -555,13 +629,13 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                         <p className="text-xs text-gray-500 mt-1">
                           {log.timestamp.toLocaleTimeString()}
                         </p>
-                      </div>
-                </div>
-        </div>
+                            </div>
+                          </div>
+                              </div>
                 ))}
-              </div>
-            </div>
-          )}
+                              </div>
+                              </div>
+                            )}
 
           {/* Miniaturas das imagens processadas */}
           {!isProcessing && processedImages.length > 0 && (
@@ -573,7 +647,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                 <span className="text-sm text-gray-600">
                   {processedImages.length} imagens processadas
                 </span>
-              </div>
+                              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {processedImages.map((img, index) => (
@@ -600,9 +674,9 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                         <span className="bg-gray-600 text-white text-xs px-2 py-1 rounded">
                           #{img.position}
                         </span>
-                      </div>
-                    </div>
-                    
+                          </div>
+                        </div>
+
                     {/* Comparação de Imagens */}
                     <div className="grid grid-cols-2 gap-2 p-3">
                       {/* Imagem Original */}
@@ -613,13 +687,13 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                             src={img.originalUrl}
                             alt={`Original ${img.skuName}`}
                             className="w-full h-full object-cover rounded"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/placeholder-image.png';
-                            }}
-                          />
-                        </div>
-                      </div>
-                      
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/placeholder-image.png';
+                              }}
+                            />
+                            </div>
+                          </div>
+
                       {/* Imagem Processada */}
                       <div className="text-center">
                         <p className="text-xs text-gray-600 mb-2">Processada</p>
@@ -628,16 +702,16 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                             src={img.processedUrl}
                             alt={`Processada ${img.skuName}`}
                             className="w-full h-full object-cover rounded"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/placeholder-image.png';
-                            }}
-                          />
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/placeholder-image.png';
+                              }}
+                            />
                           <div className="absolute top-1 right-1 bg-green-600 text-white text-xs px-1 py-0.5 rounded">
                             ✅
                           </div>
-                        </div>
-                      </div>
-                    </div>
+                            </div>
+                                </div>
+                                </div>
                     
                     {/* URLs */}
                     <div className="p-3 bg-gray-50 border-t border-gray-100">
@@ -651,54 +725,54 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                             <p className="text-blue-600 font-mono break-all text-xs">
                               {img.originalUrl}
                             </p>
-                          </div>
+                                </div>
                           <div>
                             <p className="text-gray-600 font-medium">Processada:</p>
                             <p className="text-green-600 font-mono break-all text-xs">
                               {img.processedUrl}
                             </p>
-                          </div>
+                                </div>
                           <div>
                             <p className="text-gray-600 font-medium">Arquivo:</p>
                             <p className="text-gray-700 font-mono text-xs">
                               {img.fileName}
                             </p>
+                            </div>
+                          </div>
+                      </details>
                           </div>
                         </div>
-                      </details>
-                    </div>
-                  </div>
                 ))}
-              </div>
-            </div>
-          )}
+                      </div>
+                </div>
+              )}
 
           {/* Resultado final */}
           {!isProcessing && logs.length > 0 && (
             <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-green-500" />
                     <span className="text-sm font-medium text-gray-900">
                       {processedImages.length} imagens processadas
                     </span>
-                  </div>
-                  <div className="flex items-center gap-2">
+              </div>
+              <div className="flex items-center gap-2">
                     <AlertCircle className="h-5 w-5 text-red-500" />
                     <span className="text-sm font-medium text-gray-900">
                       {logs.filter(l => l.level === 'error').length} erros
                     </span>
-                  </div>
-                </div>
-                <button
+              </div>
+              </div>
+                  <button
                   onClick={onClose}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Fechar
-                </button>
-              </div>
+              >
+                Fechar
+              </button>
             </div>
+          </div>
           )}
         </div>
       </div>
