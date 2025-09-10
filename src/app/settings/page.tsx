@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import Card from '@/components/Card';
-import { Settings, Key, Globe, Database, Save, TestTube, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Settings, Key, Globe, Database, Save, TestTube, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
 
 interface VtexConfig {
   accountName: string;
@@ -34,6 +34,7 @@ export default function SettingsPage() {
 
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
 
   // Carregar configurações salvas
   useEffect(() => {
@@ -119,6 +120,51 @@ export default function SettingsPage() {
       });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const cleanAllProducts = async () => {
+    const confirmed = window.confirm(
+      '⚠️ ATENÇÃO: Esta operação irá deletar TODOS os dados relacionados aos produtos!\n\n' +
+      'Serão removidos:\n' +
+      '• Todos os produtos\n' +
+      '• Todos os SKUs\n' +
+      '• Todas as imagens\n' +
+      '• Todas as marcas\n' +
+      '• Todas as categorias\n' +
+      '• Todos os dados do marketplace\n' +
+      '• Todos os logs de análise\n' +
+      '• Todos os dados do anymarket\n\n' +
+      'As configurações do sistema serão preservadas.\n\n' +
+      'Esta operação é IRREVERSÍVEL!\n\n' +
+      'Deseja continuar?'
+    );
+
+    if (!confirmed) return;
+
+    setCleaning(true);
+
+    try {
+      const response = await fetch('/api/settings/clean-products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`✅ Limpeza concluída com sucesso!\n\n` +
+              `📊 Total de registros deletados: ${data.data.totalDeleted}\n` +
+              `⚙️ Configurações preservadas: ${data.data.configsPreserved}`);
+      } else {
+        alert(`❌ Erro durante a limpeza: ${data.message}`);
+      }
+    } catch (error) {
+      alert('❌ Erro de rede ao executar limpeza');
+    } finally {
+      setCleaning(false);
     }
   };
 
@@ -415,6 +461,60 @@ export default function SettingsPage() {
               </ul>
             </div>
           </div>
+        </Card>
+
+        {/* Limpeza de Dados */}
+        <Card>
+          <div className="flex items-center mb-6">
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-4">
+              <Trash2 className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Limpeza de Dados</h2>
+              <p className="text-gray-600">Remover todos os dados relacionados aos produtos</p>
+            </div>
+          </div>
+
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start">
+              <AlertCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="text-sm font-medium text-red-800 mb-2">⚠️ Operação Irreversível</h3>
+                <p className="text-sm text-red-700 mb-3">
+                  Esta operação irá deletar TODOS os dados relacionados aos produtos do sistema, incluindo:
+                </p>
+                <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
+                  <li>Todos os produtos e SKUs</li>
+                  <li>Todas as imagens e vídeos</li>
+                  <li>Todas as marcas e categorias</li>
+                  <li>Todos os dados do marketplace</li>
+                  <li>Todos os logs de análise</li>
+                  <li>Todos os dados do anymarket</li>
+                </ul>
+                <p className="text-sm text-red-700 mt-3 font-medium">
+                  As configurações do sistema serão preservadas.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={cleanAllProducts}
+            disabled={cleaning}
+            className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+          >
+            {cleaning ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Limpando dados...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-5 w-5 mr-2" />
+                Limpar Todos os Dados de Produtos
+              </>
+            )}
+          </button>
         </Card>
       </div>
     </Layout>

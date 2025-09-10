@@ -297,45 +297,47 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           {/* Card de Total de Produtos */}
           <div className="aspect-square">
-            <div className="bg-orange-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-orange-200 p-6 h-full flex flex-col">
+            <div className="bg-orange-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-orange-200 p-4 h-full flex flex-col">
               {/* Cabeçalho */}
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center mr-3">
-                  <Package className="h-5 w-5 text-white" />
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-orange-400 rounded-lg flex items-center justify-center mr-2">
+                  <Package className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-orange-100">Total de Produtos</p>
+                <p className="text-xs font-medium text-orange-100 leading-tight">Total de Produtos</p>
               </div>
               
               {/* Conteúdo centralizado */}
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-6xl font-bold text-white text-center leading-none">
-                  {loading ? (
-                    <div className="animate-pulse bg-orange-300 h-16 w-32 rounded"></div>
-                  ) : (
-                    totalProducts.toLocaleString()
-                  )}
+              <div className="flex-1 flex items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
+                    {loading ? (
+                      <div className="animate-pulse bg-orange-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
+                    ) : (
+                      <span className="break-all">{totalProducts.toLocaleString()}</span>
+                    )}
+                  </div>
                 </div>
               </div>
               
               {/* Estatísticas detalhadas */}
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between items-center text-sm">
+              <div className="mt-3 space-y-1 flex-shrink-0">
+                <div className="flex justify-between items-center text-xs">
                   <span className="text-orange-100">Ativos:</span>
-                  <span className="text-white font-medium">
+                  <span className="text-white font-medium text-xs">
                     {loading ? '...' : `${activeProducts.toLocaleString()} (${activePercentage}%)`}
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
+                <div className="flex justify-between items-center text-xs">
                   <span className="text-orange-100">Visíveis:</span>
-                  <span className="text-white font-medium">
+                  <span className="text-white font-medium text-xs">
                     {loading ? '...' : `${visibleProducts.toLocaleString()} (${visiblePercentage}%)`}
                   </span>
                 </div>
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-2">
-                <p className="text-xs text-orange-100">
+              <div className="text-left mt-2 flex-shrink-0">
+                <p className="text-xs text-orange-100 leading-tight">
                   Produtos cadastrados no sistema
                 </p>
               </div>
@@ -344,48 +346,50 @@ export default function DashboardPage() {
 
           {/* Card de Produtos com Análise de Imagem */}
           <div className="aspect-square">
-            <div className="bg-green-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-green-200 p-6 h-full flex flex-col">
+            <div className="bg-green-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-green-200 p-4 h-full flex flex-col">
               {/* Cabeçalho */}
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-green-400 rounded-lg flex items-center justify-center mr-3">
-                  <ImageIcon className="h-5 w-5 text-white" />
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-green-400 rounded-lg flex items-center justify-center mr-2">
+                  <ImageIcon className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-green-100">Análise de Imagem</p>
+                <p className="text-xs font-medium text-green-100 leading-tight">Análise de Imagem</p>
               </div>
               
               {/* Conteúdo centralizado */}
-              <div className="flex-1 flex flex-col items-center justify-center">
-                <div className="text-6xl font-bold text-white text-center leading-none mb-2">
-                  {loading ? (
-                    <div className="animate-pulse bg-green-300 h-16 w-32 rounded"></div>
-                  ) : (
-                    productsWithImageAnalysis.toLocaleString()
-                  )}
-                </div>
-                <div className="text-center">
-                  {!loading && (productsWithoutImageAnalysis > 0 || imageAnalysisPercentage > 0) && (
-                    <div className="text-sm text-green-200 flex items-center justify-center gap-1">
-                      <Minus className="h-3 w-3" />
-                      <span>{productsWithoutImageAnalysis.toLocaleString()}</span>
-                      <span>/</span>
-                      <span>{imageAnalysisPercentage}%</span>
-                      <div className="group relative">
-                        <Info className="h-3 w-3 cursor-help" />
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                          Sem análise / % com análise
+              <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none mb-2" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
+                    {loading ? (
+                      <div className="animate-pulse bg-green-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
+                    ) : (
+                      <span className="break-all">{productsWithImageAnalysis.toLocaleString()}</span>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    {!loading && (productsWithoutImageAnalysis > 0 || imageAnalysisPercentage > 0) && (
+                      <div className="text-xs text-green-200 flex items-center justify-center gap-1">
+                        <Minus className="h-3 w-3" />
+                        <span>{productsWithoutImageAnalysis.toLocaleString()}</span>
+                        <span>/</span>
+                        <span>{imageAnalysisPercentage}%</span>
+                        <div className="group relative">
+                          <Info className="h-3 w-3 cursor-help" />
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                            Sem análise / % com análise
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {loading && (
-                    <div className="animate-pulse bg-green-300 h-3 w-20 rounded mx-auto"></div>
-                  )}
+                    )}
+                    {loading && (
+                      <div className="animate-pulse bg-green-300 h-3 w-16 rounded mx-auto"></div>
+                    )}
+                  </div>
                 </div>
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-4">
-                <p className="text-sm text-green-100">
+              <div className="text-left mt-3 flex-shrink-0">
+                <p className="text-xs text-green-100 leading-tight">
                   Produtos com análise de imagem gerada
                 </p>
               </div>
@@ -394,48 +398,50 @@ export default function DashboardPage() {
 
           {/* Card de Produtos com Descrição do Marketplace */}
           <div className="aspect-square">
-            <div className="bg-blue-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-blue-200 p-6 h-full flex flex-col">
+            <div className="bg-blue-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-blue-200 p-4 h-full flex flex-col">
               {/* Cabeçalho */}
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-blue-400 rounded-lg flex items-center justify-center mr-3">
-                  <FileText className="h-5 w-5 text-white" />
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-blue-400 rounded-lg flex items-center justify-center mr-2">
+                  <FileText className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-blue-100">Descrição Anymarket</p>
+                <p className="text-xs font-medium text-blue-100 leading-tight">Descrição Anymarket</p>
               </div>
               
               {/* Conteúdo centralizado */}
-              <div className="flex-1 flex flex-col items-center justify-center">
-                <div className="text-6xl font-bold text-white text-center leading-none mb-2">
-                  {loading ? (
-                    <div className="animate-pulse bg-blue-300 h-16 w-32 rounded"></div>
-                  ) : (
-                    productsWithMarketplaceDescription.toLocaleString()
-                  )}
-                </div>
-                <div className="text-center">
-                  {!loading && (productsWithoutMarketplaceDescription > 0 || marketplaceDescriptionPercentage > 0) && (
-                    <div className="text-sm text-blue-200 flex items-center justify-center gap-1">
-                      <Minus className="h-3 w-3" />
-                      <span>{productsWithoutMarketplaceDescription.toLocaleString()}</span>
-                      <span>/</span>
-                      <span>{marketplaceDescriptionPercentage}%</span>
-                      <div className="group relative">
-                        <Info className="h-3 w-3 cursor-help" />
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                          Sem descrição / % com descrição
+              <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none mb-2" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
+                    {loading ? (
+                      <div className="animate-pulse bg-blue-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
+                    ) : (
+                      <span className="break-all">{productsWithMarketplaceDescription.toLocaleString()}</span>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    {!loading && (productsWithoutMarketplaceDescription > 0 || marketplaceDescriptionPercentage > 0) && (
+                      <div className="text-xs text-blue-200 flex items-center justify-center gap-1">
+                        <Minus className="h-3 w-3" />
+                        <span>{productsWithoutMarketplaceDescription.toLocaleString()}</span>
+                        <span>/</span>
+                        <span>{marketplaceDescriptionPercentage}%</span>
+                        <div className="group relative">
+                          <Info className="h-3 w-3 cursor-help" />
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                            Sem descrição / % com descrição
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {loading && (
-                    <div className="animate-pulse bg-blue-300 h-3 w-20 rounded mx-auto"></div>
-                  )}
+                    )}
+                    {loading && (
+                      <div className="animate-pulse bg-blue-300 h-3 w-16 rounded mx-auto"></div>
+                    )}
+                  </div>
                 </div>
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-4">
-                <p className="text-sm text-blue-100">
+              <div className="text-left mt-3 flex-shrink-0">
+                <p className="text-xs text-blue-100 leading-tight">
                   Produtos com descrição para marketplace
                 </p>
               </div>
@@ -444,39 +450,41 @@ export default function DashboardPage() {
 
           {/* Card de Produtos com Sincronização Anymarket */}
           <div className="aspect-square">
-            <div className="bg-purple-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-purple-200 p-6 h-full flex flex-col">
+            <div className="bg-purple-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-purple-200 p-4 h-full flex flex-col">
               {/* Cabeçalho */}
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-purple-400 rounded-lg flex items-center justify-center mr-3">
-                  <RefreshCw className="h-5 w-5 text-white" />
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-purple-400 rounded-lg flex items-center justify-center mr-2">
+                  <RefreshCw className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-purple-100">Sincronização</p>
+                <p className="text-xs font-medium text-purple-100 leading-tight">Sincronização</p>
               </div>
               
               {/* Conteúdo centralizado */}
-              <div className="flex-1 flex flex-col items-center justify-center">
-                <div className="text-6xl font-bold text-white text-center leading-none mb-2">
-                  {loading ? (
-                    <div className="animate-pulse bg-purple-300 h-16 w-32 rounded"></div>
-                  ) : (
-                    productsWithAnymarketSync.toLocaleString()
-                  )}
-                </div>
-                <div className="text-center">
-                  {!loading && (productsWithoutSync > 0 || syncPercentage > 0) && (
-                    <p className="text-xs text-purple-200">
-                      {productsWithoutSync.toLocaleString()} / {syncPercentage}%
-                    </p>
-                  )}
-                  {loading && (
-                    <div className="animate-pulse bg-purple-300 h-3 w-20 rounded mx-auto"></div>
-                  )}
+              <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none mb-2" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
+                    {loading ? (
+                      <div className="animate-pulse bg-purple-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
+                    ) : (
+                      <span className="break-all">{productsWithAnymarketSync.toLocaleString()}</span>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    {!loading && (productsWithoutSync > 0 || syncPercentage > 0) && (
+                      <p className="text-xs text-purple-200">
+                        {productsWithoutSync.toLocaleString()} / {syncPercentage}%
+                      </p>
+                    )}
+                    {loading && (
+                      <div className="animate-pulse bg-purple-300 h-3 w-16 rounded mx-auto"></div>
+                    )}
+                  </div>
                 </div>
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-4">
-                <p className="text-sm text-purple-100">
+              <div className="text-left mt-3 flex-shrink-0">
+                <p className="text-xs text-purple-100 leading-tight">
                   Produtos sincronizados no Anymarket
                 </p>
               </div>
@@ -485,26 +493,26 @@ export default function DashboardPage() {
 
           {/* Card de Está no Anymarket */}
           <div className="aspect-square">
-            <div className="bg-indigo-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-indigo-200 p-6 h-full flex flex-col">
+            <div className="bg-indigo-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-indigo-200 p-4 h-full flex flex-col">
               {/* Cabeçalho */}
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-indigo-400 rounded-lg flex items-center justify-center mr-3">
-                  <Globe className="h-5 w-5 text-white" />
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-indigo-400 rounded-lg flex items-center justify-center mr-2">
+                  <Globe className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-indigo-100">Está no Anymarket</p>
+                <p className="text-xs font-medium text-indigo-100 leading-tight">Está no Anymarket</p>
               </div>
               
               {/* Conteúdo centralizado */}
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-6xl font-bold text-white leading-none">
+              <div className="flex-1 flex items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
                     {loading ? (
-                      <div className="animate-pulse bg-indigo-300 h-16 w-32 rounded"></div>
+                      <div className="animate-pulse bg-indigo-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
                     ) : (
-                      productsInAnymarket.toLocaleString()
+                      <span className="break-all">{productsInAnymarket.toLocaleString()}</span>
                     )}
                   </div>
-                  <div className="text-sm text-indigo-200 mt-2 flex items-center justify-center gap-1">
+                  <div className="text-xs text-indigo-200 mt-2 flex items-center justify-center gap-1">
                     <Minus className="h-3 w-3" />
                     <span>{loading ? '...' : `${(totalProducts - productsInAnymarket).toLocaleString()}`}</span>
                     <span>/</span>
@@ -520,8 +528,8 @@ export default function DashboardPage() {
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-2">
-                <p className="text-xs text-indigo-100">
+              <div className="text-left mt-2 flex-shrink-0">
+                <p className="text-xs text-indigo-100 leading-tight">
                   Produtos disponíveis no Anymarket
                 </p>
               </div>
@@ -530,26 +538,26 @@ export default function DashboardPage() {
 
           {/* Card de Produtos sem Imagem */}
           <div className="aspect-square">
-            <div className="bg-red-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-red-200 p-6 h-full flex flex-col">
+            <div className="bg-red-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-red-200 p-4 h-full flex flex-col">
               {/* Cabeçalho */}
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-red-400 rounded-lg flex items-center justify-center mr-3">
-                  <ImageIcon className="h-5 w-5 text-white" />
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-red-400 rounded-lg flex items-center justify-center mr-2">
+                  <ImageIcon className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-red-100">Sem Imagem</p>
+                <p className="text-xs font-medium text-red-100 leading-tight">Sem Imagem</p>
               </div>
               
               {/* Conteúdo centralizado */}
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-6xl font-bold text-white leading-none">
+              <div className="flex-1 flex items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
                     {loading ? (
-                      <div className="animate-pulse bg-red-300 h-16 w-32 rounded"></div>
+                      <div className="animate-pulse bg-red-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
                     ) : (
-                      productsWithoutImages.toLocaleString()
+                      <span className="break-all">{productsWithoutImages.toLocaleString()}</span>
                     )}
                   </div>
-                  <div className="text-sm text-red-200 mt-2 flex items-center justify-center gap-1">
+                  <div className="text-xs text-red-200 mt-2 flex items-center justify-center gap-1">
                     <Minus className="h-3 w-3" />
                     <span>{loading ? '...' : `${(totalProducts - productsWithoutImages).toLocaleString()}`}</span>
                     <span>/</span>
@@ -565,8 +573,8 @@ export default function DashboardPage() {
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-2">
-                <p className="text-xs text-red-100">
+              <div className="text-left mt-2 flex-shrink-0">
+                <p className="text-xs text-red-100 leading-tight">
                   Produtos sem imagens cadastradas
                 </p>
               </div>
@@ -575,26 +583,26 @@ export default function DashboardPage() {
 
           {/* Card de Produtos Inativos */}
           <div className="aspect-square">
-            <div className="bg-gray-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-gray-200 p-6 h-full flex flex-col">
+            <div className="bg-gray-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-gray-200 p-4 h-full flex flex-col">
               {/* Cabeçalho */}
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-gray-400 rounded-lg flex items-center justify-center mr-3">
-                  <Package className="h-5 w-5 text-white" />
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-gray-400 rounded-lg flex items-center justify-center mr-2">
+                  <Package className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-gray-100">Inativos</p>
+                <p className="text-xs font-medium text-gray-100 leading-tight">Inativos</p>
               </div>
               
               {/* Conteúdo centralizado */}
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-6xl font-bold text-white leading-none">
+              <div className="flex-1 flex items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
                     {loading ? (
-                      <div className="animate-pulse bg-gray-300 h-16 w-32 rounded"></div>
+                      <div className="animate-pulse bg-gray-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
                     ) : (
-                      inactiveProducts.toLocaleString()
+                      <span className="break-all">{inactiveProducts.toLocaleString()}</span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-200 mt-2 flex items-center justify-center gap-1">
+                  <div className="text-xs text-gray-200 mt-2 flex items-center justify-center gap-1">
                     <Minus className="h-3 w-3" />
                     <span>{loading ? '...' : `${(totalProducts - inactiveProducts).toLocaleString()}`}</span>
                     <span>/</span>
@@ -610,8 +618,8 @@ export default function DashboardPage() {
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-2">
-                <p className="text-xs text-gray-100">
+              <div className="text-left mt-2 flex-shrink-0">
+                <p className="text-xs text-gray-100 leading-tight">
                   Produtos inativos no sistema
                 </p>
               </div>
@@ -620,26 +628,26 @@ export default function DashboardPage() {
 
           {/* Card de Produtos sem Estoque */}
           <div className="aspect-square">
-            <div className="bg-yellow-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-yellow-200 p-6 h-full flex flex-col">
+            <div className="bg-yellow-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-yellow-200 p-4 h-full flex flex-col">
               {/* Cabeçalho */}
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center mr-3">
-                  <AlertTriangle className="h-5 w-5 text-white" />
+              <div className="flex items-center mb-3 flex-shrink-0">
+                <div className="w-6 h-6 bg-yellow-400 rounded-lg flex items-center justify-center mr-2">
+                  <AlertTriangle className="h-4 w-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-yellow-100">Sem Estoque</p>
+                <p className="text-xs font-medium text-yellow-100 leading-tight">Sem Estoque</p>
               </div>
               
               {/* Conteúdo centralizado */}
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-6xl font-bold text-white leading-none">
+              <div className="flex-1 flex items-center justify-center min-h-0">
+                <div className="text-center w-full">
+                  <div className="font-bold text-white leading-none" style={{ fontSize: 'clamp(2rem, 8vw, 4rem)' }}>
                     {loading ? (
-                      <div className="animate-pulse bg-yellow-300 h-16 w-32 rounded"></div>
+                      <div className="animate-pulse bg-yellow-300 rounded mx-auto" style={{ height: 'clamp(2rem, 8vw, 4rem)', width: 'clamp(6rem, 20vw, 8rem)' }}></div>
                     ) : (
-                      productsWithoutStock.toLocaleString()
+                      <span className="break-all">{productsWithoutStock.toLocaleString()}</span>
                     )}
                   </div>
-                  <div className="text-sm text-yellow-200 mt-2 flex items-center justify-center gap-1">
+                  <div className="text-xs text-yellow-200 mt-2 flex items-center justify-center gap-1">
                     <Minus className="h-3 w-3" />
                     <span>{loading ? '...' : `${(totalProducts - productsWithoutStock).toLocaleString()}`}</span>
                     <span>/</span>
@@ -655,8 +663,8 @@ export default function DashboardPage() {
               </div>
               
               {/* Rodapé */}
-              <div className="text-left mt-2">
-                <p className="text-xs text-yellow-100">
+              <div className="text-left mt-2 flex-shrink-0">
+                <p className="text-xs text-yellow-100 leading-tight">
                   Produtos com estoque zerado
                 </p>
               </div>
