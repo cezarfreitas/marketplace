@@ -163,14 +163,14 @@ export async function POST(request: NextRequest) {
           main: anymarketUploadData.main,
           url: newImageUrl
         });
+        
+        console.log('📋 JSON do upload:', JSON.stringify(anymarketUploadData));
 
         const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
           method: 'POST',
           headers: {
-            'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==',
             'Content-Type': 'application/json',
-            'User-Agent': 'Meli-Integration/1.0',
-            'Accept': 'application/json'
+            'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
           },
           body: JSON.stringify(anymarketUploadData)
         });
@@ -336,14 +336,20 @@ export async function POST(request: NextRequest) {
             main: false, // Imagens VTEX nunca são main (apenas a primeira do Anymarket é main)
             url: newImageUrl
           };
+          
+          console.log('📋 Dados do upload VTEX:', {
+            index: anymarketUploadData.index,
+            main: anymarketUploadData.main,
+            url: newImageUrl
+          });
+          
+          console.log('📋 JSON do upload VTEX:', JSON.stringify(anymarketUploadData));
 
           const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
             method: 'POST',
             headers: {
-              'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==',
               'Content-Type': 'application/json',
-              'User-Agent': 'Meli-Integration/1.0',
-              'Accept': 'application/json'
+              'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
             },
             body: JSON.stringify(anymarketUploadData)
           });
