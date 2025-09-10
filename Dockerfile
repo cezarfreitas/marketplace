@@ -24,6 +24,9 @@ ENV NODE_ENV=production
 # Build da aplicação Next.js
 RUN npm run build
 
+# Criar pasta public se não existir
+RUN mkdir -p /app/public/uploads/crop-images
+
 # Imagem de produção
 FROM base AS runner
 WORKDIR /app
