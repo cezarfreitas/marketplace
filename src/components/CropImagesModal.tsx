@@ -108,14 +108,17 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
       
       if (result.success && result.data.isProcessed) {
         setProcessedProduct(result.data.processedProduct);
-        addLog('info', `📋 Produto já foi processado ${result.data.processedProduct.totalProcessingCount} vez(es)`, {
-          lastProcessedAt: result.data.processedProduct.lastProcessedAt,
-          lastStatus: result.data.processedProduct.lastStatus,
-          totalProcessingCount: result.data.processedProduct.totalProcessingCount
-        });
+        // Só adicionar log se houver logs anteriores ou se estiver reprocessando
+        if (result.data.processedProduct.totalProcessingCount > 0) {
+          addLog('info', `📋 Produto já foi processado ${result.data.processedProduct.totalProcessingCount} vez(es)`, {
+            lastProcessedAt: result.data.processedProduct.lastProcessedAt,
+            lastStatus: result.data.processedProduct.lastStatus,
+            totalProcessingCount: result.data.processedProduct.totalProcessingCount
+          });
+        }
       } else {
         setProcessedProduct(null);
-        addLog('info', '🆕 Produto ainda não foi processado');
+        // Não adicionar log para produtos não processados
       }
     } catch (error: any) {
       addLog('warning', '⚠️ Erro ao verificar histórico do produto', { error: error.message });
@@ -148,7 +151,10 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
         }));
         
         setLogs(prev => [...previousLogs, ...prev]);
-        addLog('info', `📜 Carregados ${previousLogs.length} log(s) anterior(es)`);
+        // Só adicionar log de carregamento se houver logs para carregar
+        if (previousLogs.length > 0) {
+          addLog('info', `📜 Carregados ${previousLogs.length} log(s) anterior(es)`);
+        }
       }
     } catch (error: any) {
       addLog('warning', '⚠️ Erro ao carregar logs anteriores', { error: error.message });
