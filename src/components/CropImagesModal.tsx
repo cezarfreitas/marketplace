@@ -211,65 +211,9 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
           }
         }
 
-        // ETAPA 3: Upload para Anymarket
-        if (successCount > 0) {
-          setCurrentStep('Etapa 3: Enviando para Anymarket...');
-          addLog('info', '🛒 ETAPA 3: Enviando imagens processadas para o Anymarket...');
-
-          try {
-            const uploadResponse = await fetch('/api/upload-anymarket', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                anymarketId: product.anymarket_id,
-                images: processedResults
-              })
-            });
-
-            const uploadResult = await uploadResponse.json();
-
-            if (uploadResult.success) {
-              addLog('success', `✅ ETAPA 3: ${uploadResult.data.totalProcessed} imagens enviadas para o Anymarket com sucesso!`, {
-                totalProcessed: uploadResult.data.totalProcessed,
-                totalErrors: uploadResult.data.totalErrors,
-                successRate: uploadResult.data.successRate,
-                uploadResults: uploadResult.data.results
-              });
-
-              // Log detalhado de cada upload
-              uploadResult.data.results.forEach((upload: any, index: number) => {
-                addLog('success', `✅ Upload ${index + 1}: ${upload.skuName} enviada para Anymarket`, {
-                  newImageId: upload.newImageId,
-                  index: upload.index,
-                  main: upload.main,
-                  processedUrl: upload.processedUrl,
-                  requestDetails: upload.requestDetails
-                });
-              });
-
-              // Log de erros se houver
-              if (uploadResult.data.errors.length > 0) {
-                uploadResult.data.errors.forEach((error: any) => {
-                  addLog('error', `❌ Erro no upload: ${error.skuName} - ${error.error}`);
-                });
-              }
-            } else {
-              addLog('error', '❌ Erro no upload para Anymarket', {
-                message: uploadResult.message
-              });
-            }
-          } catch (uploadError: any) {
-            addLog('error', '❌ Erro de conexão no upload para Anymarket', {
-              error: uploadError.message
-            });
-          }
-        }
-
-        // ETAPA 4: Mostrar resultados finais
-        setCurrentStep('Etapa 4: Exibindo resultados...');
-        addLog('success', `🎉 ETAPA 4: Processamento completo! ${successCount} imagens processadas`, {
+        // ETAPA 3: Mostrar resultados finais
+        setCurrentStep('Etapa 3: Exibindo resultados...');
+        addLog('success', `🎉 ETAPA 3: Processamento concluído! ${successCount} imagens processadas com Pixian.ai`, {
           totalProcessed: successCount,
           totalErrors: errorCount,
           processedResults: processedResults
@@ -389,17 +333,17 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                 <ImageIcon className="w-12 h-12 text-gray-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Processar e Enviar Imagens para Anymarket
+                Processar Imagens da VTEX com Pixian.ai
               </h3>
               <p className="text-gray-600 mb-6">
-                Clique no botão abaixo para processar as imagens da VTEX com Pixian.ai e enviar para o Anymarket
+                Clique no botão abaixo para processar as imagens da VTEX com Pixian.ai e ver as URLs do resultado
               </p>
               <button
                 onClick={handleProcessImages}
                 className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all flex items-center gap-3 font-medium shadow-lg mx-auto"
               >
                 <Play className="h-5 w-5" />
-                Processar e Enviar para Anymarket
+                Processar com Pixian.ai
               </button>
             </div>
           )}
@@ -594,40 +538,6 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages }: Cr
                               </div>
                             )}
 
-                            {/* Requisição para Anymarket */}
-                            {log.details.requestDetails.anymarket && (
-                              <div className="bg-green-50 rounded border border-green-200 p-3">
-                                <p className="text-xs font-medium text-green-800 mb-2">🛒 Requisição para Anymarket:</p>
-                                <div className="space-y-2">
-                                  <div>
-                                    <p className="text-xs font-medium text-green-700">Endpoint:</p>
-                                    <p className="text-xs text-green-600 font-mono">{log.details.requestDetails.anymarket.endpoint}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-medium text-green-700">Método:</p>
-                                    <p className="text-xs text-green-600 font-mono">{log.details.requestDetails.anymarket.method}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-medium text-green-700">Headers:</p>
-                                    <pre className="text-xs text-green-600 overflow-x-auto">
-                                      {JSON.stringify(log.details.requestDetails.anymarket.headers, null, 2)}
-                                    </pre>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-medium text-green-700">Payload:</p>
-                                    <pre className="text-xs text-green-600 overflow-x-auto">
-                                      {JSON.stringify(log.details.requestDetails.anymarket.payload, null, 2)}
-                                    </pre>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-medium text-green-700">Comando cURL:</p>
-                                    <pre className="text-xs text-green-600 overflow-x-auto bg-green-100 p-2 rounded">
-                                      {log.details.requestDetails.anymarket.curlCommand}
-                                    </pre>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         )}
                         
