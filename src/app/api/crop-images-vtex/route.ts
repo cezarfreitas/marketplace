@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
         const croppedImageBase64 = Buffer.from(croppedImageBuffer).toString('base64');
         
         // Fazer upload da imagem para o servidor
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${request.headers.get('origin') || 'http://localhost:3002'}`;
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${request.headers.get('origin') || 'https://b2b-seo.jzo3qo.easypanel.host'}`;
         const uploadResponse = await fetch(`${baseUrl}/api/upload-image`, {
           method: 'POST',
           headers: {
