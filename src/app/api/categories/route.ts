@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     // Buscar total de registros
     const countQuery = `
       SELECT COUNT(*) as total 
-      FROM categories c 
+      FROM categories_vtex c 
       ${whereClause}
     `;
     
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     // Buscar categorias com contagem de produtos
     const categoriesQuery = `
       SELECT 
-        c.id, 
+        c.vtex_id as id, 
         c.vtex_id, 
         c.name, 
         c.father_category_id,
@@ -81,17 +81,18 @@ export async function GET(request: Request) {
         c.score,
         c.link_id,
         c.has_children,
+        c.contexto,
         c.created_at,
         c.updated_at,
         COALESCE(p.product_count, 0) as product_count,
         parent.name as parent_name
-      FROM categories c
-      LEFT JOIN categories parent ON c.father_category_id = parent.id
+      FROM categories_vtex c
+      LEFT JOIN categories_vtex parent ON c.father_category_id = parent.vtex_id
       LEFT JOIN (
         SELECT category_id, COUNT(*) as product_count 
-        FROM products 
+        FROM products_vtex 
         GROUP BY category_id
-      ) p ON c.id = p.category_id
+      ) p ON c.vtex_id = p.category_id
       ${whereClause}
       ORDER BY ${sortField === 'product_count' ? 'COALESCE(p.product_count, 0)' : `c.${sortField}`} ${sortDirection}
       LIMIT ${limit} OFFSET ${offset}
@@ -146,7 +147,7 @@ export async function DELETE(request: Request) {
 
     // Verificar se a categoria existe
     const existingCategories = await executeQuery(
-      'SELECT id FROM categories WHERE id = ?',
+      'SELECT vtex_id FROM categories_vtex WHERE vtex_id = ?',
       [id]
     );
 
@@ -159,7 +160,7 @@ export async function DELETE(request: Request) {
 
     // Verificar se a categoria tem produtos associados
     const productsCount = await executeQuery(
-      'SELECT COUNT(*) as count FROM products WHERE category_id = ?',
+      'SELECT COUNT(*) as count FROM products_vtex WHERE category_id = ?',
       [id]
     );
 
@@ -171,7 +172,7 @@ export async function DELETE(request: Request) {
     }
 
     // Deletar a categoria
-    await executeQuery('DELETE FROM categories WHERE id = ?', [id]);
+    await executeQuery('DELETE FROM categories_vtex WHERE vtex_id = ?', [id]);
 
     return NextResponse.json({
       success: true,

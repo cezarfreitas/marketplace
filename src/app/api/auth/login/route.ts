@@ -4,23 +4,27 @@ import { login } from '@/lib/auth';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, password } = body;
+    const { email, senha, username, password } = body;
+
+    // Suporte tanto para email/senha quanto username/password (compatibilidade)
+    const loginEmail = email || username;
+    const loginSenha = senha || password;
 
     // Validar dados de entrada
-    if (!username || !password) {
+    if (!loginEmail || !loginSenha) {
       return NextResponse.json({
         success: false,
-        message: 'Username e senha são obrigatórios'
+        message: 'Email e senha são obrigatórios'
       }, { status: 400 });
     }
 
-    console.log('🔐 Tentativa de login para usuário:', username);
+    console.log('🔐 Tentativa de login para usuário:', loginEmail);
 
     // Fazer login
-    const authResult = await login({ username, password });
+    const authResult = await login({ email: loginEmail, senha: loginSenha });
 
     if (authResult) {
-      console.log('✅ Login realizado com sucesso para:', username);
+      console.log('✅ Login realizado com sucesso para:', loginEmail);
       
       return NextResponse.json({
         success: true,
@@ -31,7 +35,7 @@ export async function POST(request: NextRequest) {
         }
       });
     } else {
-      console.log('❌ Falha no login para:', username);
+      console.log('❌ Falha no login para:', loginEmail);
       
       return NextResponse.json({
         success: false,

@@ -14,7 +14,7 @@ export async function POST() {
     // Verificar se há SKUs com múltiplos registros na tabela stock
     const duplicateQuery = `
       SELECT sku_id, COUNT(*) as count, SUM(total_quantity) as total_stock
-      FROM stock 
+      FROM stock_vtex 
       GROUP BY sku_id 
       HAVING COUNT(*) > 1
       LIMIT 10
@@ -24,13 +24,13 @@ export async function POST() {
     console.log(`🔍 SKUs com múltiplos registros na tabela stock:`, duplicates);
     
     // Verificar total de registros na tabela stock
-    const stockCountQuery = `SELECT COUNT(*) as total FROM stock`;
+    const stockCountQuery = `SELECT COUNT(*) as total FROM stock_vtex`;
     const stockCountResult = await executeQuery(stockCountQuery, []);
     const totalStockRecords = stockCountResult[0]?.total || 0;
     console.log(`📊 Total de registros na tabela stock: ${totalStockRecords}`);
 
     // Testar conexão com o banco primeiro
-    const testQuery = `SELECT COUNT(*) as total FROM products`;
+    const testQuery = `SELECT COUNT(*) as total FROM products_vtex`;
     const testResult = await executeQuery(testQuery, []);
     const totalProducts = testResult[0]?.total || 0;
 
@@ -41,7 +41,7 @@ export async function POST() {
     console.log('🔄 Executando atualização individual de todos os SKUs...');
     
     // Buscar todos os SKUs do sistema
-    const skusQuery = `SELECT COUNT(*) as total FROM skus`;
+    const skusQuery = `SELECT COUNT(*) as total FROM skus_vtex`;
     const skusResult = await executeQuery(skusQuery, []);
     const totalSkus = skusResult[0]?.total || 0;
     console.log(`📊 Encontrados ${totalSkus} SKUs para atualizar`);
@@ -55,7 +55,7 @@ export async function POST() {
       // Buscar SKUs do lote atual com name_complete
       const batchQuery = `
         SELECT s.id, s.vtex_id, s.product_id, s.name_complete
-        FROM skus s
+        FROM skus_vtex s
         ORDER BY s.id
         LIMIT ${batchSize} OFFSET ${offset}
       `;

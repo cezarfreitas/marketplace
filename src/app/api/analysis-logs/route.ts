@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
           a.name as agent_name,
           a.model as agent_model
         FROM image_analysis_logs l
-        LEFT JOIN products p ON l.product_id = p.id
+        LEFT JOIN products_vtex p ON l.product_id = p.id
         LEFT JOIN agents a ON l.agent_id = a.id
         WHERE l.product_id = ?
         ORDER BY l.created_at DESC
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
           a.name as agent_name,
           a.model as agent_model
         FROM image_analysis_logs l
-        LEFT JOIN products p ON l.product_id = p.id
+        LEFT JOIN products_vtex p ON l.product_id = p.id
         LEFT JOIN agents a ON l.agent_id = a.id
         ORDER BY l.created_at DESC
         LIMIT ? OFFSET ?

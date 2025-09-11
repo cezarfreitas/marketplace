@@ -41,6 +41,41 @@ export function useProducts(options: UseProductsOptions = {}) {
   const [filters, setFilters] = useState<ProductFilters>(initialFilters);
   const [sort, setSort] = useState<ProductSortOptions>(initialSort);
   const [itemsPerPage, setItemsPerPage] = useState(initialLimit);
+  const [anymarketMappings, setAnymarketMappings] = useState<Record<string, string>>({});
+
+  // Função para buscar mapeamentos do Anymarket
+  const fetchAnymarketMappings = useCallback(async (products: Product[]) => {
+    try {
+      const refIds = products
+        .map(p => p.ref_id)
+        .filter(refId => refId && refId.trim() !== '');
+      
+      if (refIds.length === 0) {
+        setAnymarketMappings({});
+        return;
+      }
+
+      const response = await fetch('/api/products/anymarket-mapping', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refIds }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setAnymarketMappings(data.data.mappings);
+      } else {
+        console.error('Erro ao buscar mapeamentos Anymarket:', data.message);
+        setAnymarketMappings({});
+      }
+    } catch (error) {
+      console.error('Erro ao buscar mapeamentos Anymarket:', error);
+      setAnymarketMappings({});
+    }
+  }, []);
 
   // Função para buscar produtos
   const fetchProducts = useCallback(async () => {
@@ -59,6 +94,9 @@ export function useProducts(options: UseProductsOptions = {}) {
         setProducts(response.data.products);
         setTotalPages(response.data.totalPages);
         setTotalProducts(response.data.total);
+        
+        // Buscar mapeamentos do Anymarket após carregar produtos
+        await fetchAnymarketMappings(response.data.products);
       } else {
         setError('Erro ao carregar produtos');
       }
@@ -67,7 +105,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, sort, filters]);
+  }, [currentPage, itemsPerPage, sort, filters, fetchAnymarketMappings]);
 
   // Função para atualizar filtros
   const updateFilters = useCallback((newFilters: Partial<ProductFilters>) => {
@@ -141,6 +179,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     filters,
     sort,
     itemsPerPage,
+    anymarketMappings,
 
     // Ações
     fetchProducts,

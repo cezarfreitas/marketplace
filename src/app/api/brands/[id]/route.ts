@@ -19,7 +19,7 @@ export async function DELETE(
 
     // Verificar se a marca existe
     const existingBrand = await executeQuery(
-      'SELECT id, name FROM brands WHERE id = ?',
+      'SELECT id, name FROM brands_vtex WHERE id = ?',
       [brandId]
     );
 
@@ -35,7 +35,7 @@ export async function DELETE(
 
     // Verificar se há produtos associados
     const productsCount = await executeQuery(
-      'SELECT COUNT(*) as count FROM products WHERE brand_id = ?',
+      'SELECT COUNT(*) as count FROM products_vtex WHERE brand_id = (SELECT vtex_id FROM brands_vtex WHERE id = ?)',
       [brandId]
     );
 
@@ -50,7 +50,7 @@ export async function DELETE(
 
     // Deletar a marca
     await executeQuery(
-      'DELETE FROM brands WHERE id = ?',
+      'DELETE FROM brands_vtex WHERE id = ?',
       [brandId]
     );
 
@@ -108,12 +108,12 @@ export async function GET(
         b.created_at,
         b.updated_at,
         COALESCE(p.product_count, 0) as product_count
-      FROM brands b
+      FROM brands_vtex b
       LEFT JOIN (
         SELECT brand_id, COUNT(*) as product_count 
-        FROM products 
+        FROM products_vtex 
         GROUP BY brand_id
-      ) p ON b.id = p.brand_id
+      ) p ON b.vtex_id = p.brand_id
       WHERE b.id = ?
     `;
 

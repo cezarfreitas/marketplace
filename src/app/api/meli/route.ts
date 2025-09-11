@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
           p.name as product_name,
           p.ref_id as product_ref_id
         FROM meli m
-        JOIN products p ON m.product_id = p.id
+        JOIN products_vtex p ON m.product_id = p.id
         WHERE m.product_id = ?
         ORDER BY m.created_at DESC
         LIMIT 1
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
           p.name as product_name,
           p.ref_id as product_ref_id
         FROM meli m
-        JOIN products p ON m.product_id = p.id
+        JOIN products_vtex p ON m.product_id = p.id
         ORDER BY m.created_at DESC
       `;
 

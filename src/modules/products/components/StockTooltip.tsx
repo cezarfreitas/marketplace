@@ -23,6 +23,7 @@ export function StockTooltip({ productId, totalStock, children }: StockTooltipPr
   const [stockData, setStockData] = useState<SkuStock[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
 
   const fetchStockData = useCallback(async () => {
     setLoading(true);
@@ -49,6 +50,20 @@ export function StockTooltip({ productId, totalStock, children }: StockTooltipPr
       fetchStockData();
     }
   }, [isVisible, productId, fetchStockData, loading, stockData.length]);
+
+  // Fechar modal com tecla Escape
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isVisible) {
+        setIsVisible(false);
+      }
+    };
+
+    if (isVisible) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isVisible]);
 
   // Agrupar dados por SKU
   const groupedStock = stockData.reduce((acc, item) => {
@@ -78,17 +93,72 @@ export function StockTooltip({ productId, totalStock, children }: StockTooltipPr
 
   const stockItems = Object.values(groupedStock);
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Calcular posição central da tela com margens de segurança
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    
+    // Garantir que o modal não saia da tela
+    const modalWidth = 384; // 96 * 4 (w-96 = 24rem = 384px)
+    const modalHeight = 400; // Altura estimada
+    
+    const x = Math.max(modalWidth / 2, Math.min(centerX, window.innerWidth - modalWidth / 2));
+    const y = Math.max(modalHeight / 2, Math.min(centerY, window.innerHeight - modalHeight / 2));
+    
+    setPosition({ x, y });
+    setIsVisible(!isVisible);
+  };
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsVisible(false);
+  };
+
   return (
-    <div 
-      className="relative inline-block"
-      onMouseEnter={() => setIsVisible(true)}
-      onMouseLeave={() => setIsVisible(false)}
-    >
-      {children}
+    <>
+      <div 
+        className="relative inline-block cursor-pointer"
+        onClick={handleClick}
+      >
+        {children}
+      </div>
       
       {isVisible && (
-        <div className="absolute z-[9999] w-80 bg-white border border-gray-200 rounded-lg shadow-xl p-4 bottom-full left-1/2 transform -translate-x-1/2 mb-2"
-             style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+        <>
+          {/* Overlay de fundo */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50"
+            style={{ 
+              zIndex: 2147483647, // Valor máximo do z-index
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0
+            }}
+            onClick={handleOverlayClick}
+          />
+          
+          {/* Modal de estoque centralizado */}
+          <div 
+            className="fixed w-96 bg-white border border-gray-200 rounded-lg shadow-xl p-6"
+            style={{ 
+              zIndex: 2147483647, // Valor máximo do z-index
+              position: 'fixed',
+              left: `${position.x - 192}px`, // 192px = metade da largura (384px)
+              top: `${position.y - 200}px`,  // 200px = metade da altura estimada
+              maxHeight: '80vh', 
+              overflowY: 'auto',
+              transform: 'translateZ(0)', // Força aceleração de hardware
+              isolation: 'isolate', // Cria novo contexto de empilhamento
+              willChange: 'transform', // Otimiza para mudanças
+              backfaceVisibility: 'hidden' // Força renderização em camada separada
+            }}
+          >
           <div className="flex items-center space-x-2 mb-3">
             <Package className="h-4 w-4 text-blue-600" />
             <h3 className="text-sm font-semibold text-gray-900">Estoque por Variante</h3>
@@ -167,10 +237,18 @@ export function StockTooltip({ productId, totalStock, children }: StockTooltipPr
             </div>
           )}
           
-          {/* Seta do tooltip */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200"></div>
+          {/* Botão de fechar */}
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={() => setIsVisible(false)}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm"
+            >
+              Fechar
+            </button>
+          </div>
         </div>
+        </>
       )}
-    </div>
+    </>
   );
 }

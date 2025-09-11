@@ -21,14 +21,14 @@ export async function GET(
       SELECT 
         st.sku_id,
         st.vtex_sku_id,
-        s.name_complete as sku_name,
+        s.name as sku_name,
         st.warehouse_name,
         st.total_quantity,
         st.reserved_quantity
-      FROM stock st
-      JOIN skus s ON st.sku_id = s.id
+      FROM stock_vtex st
+      JOIN skus_vtex s ON st.vtex_sku_id = s.id
       WHERE s.product_id = ?
-      ORDER BY s.name_complete, st.warehouse_name
+      ORDER BY s.name, st.warehouse_name
     `;
 
     const stockData = await executeQuery(stockQuery, [productId]);
@@ -67,7 +67,7 @@ export async function POST(
     // Buscar dados do produto
     const productQuery = `
       SELECT p.id, p.ref_id, p.name
-      FROM products p
+      FROM products_vtex p
       WHERE p.id = ?
     `;
     
@@ -84,8 +84,8 @@ export async function POST(
 
     // Buscar SKUs do produto
     const skusQuery = `
-      SELECT s.id, s.vtex_id, s.name_complete
-      FROM skus s
+      SELECT s.id, s.name
+      FROM skus_vtex s
       WHERE s.product_id = ?
     `;
     
@@ -133,10 +133,10 @@ export async function POST(
     // Atualizar estoque de cada SKU
     for (const sku of skus) {
       try {
-        console.log(`🔍 Atualizando estoque do SKU ${sku.vtex_id} (${sku.name_complete})`);
+        console.log(`🔍 Atualizando estoque do SKU ${sku.id} (${sku.name})`);
         
-        // Buscar estoque do VTEX usando o VTEX SKU ID
-        const stockApiUrl = `https://${config.accountName}.${config.environment}.com.br/api/logistics/pvt/inventory/skus/${sku.vtex_id}`;
+        // Buscar estoque do VTEX usando o SKU ID
+        const stockApiUrl = `https://${config.accountName}.${config.environment}.com.br/api/logistics/pvt/inventory/skus/${sku.id}`;
         
         const stockResponse = await fetch(stockApiUrl, {
           headers: {
@@ -160,31 +160,43 @@ export async function POST(
 
             // Inserir ou atualizar estoque no banco
             const upsertStockQuery = `
-              INSERT INTO stock (sku_id, vtex_sku_id, warehouse_id, warehouse_name, total_quantity, reserved_quantity, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, NOW())
+              INSERT INTO stock_vtex (
+                sku_id, vtex_sku_id, warehouse_id, warehouse_name, 
+                total_quantity, reserved_quantity, has_unlimited_quantity,
+                time_to_refill, date_of_supply_utc, lead_time, updated_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
               ON DUPLICATE KEY UPDATE
                 total_quantity = VALUES(total_quantity),
                 reserved_quantity = VALUES(reserved_quantity),
+                has_unlimited_quantity = VALUES(has_unlimited_quantity),
+                time_to_refill = VALUES(time_to_refill),
+                date_of_supply_utc = VALUES(date_of_supply_utc),
+                lead_time = VALUES(lead_time),
                 updated_at = NOW()
             `;
 
             await executeQuery(upsertStockQuery, [
               sku.id,
-              sku.vtex_id,
+              sku.id, // vtex_sku_id agora é o mesmo que sku.id
               warehouse.warehouseId || '1', // Usar warehouse ID do VTEX ou padrão
               warehouseName,
               totalQuantity,
-              reservedQuantity
+              reservedQuantity,
+              warehouse.hasUnlimitedQuantity || false,
+              warehouse.timeToRefill || null,
+              warehouse.dateOfSupplyUtc ? new Date(warehouse.dateOfSupplyUtc) : null,
+              warehouse.leadTime || null
             ]);
           }
           
           updatedSkus++;
-          console.log(`✅ Estoque atualizado para SKU ${sku.vtex_id}`);
+          console.log(`✅ Estoque atualizado para SKU ${sku.id}`);
         }
 
       } catch (error: any) {
-        console.error(`❌ Erro ao atualizar estoque do SKU ${sku.vtex_id}:`, error);
-        errors.push(`SKU ${sku.vtex_id}: ${error.message}`);
+        console.error(`❌ Erro ao atualizar estoque do SKU ${sku.id}:`, error);
+        errors.push(`SKU ${sku.id}: ${error.message}`);
       }
     }
 

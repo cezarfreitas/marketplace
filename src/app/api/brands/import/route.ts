@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     console.log(`✅ Encontradas ${vtexBrands.length} marcas na VTEX`);
 
     // Limpar tabela de marcas antes de importar
-    await executeQuery('DELETE FROM brands');
+    await executeQuery('DELETE FROM brands_vtex');
 
     // Processar e salvar marcas no banco
     let importedCount = 0;
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       try {
         // Inserir nova marca
         await executeQuery(`
-          INSERT INTO brands (
+          INSERT INTO brands_vtex (
             vtex_id, name, is_active, title, meta_tag_description, image_url
           ) VALUES (?, ?, ?, ?, ?, ?)
         `, [

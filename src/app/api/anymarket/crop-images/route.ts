@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
     const productQuery = `
       SELECT 
         p.*,
-        a.id_any as anymarket_id
-      FROM products p
-      LEFT JOIN anymarket a ON p.ref_id = a.ref_id
+        a.id_produto_any as anymarket_id
+      FROM products_vtex p
+      LEFT JOIN anymarket a ON p.ref_id = a.ref_vtex
       WHERE p.id = ?
     `;
 
@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
         cl.*,
         p.name as product_name
       FROM crop_logs cl
-      LEFT JOIN products p ON cl.product_id = p.id
+      LEFT JOIN products_vtex p ON cl.product_id = p.id
     `;
     
     const params: any[] = [];

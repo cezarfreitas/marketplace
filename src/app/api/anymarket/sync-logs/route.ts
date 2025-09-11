@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
           p.name as product_name,
           p.ref_id as product_ref_id
         FROM anymarket_sync_logs l
-        JOIN products p ON l.product_id = p.id
+        JOIN products_vtex p ON l.product_id = p.id
         WHERE l.product_id = ?
         ORDER BY l.created_at DESC
       `;
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
           p.name as product_name,
           p.ref_id as product_ref_id
         FROM anymarket_sync_logs l
-        JOIN products p ON l.product_id = p.id
+        JOIN products_vtex p ON l.product_id = p.id
         ORDER BY l.created_at DESC
       `;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Package, Image as ImageIcon, FileText, RefreshCw, Globe, Minus, Info, AlertTriangle, Warehouse } from 'lucide-react';
+import { Package, Image as ImageIcon, FileText, RotateCcw, Globe, Minus, Info, AlertTriangle, Warehouse } from 'lucide-react';
 import Layout from '@/components/Layout';
 
 export default function DashboardPage() {
@@ -507,7 +507,7 @@ export default function DashboardPage() {
               {/* Cabeçalho */}
               <div className="flex items-center mb-3 flex-shrink-0">
                 <div className="w-6 h-6 bg-purple-400 rounded-lg flex items-center justify-center mr-2">
-                  <RefreshCw className="h-4 w-4 text-white" />
+                  <RotateCcw className="h-4 w-4 text-white" />
                 </div>
                 <p className="text-xs font-medium text-purple-100 leading-tight">Sincronização</p>
               </div>

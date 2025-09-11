@@ -1,414 +1,536 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Package, CheckCircle, XCircle, Clock, Upload, Play, Pause, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import Card from '@/components/Card';
+import ActionCard from '@/components/ActionCard';
 import Layout from '@/components/Layout';
 
-// Força atualização do cache - versão 2.0
-console.log('Import page loaded at:', new Date().toISOString());
-console.log('Versão atualizada - handleProductImport disponível');
+interface ImportProgress {
+  status: 'idle' | 'running' | 'completed' | 'error';
+  progress: number;
+  message: string;
+  totalProducts: number;
+  processedProducts: number;
+  successCount: number;
+  errorCount: number;
+  results: any[];
+  errors: string[];
+  estimatedTime?: string;
+}
 
 export default function ImportPage() {
-  // Estados para importação otimizada
-  const [refIdList, setRefIdList] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState<any>(null);
-  const [importResult, setImportResult] = useState<any>(null);
+  const [refIds, setRefIds] = useState('');
+  const [batchSize, setBatchSize] = useState(20);
+  const [config, setConfig] = useState({
+    importProduct: true,
+    importBrand: true,
+    importCategory: true,
+    importSkus: true,
+    importImages: true,
+    importStock: true,
+    skipExisting: true
+  });
+  const [progress, setProgress] = useState<ImportProgress>({
+    status: 'idle',
+    progress: 0,
+    message: '',
+    totalProducts: 0,
+    processedProducts: 0,
+    successCount: 0,
+    errorCount: 0,
+    results: [],
+    errors: []
+  });
   const [progressId, setProgressId] = useState<string | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Função para iniciar importação otimizada
-  const startImport = async () => {
-    if (!refIdList.trim()) {
-      alert('Por favor, insira pelo menos um RefId de produto');
+  const handleImport = async () => {
+    const refIdList = refIds.split('\n').filter(id => id.trim());
+    
+    if (refIdList.length === 0) {
+      alert('Por favor, insira pelo menos um RefId');
       return;
     }
 
-    // Separar RefIds de produtos por linha, vírgula ou espaço
-    const refIds = refIdList
-      .split(/[\n,\s]+/)
-      .map(refId => refId.trim())
-      .filter(refId => refId.length > 0);
-
-    if (refIds.length === 0) {
-      alert('Nenhum RefId de produto válido encontrado');
+    if (refIdList.length > 100) {
+      alert('Máximo de 100 produtos por importação. Use múltiplas chamadas para mais produtos.');
       return;
     }
-
-    setIsImporting(true);
-    setImportProgress(null);
-    setImportResult(null);
-    setProgressId(null);
 
     try {
-      // Iniciar importação em lote
-      const response = await fetch('/api/import/batch', {
+      setProgress({
+        status: 'running',
+        progress: 0,
+        message: 'Iniciando importação rápida...',
+        totalProducts: refIdList.length,
+        processedProducts: 0,
+        successCount: 0,
+        errorCount: 0,
+        results: [],
+        errors: []
+      });
+
+      const response = await fetch('/api/import/batch-fast', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          refIds,
-          batchId: `import_${Date.now()}`
+        body: JSON.stringify({
+          refIds: refIdList,
+          config,
+          batchSize
         }),
       });
 
-      const result = await response.json();
-      
-      if (result.success) {
-        setProgressId(result.data.progressId);
-        startProgressPolling(result.data.progressId);
-      } else {
-        throw new Error(result.message);
-      }
+      const data = await response.json();
 
-    } catch (error) {
-      console.error('Erro ao iniciar importação:', error);
-      setImportResult({
-        success: false,
-        error: 'Erro ao iniciar importação'
-      });
-      setIsImporting(false);
+      if (data.success) {
+        setProgressId(data.data.progressId);
+        setProgress(prev => ({
+          ...prev,
+          message: `Importação iniciada - ${data.data.estimatedTime}`,
+          estimatedTime: data.data.estimatedTime
+        }));
+        
+        // Iniciar polling do progresso
+        pollProgress(data.data.progressId);
+      } else {
+        setProgress(prev => ({
+          ...prev,
+          status: 'error',
+          message: data.error || 'Erro ao iniciar importação'
+        }));
+      }
+    } catch (error: any) {
+      setProgress(prev => ({
+        ...prev,
+        status: 'error',
+        message: `Erro: ${error.message}`
+      }));
     }
   };
 
-  // Função para monitorar progresso
-  const startProgressPolling = (id: string) => {
-    const pollProgress = async () => {
+  const pollProgress = async (id: string) => {
+    const poll = async () => {
       try {
-        const response = await fetch(`/api/import/batch?progressId=${id}`);
-        const result = await response.json();
-        
-        if (result.success) {
-          const progress = result.data;
-          setImportProgress(progress);
-          
-          // Se importação concluída
-          if (progress.processed >= progress.total) {
-            setImportResult({
-              success: progress.success > 0,
-              total: progress.total,
-              imported: progress.success,
-              failed: progress.failed,
-              errors: progress.errors
-            });
-            setIsImporting(false);
-            stopProgressPolling();
-            
-            if (progress.success > 0) {
-              setRefIdList(''); // Limpar lista após sucesso
-            }
+        const response = await fetch(`/api/import/batch-fast?progressId=${id}`);
+        const data = await response.json();
+
+        if (data.success) {
+          const progressData = data.data;
+          setProgress(prev => ({
+            ...prev,
+            status: progressData.status,
+            progress: progressData.progress,
+            message: progressData.message,
+            processedProducts: progressData.processedProducts || 0,
+            successCount: progressData.successCount || 0,
+            errorCount: progressData.errorCount || 0,
+            results: progressData.results || [],
+            errors: progressData.errors || []
+          }));
+
+          // Continuar polling se ainda estiver rodando
+          if (progressData.status === 'running') {
+            setTimeout(poll, 1000); // Poll a cada 1 segundo
           }
         }
       } catch (error) {
         console.error('Erro ao buscar progresso:', error);
-        stopProgressPolling();
-        setIsImporting(false);
+        setTimeout(poll, 5000); // Tentar novamente em 5 segundos
       }
     };
 
-    // Polling a cada 2 segundos
-    intervalRef.current = setInterval(pollProgress, 2000);
-    pollProgress(); // Primeira chamada imediata
+    poll();
   };
 
-  // Função para parar o polling
-  const stopProgressPolling = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  const formatTime = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
     }
-  };
-
-  // Limpar polling quando componente desmontar
-  useEffect(() => {
-    return () => {
-      stopProgressPolling();
-    };
-  }, []);
-
-  // Função para cancelar importação
-  const cancelImport = () => {
-    stopProgressPolling();
-    setIsImporting(false);
-    setImportProgress(null);
-    setProgressId(null);
+    return `${remainingSeconds}s`;
   };
 
   return (
-    <Layout title="Importar" subtitle="Importação otimizada com barra de progresso - 5x mais rápida">
-      {/* Importação por Lista de RefIds de Produtos */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Formulário Principal */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Lista de RefIds de Produtos</h2>
-              <p className="text-gray-600">Cole os RefIds dos produtos que deseja importar da VTEX</p>
-            </div>
+    <Layout title="Importação Rápida" subtitle="Importe produtos da VTEX com processamento paralelo otimizado">
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Importação Rápida em Lote
+          </h1>
+          <p className="text-gray-600">
+            Importe até 100 produtos simultaneamente com processamento paralelo otimizado
+          </p>
+        </div>
 
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="refIdList" className="block text-sm font-medium text-gray-700 mb-2">
-                  RefIds de Produtos
-                </label>
-                <textarea
-                  id="refIdList"
-                  value={refIdList}
-                  onChange={(e) => setRefIdList(e.target.value)}
-                  placeholder="Cole aqui os RefIds dos produtos...&#10;&#10;Exemplos:&#10;XHDCAMM0I20B1&#10;880010, 12345&#10;XHDCAMM0I20B1 880010 12345"
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-sm"
-                  disabled={isImporting}
-                />
-                <div className="mt-2 text-right">
-                  <span className="text-xs text-gray-500">
-                    {refIdList.split(/[\n,\s]+/).filter(refId => refId.trim().length > 0).length} RefIds
-                  </span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Configuração */}
+          <div className="lg:col-span-1">
+            <Card>
+              <h2 className="text-xl font-semibold mb-4">⚙️ Configuração</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tamanho do Lote
+                  </label>
+                  <select
+                    value={batchSize}
+                    onChange={(e) => setBatchSize(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={5}>5 produtos</option>
+                    <option value={10}>10 produtos</option>
+                    <option value={15}>15 produtos</option>
+                    <option value={20}>20 produtos (recomendado)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Produtos processados em paralelo por lote
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Opções de Importação
+                  </label>
+                  <div className="space-y-2">
+                    {Object.entries(config).map(([key, value]) => (
+                      <label key={key} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={value}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            [key]: e.target.checked
+                          }))}
+                          className="mr-2"
+                        />
+                        <span className="text-sm capitalize">
+                          {key.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
+            </Card>
+          </div>
 
-              <div className="flex gap-3">
-                {!isImporting ? (
-                  <button
-                    onClick={startImport}
-                    disabled={!refIdList.trim()}
-                    className="btn-primary flex items-center gap-2 flex-1"
-                  >
-                    <Play className="h-4 w-4" />
-                    Iniciar Importação
-                  </button>
-                ) : (
-                  <button
-                    onClick={cancelImport}
-                    className="btn-secondary flex items-center gap-2 flex-1"
-                  >
-                    <Pause className="h-4 w-4" />
-                    Cancelar
-                  </button>
-                )}
-                
+          {/* Entrada de Dados */}
+          <div className="lg:col-span-2">
+            <Card>
+              <h2 className="text-xl font-semibold mb-4">📦 RefIds dos Produtos</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Lista de RefIds (um por linha)
+                  </label>
+                  <textarea
+                    value={refIds}
+                    onChange={(e) => setRefIds(e.target.value)}
+                    placeholder="TROMOLM0090L1&#10;STAMOLU004021&#10;ECKBERM0220C1"
+                    rows={10}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {refIds.split('\n').filter(id => id.trim()).length} produtos inseridos
+                  </p>
+                </div>
+
                 <button
-                  onClick={() => {
-                    setRefIdList('');
-                    setImportProgress(null);
-                    setImportResult(null);
-                  }}
-                  disabled={isImporting}
-                  className="btn-secondary"
+                  onClick={handleImport}
+                  disabled={progress.status === 'running' || refIds.trim() === ''}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  <RotateCcw className="h-4 w-4" />
+                  {progress.status === 'running' ? 'Importando...' : 'Iniciar Importação Rápida'}
                 </button>
               </div>
-            </div>
+            </Card>
           </div>
         </div>
 
-        {/* Painel de Informações */}
-        <div className="space-y-6">
-          {/* Como Usar */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Como Usar</h3>
-            <div className="space-y-3">
-              <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</div>
-                <p className="text-sm text-gray-600">Cole os RefIds dos produtos da VTEX</p>
+        {/* Progresso */}
+        {progress.status !== 'idle' && (
+          <div className="mt-6">
+            <Card>
+              <h2 className="text-xl font-semibold mb-4">📊 Progresso da Importação</h2>
+              <div className="space-y-4">
+                {/* Barra de Progresso */}
+                <div>
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>{progress.message}</span>
+                    <span>{progress.progress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        progress.status === 'error' ? 'bg-red-500' :
+                        progress.status === 'completed' ? 'bg-green-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${progress.progress}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Estatísticas */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{progress.totalProducts}</div>
+                    <div className="text-sm text-gray-600">Total</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{progress.successCount}</div>
+                    <div className="text-sm text-gray-600">Sucessos</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-red-600">{progress.errorCount}</div>
+                    <div className="text-sm text-gray-600">Erros</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-yellow-600">
+                      {progress.results.reduce((total, result) => total + (result.data?.errors?.length || 0), 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Avisos</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-600">
+                      {progress.estimatedTime || '--'}
+                    </div>
+                    <div className="text-sm text-gray-600">Tempo Est.</div>
+                  </div>
+                </div>
+
+                {/* Resultados */}
+                {progress.results.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Resultados Recentes</h4>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {progress.results.slice(-10).map((result, index) => (
+                        <div
+                          key={index}
+                          className={`text-sm p-2 rounded ${
+                            result.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                          }`}
+                        >
+                          {result.data?.refId}: {result.message}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Resumo dos Tipos de Avisos */}
+                {progress.results.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">📊 Resumo dos Tipos de Avisos</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="flex items-center mb-2">
+                          <span className="text-blue-500 text-lg mr-2">🖼️</span>
+                          <span className="font-medium text-blue-900">Imagens</span>
+                        </div>
+                        <div className="text-sm text-blue-700">
+                          {progress.results.reduce((total, result) => {
+                            return total + (result.data?.errors?.filter((error: string) => 
+                              error.includes('não conseguiu importar imagens')
+                            ).length || 0);
+                          }, 0)} SKUs sem imagens
+                        </div>
+                      </div>
+                      
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <div className="flex items-center mb-2">
+                          <span className="text-yellow-500 text-lg mr-2">📦</span>
+                          <span className="font-medium text-yellow-900">Estoque</span>
+                        </div>
+                        <div className="text-sm text-yellow-700">
+                          {progress.results.reduce((total, result) => {
+                            return total + (result.data?.stockResult?.data?.errors?.length || 0);
+                          }, 0)} problemas de estoque
+                        </div>
+                      </div>
+                      
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                        <div className="flex items-center mb-2">
+                          <span className="text-orange-500 text-lg mr-2">⚠️</span>
+                          <span className="font-medium text-orange-900">Outros</span>
+                        </div>
+                        <div className="text-sm text-orange-700">
+                          {progress.results.reduce((total, result) => {
+                            return total + (result.data?.errors?.filter((error: string) => 
+                              !error.includes('não conseguiu importar imagens') &&
+                              !error.includes('Estoque SKU')
+                            ).length || 0);
+                          }, 0)} outros avisos
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Detalhes dos Avisos e Erros */}
+                {progress.results.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">📋 Detalhes dos Avisos e Erros</h4>
+                    <div className="max-h-60 overflow-y-auto space-y-2">
+                      {progress.results.map((result, index) => {
+                        const hasWarnings = result.data?.errors && result.data.errors.length > 0;
+                        const hasStockIssues = result.data?.stockResult?.data?.errors && result.data.stockResult.data.errors.length > 0;
+                        
+                        if (!hasWarnings && !hasStockIssues) return null;
+
+                        return (
+                          <div key={index} className="border border-yellow-200 rounded-lg p-3 bg-yellow-50">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-gray-900">{result.data?.refId}</span>
+                              <span className="text-sm text-yellow-600">
+                                {result.data?.errors?.length || 0} avisos
+                              </span>
+                            </div>
+                            
+                            {/* Avisos do Produto */}
+                            {result.data?.errors && result.data.errors.length > 0 && (
+                              <div className="mb-2">
+                                <h5 className="text-sm font-medium text-gray-700 mb-1">⚠️ Avisos do Produto:</h5>
+                                <ul className="text-xs text-gray-600 space-y-1">
+                                  {result.data.errors.map((error: string, errorIndex: number) => (
+                                    <li key={errorIndex} className="flex items-start">
+                                      <span className="text-yellow-500 mr-1">•</span>
+                                      <span>{error}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Avisos de Estoque */}
+                            {hasStockIssues && (
+                              <div className="mb-2">
+                                <h5 className="text-sm font-medium text-gray-700 mb-1">📦 Avisos de Estoque:</h5>
+                                <ul className="text-xs text-gray-600 space-y-1">
+                                  {result.data.stockResult.data.errors.map((error: string, errorIndex: number) => (
+                                    <li key={errorIndex} className="flex items-start">
+                                      <span className="text-yellow-500 mr-1">•</span>
+                                      <span>{error}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Estatísticas de Estoque */}
+                            {result.data?.stockResult && (
+                              <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-yellow-200">
+                                <span className="font-medium">Estoque:</span> {result.data.stockResult.data?.importedCount || 0} importados, {result.data.stockResult.data?.updatedCount || 0} atualizados
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Erros */}
+                {progress.errors.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-red-600 mb-2">Erros</h4>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {progress.errors.slice(-5).map((error, index) => (
+                        <div key={index} className="text-sm text-red-600 p-2 bg-red-50 rounded">
+                          {error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</div>
-                <p className="text-sm text-gray-600">Separe por linha, vírgula ou espaço</p>
+            </Card>
+          </div>
+        )}
+
+        {/* Informações de Performance */}
+        <div className="mt-6">
+          <Card>
+            <h2 className="text-xl font-semibold mb-4">⚡ Informações de Performance</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <ActionCard
+                title="Processamento Paralelo"
+                description="Produtos são processados em lotes paralelos para máxima velocidade"
+                icon="⚡"
+              />
+              <ActionCard
+                title="Cache Inteligente"
+                description="Marcas e categorias são cacheadas para evitar importações duplicadas"
+                icon="🧠"
+              />
+              <ActionCard
+                title="Tratamento de Erros"
+                description="Erros não bloqueiam o processamento de outros produtos"
+                icon="🛡️"
+              />
+            </div>
+          </Card>
+        </div>
+
+        {/* Informações sobre Avisos */}
+        <div className="mt-6">
+          <Card>
+            <h2 className="text-xl font-semibold mb-4">ℹ️ Sobre os Avisos</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">🖼️ Avisos de Imagens</h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  SKUs que não possuem imagens cadastradas na VTEX. O sistema tenta importar 3 vezes automaticamente.
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1">
+                  <li>• Não afeta a funcionalidade do produto</li>
+                  <li>• Produto continua sendo importado normalmente</li>
+                  <li>• Normal para alguns produtos</li>
+                </ul>
               </div>
-              <div className="flex items-start space-x-3">
-                <div className="w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</div>
-                <p className="text-sm text-gray-600">Clique em &quot;Importar Produtos&quot;</p>
+              
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">📦 Avisos de Estoque</h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  Problemas temporários na API de estoque da VTEX ou warehouses sem estoque.
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1">
+                  <li>• Sistema tenta novamente automaticamente</li>
+                  <li>• Produto é importado mesmo sem estoque</li>
+                  <li>• Estoque pode ser atualizado posteriormente</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">⚠️ Outros Avisos</h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  Campos faltantes na VTEX ou problemas menores de conectividade.
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1">
+                  <li>• Dados opcionais não encontrados</li>
+                  <li>• Problemas temporários de API</li>
+                  <li>• Não impedem a importação</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">✅ Taxa de Sucesso</h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  Produtos com avisos ainda são considerados importados com sucesso.
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1">
+                  <li>• Avisos ≠ Erros críticos</li>
+                  <li>• Produto funcional mesmo com avisos</li>
+                  <li>• Dados principais sempre importados</li>
+                </ul>
               </div>
             </div>
-          </div>
-
-          {/* O que é Importado */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">O que é Importado</h3>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                <p className="text-sm text-gray-600">Informações do produto</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                <p className="text-sm text-gray-600">Todos os SKUs e variações</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                <p className="text-sm text-gray-600">Marcas e categorias</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                <p className="text-sm text-gray-600">Dados de estoque e preços</p>
-              </div>
-            </div>
-          </div>
-
+          </Card>
         </div>
       </div>
-
-      {/* Barra de Progresso */}
-      {importProgress && (
-        <div className="mt-8">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="mb-4">
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Progresso da Importação</h2>
-              <p className="text-gray-600">{importProgress.current}</p>
-            </div>
-
-            {/* Barra de Progresso */}
-            <div className="mb-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>Progresso: {importProgress.processed} de {importProgress.total}</span>
-                <span>{Math.round((importProgress.processed / importProgress.total) * 100)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${(importProgress.processed / importProgress.total) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-
-            {/* Estatísticas em Tempo Real */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-green-700">Sucessos</p>
-                    <p className="text-2xl font-bold text-green-900">{importProgress.success}</p>
-                  </div>
-                  <CheckCircle className="h-8 w-8 text-green-500" />
-                </div>
-              </div>
-              
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-red-700">Falhas</p>
-                    <p className="text-2xl font-bold text-red-900">{importProgress.failed}</p>
-                  </div>
-                  <XCircle className="h-8 w-8 text-red-500" />
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-blue-700">Total</p>
-                    <p className="text-2xl font-bold text-blue-900">{importProgress.total}</p>
-                  </div>
-                  <Package className="h-8 w-8 text-blue-500" />
-                </div>
-              </div>
-            </div>
-
-            {/* Lista de Erros */}
-            {importProgress.errors && importProgress.errors.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Erros Encontrados</h3>
-                <div className="max-h-32 overflow-y-auto space-y-2">
-                  {importProgress.errors.map((error: string, index: number) => (
-                    <div key={index} className="bg-red-50 border border-red-200 rounded p-2">
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Resultado da Importação */}
-      {importResult && (
-        <div className="mt-8">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Resultado da Importação</h2>
-              <p className="text-gray-600">Resumo do processamento dos produtos</p>
-            </div>
-
-            {/* Cards de Estatísticas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-green-700">Sucessos</p>
-                    <p className="text-2xl font-bold text-green-900">{importResult.imported || 0}</p>
-                  </div>
-                  <CheckCircle className="h-8 w-8 text-green-500" />
-                </div>
-              </div>
-              
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-red-700">Falhas</p>
-                    <p className="text-2xl font-bold text-red-900">{importResult.failed || 0}</p>
-                  </div>
-                  <XCircle className="h-8 w-8 text-red-500" />
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-blue-700">Total</p>
-                    <p className="text-2xl font-bold text-blue-900">{importResult.total || 0}</p>
-                  </div>
-                  <Package className="h-8 w-8 text-blue-500" />
-                </div>
-              </div>
-            </div>
-
-            {/* Lista de Erros */}
-            {importResult.errors && importResult.errors.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Erros Encontrados</h3>
-                <div className="max-h-48 overflow-y-auto space-y-2">
-                  {importResult.errors.map((error: string, index: number) => (
-                    <div key={index} className="bg-red-50 border border-red-200 rounded p-3">
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Mensagem de Sucesso/Erro */}
-            <div className={`p-4 rounded-lg ${
-              importResult.success 
-                ? 'bg-green-50 border border-green-200' 
-                : 'bg-red-50 border border-red-200'
-            }`}>
-              <div className="flex items-center space-x-3">
-                {importResult.success ? (
-                  <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
-                ) : (
-                  <XCircle className="h-6 w-6 text-red-500 flex-shrink-0" />
-                )}
-                <div>
-                  <p className={`font-medium ${
-                    importResult.success ? 'text-green-900' : 'text-red-900'
-                  }`}>
-                    {importResult.success 
-                      ? `Importação concluída com sucesso! ${importResult.imported} produtos importados.`
-                      : 'Importação falhou. Verifique os erros acima.'
-                    }
-                  </p>
-                  {importResult.error && (
-                    <p className="text-sm text-red-600 mt-1">{importResult.error}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </Layout>
   );
 }

@@ -97,22 +97,18 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔄 Iniciando importação de ${skus.length} SKUs`);
 
-    // Buscar configurações da VTEX
-    const configRows = await executeQuery(`
-      SELECT config_key, config_value 
-      FROM system_config 
-      WHERE config_key IN ('vtex_account_name', 'vtex_environment', 'vtex_app_key', 'vtex_app_token')
-    `);
-
-    const config: Record<string, string> = {};
-    configRows.forEach((row: any) => {
-      config[row.config_key] = row.config_value;
-    });
+    // Usar configurações da VTEX das variáveis de ambiente
+    const config = {
+      vtex_account_name: process.env.VTEX_ACCOUNT_NAME,
+      vtex_environment: process.env.VTEX_ENVIRONMENT,
+      vtex_app_key: process.env.VTEX_APP_KEY,
+      vtex_app_token: process.env.VTEX_APP_TOKEN,
+    };
 
     if (!config.vtex_account_name || !config.vtex_environment || !config.vtex_app_key || !config.vtex_app_token) {
       return NextResponse.json({
         success: false,
-        message: 'Configurações da VTEX não encontradas. Configure em Configurações > VTEX.'
+        message: 'Configurações da VTEX não encontradas nas variáveis de ambiente.'
       }, { status: 400 });
     }
 
@@ -171,9 +167,93 @@ export async function POST(request: NextRequest) {
         const productSkus: VTEXSKU[] = await skusResponse.json();
         console.log(`📋 ${productSkus.length} SKUs encontrados para o produto`);
 
-        // 3. Verificar se o produto já existe
+        // PASSO 1: Importar/Atualizar Marca
+        console.log(`🏷️ PASSO 1: Importando marca ${product.BrandId}...`);
+        try {
+          const brandResponse = await fetch(`${baseUrl}/api/catalog_system/pvt/brand/list`, {
+            method: 'GET',
+            headers
+          });
+          
+          if (brandResponse.ok) {
+            const brands = await brandResponse.json();
+            const brand = brands.find((b: any) => b.id === product.BrandId);
+            
+            if (brand) {
+              const existingBrand = await executeQuery(`
+                SELECT id FROM brands_vtex WHERE id = ?
+              `, [brand.id]);
+              
+              if (existingBrand && existingBrand.length > 0) {
+                await executeQuery(`
+                  UPDATE brands_vtex SET name = ?, is_active = ?, updated_at = NOW()
+                  WHERE id = ?
+                `, [brand.name, brand.isActive, brand.id]);
+                console.log(`✅ Marca atualizada: ${brand.name}`);
+              } else {
+                await executeQuery(`
+                  INSERT INTO brands_vtex (id, name, is_active, created_at, updated_at)
+                  VALUES (?, ?, ?, NOW(), NOW())
+                `, [brand.id, brand.name, brand.isActive]);
+                console.log(`✅ Marca inserida: ${brand.name}`);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Erro ao importar marca:`, error);
+        }
+
+        // PASSO 2: Importar/Atualizar Categoria
+        console.log(`📂 PASSO 2: Importando categoria ${product.CategoryId}...`);
+        try {
+          const categoryResponse = await fetch(`${baseUrl}/api/catalog_system/pvt/category/tree/2`, {
+            method: 'GET',
+            headers
+          });
+          
+          if (categoryResponse.ok) {
+            const categories = await categoryResponse.json();
+            const findCategory = (cats: any[], id: number): any => {
+              for (const cat of cats) {
+                if (cat.id === id) return cat;
+                if (cat.children) {
+                  const found = findCategory(cat.children, id);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+            
+            const category = findCategory(categories, product.CategoryId);
+            
+            if (category) {
+              const existingCategory = await executeQuery(`
+                SELECT vtex_id FROM categories_vtex WHERE vtex_id = ?
+              `, [category.id]);
+              
+              if (existingCategory && existingCategory.length > 0) {
+                await executeQuery(`
+                  UPDATE categories_vtex SET name = ?, is_active = ?, updated_at = NOW()
+                  WHERE vtex_id = ?
+                `, [category.name, category.isActive, category.id]);
+                console.log(`✅ Categoria atualizada: ${category.name}`);
+              } else {
+                await executeQuery(`
+                  INSERT INTO categories_vtex (vtex_id, name, is_active, created_at, updated_at)
+                  VALUES (?, ?, ?, NOW(), NOW())
+                `, [category.id, category.name, category.isActive]);
+                console.log(`✅ Categoria inserida: ${category.name}`);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Erro ao importar categoria:`, error);
+        }
+
+        // PASSO 3: Importar/Atualizar Produto
+        console.log(`📦 PASSO 3: Importando produto ${product.Id}...`);
         const existingProduct = await executeQuery(`
-          SELECT id FROM products WHERE vtex_id = ?
+          SELECT id FROM products_vtex WHERE id = ?
         `, [product.Id]);
 
         let productId: number;
@@ -182,7 +262,7 @@ export async function POST(request: NextRequest) {
           // Produto já existe, atualizar
           productId = existingProduct[0].id;
           await executeQuery(`
-            UPDATE products SET
+            UPDATE products_vtex SET
               name = ?,
               title = ?,
               description = ?,
@@ -220,7 +300,7 @@ export async function POST(request: NextRequest) {
         } else {
           // Produto novo, inserir
           const insertResult = await executeModificationQuery(`
-            INSERT INTO products (
+            INSERT INTO products_vtex (
               vtex_id, name, title, description, meta_tag_description,
               is_active, is_visible, brand_id, category_id, department_id,
               link_id, keywords, tax_code, supplier_id, show_without_stock,
@@ -247,101 +327,225 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Produto inserido: ${product.Name} (ID: ${productId})`);
         }
 
-        // 4. Processar SKUs
-        let firstSkuId = null;
+        // PASSO 4: Processar SKUs
+        console.log(`📋 PASSO 4: Processando ${productSkus.length} SKUs...`);
+        let skuWithImages: any = null;
+        let imagesFound = false;
+        let firstSkuId: number | null = null;
+        
         for (let i = 0; i < productSkus.length; i++) {
           const vtexSku = productSkus[i];
-          const isFirstSku = i === 0;
+          console.log(`🔍 Processando SKU ${i + 1}/${productSkus.length}: ${vtexSku.Id} (${vtexSku.Name})`);
+          
+          // Set firstSkuId to the first SKU
+          if (i === 0) {
+            firstSkuId = vtexSku.Id;
+          }
           
           // Verificar se SKU já existe
           const existingSku = await executeQuery(`
-            SELECT id FROM skus WHERE vtex_id = ?
+            SELECT id FROM skus_vtex WHERE id = ?
           `, [vtexSku.Id]);
 
-          let skuId;
           if (existingSku && existingSku.length > 0) {
             // SKU já existe, atualizar
-            skuId = existingSku[0].id;
             await executeQuery(`
-              UPDATE skus SET
-                product_id = ?,
+              UPDATE skus_vtex SET
+                product_id_vtex = ?,
                 name = ?,
+                ref_id = ?,
                 is_active = ?,
                 height = ?,
                 width = ?,
                 length = ?,
                 weight_kg = ?,
                 modal_id = ?,
-                ref_id = ?,
-                cubic_weight = ?,
                 is_kit = ?,
                 internal_note = ?,
                 reward_value = ?,
                 commercial_condition_id = ?,
                 flag_kit_itens_sell_apart = ?,
                 manufacturer_code = ?,
+                position = ?,
                 measurement_unit = ?,
                 unit_multiplier = ?,
-                updated_at = CURRENT_TIMESTAMP
-              WHERE vtex_id = ?
+                updated_at = NOW()
+              WHERE id = ?
             `, [
               productId,
               vtexSku.Name,
+              vtexSku.RefId,
               vtexSku.IsActive,
               vtexSku.Height,
               vtexSku.Width,
               vtexSku.Length,
               vtexSku.WeightKg,
               vtexSku.ModalId,
-              vtexSku.RefId,
-              vtexSku.CubicWeight,
               vtexSku.IsKit,
               vtexSku.InternalNote,
               vtexSku.RewardValue,
               vtexSku.CommercialConditionId,
               vtexSku.FlagKitItensSellApart,
               vtexSku.ManufacturerCode,
+              vtexSku.Position,
               vtexSku.MeasurementUnit,
               vtexSku.UnitMultiplier,
               vtexSku.Id
             ]);
+            console.log(`✅ SKU atualizado: ${vtexSku.Name}`);
           } else {
             // SKU novo, inserir
-            const insertResult = await executeModificationQuery(`
-              INSERT INTO skus (
-                vtex_id, product_id, name, is_active, height, width, length,
-                weight_kg, modal_id, ref_id, cubic_weight, is_kit, internal_note,
-                reward_value, commercial_condition_id, flag_kit_itens_sell_apart,
-                manufacturer_code, measurement_unit, unit_multiplier,
-                created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            await executeQuery(`
+              INSERT INTO skus_vtex (
+                id, product_id_vtex, name, ref_id, is_active, 
+                height, width, length, weight_kg, modal_id, is_kit,
+                internal_note, reward_value, commercial_condition_id,
+                flag_kit_itens_sell_apart, manufacturer_code, position,
+                measurement_unit, unit_multiplier, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `, [
               vtexSku.Id,
               productId,
               vtexSku.Name,
+              vtexSku.RefId,
               vtexSku.IsActive,
               vtexSku.Height,
               vtexSku.Width,
               vtexSku.Length,
               vtexSku.WeightKg,
               vtexSku.ModalId,
-              vtexSku.RefId,
-              vtexSku.CubicWeight,
               vtexSku.IsKit,
               vtexSku.InternalNote,
               vtexSku.RewardValue,
               vtexSku.CommercialConditionId,
               vtexSku.FlagKitItensSellApart,
               vtexSku.ManufacturerCode,
+              vtexSku.Position,
               vtexSku.MeasurementUnit,
               vtexSku.UnitMultiplier
             ]);
-            skuId = insertResult.insertId!;
+            console.log(`✅ SKU inserido: ${vtexSku.Name}`);
           }
 
-          // Guardar ID do primeiro SKU para processar imagens
-          if (isFirstSku) {
-            firstSkuId = skuId;
+          // PASSO 5: Verificar se este SKU tem imagens (só importar do primeiro que tiver)
+          if (!imagesFound) {
+            console.log(`🖼️ Verificando imagens do SKU ${vtexSku.Id}...`);
+            try {
+              const imagesResponse = await fetch(`${baseUrl}/api/catalog/pvt/stockkeepingunit/${vtexSku.Id}/file`, {
+                method: 'GET',
+                headers
+              });
+              
+              if (imagesResponse.ok) {
+                const images = await imagesResponse.json();
+                console.log(`📸 SKU ${vtexSku.Id}: ${images.length} imagens encontradas`);
+                
+                if (images.length > 0) {
+                  console.log(`✅ Imagens encontradas no SKU ${vtexSku.Id}! Importando...`);
+                  skuWithImages = vtexSku;
+                  imagesFound = true;
+                  
+                  for (const image of images) {
+                    try {
+                      await executeQuery(`
+                        INSERT INTO images_vtex (
+                          vtex_id, sku_id, name, url, is_main, position, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+                        ON DUPLICATE KEY UPDATE
+                          name = VALUES(name),
+                          url = VALUES(url),
+                          is_main = VALUES(is_main),
+                          position = VALUES(position),
+                          updated_at = NOW()
+                      `, [
+                        image.Id,
+                        vtexSku.Id,
+                        image.Name,
+                        image.Url,
+                        image.IsMain || false,
+                        image.Position || 0
+                      ]);
+                    } catch (imageError: any) {
+                      console.error(`❌ Erro ao importar imagem ${image.Id}:`, imageError);
+                    }
+                  }
+                  console.log(`✅ ${images.length} imagens importadas do SKU ${vtexSku.Id}`);
+                } else {
+                  console.log(`❌ SKU ${vtexSku.Id} não possui imagens, tentando próximo...`);
+                }
+              } else {
+                console.warn(`⚠️ Erro ao buscar imagens do SKU ${vtexSku.Id}: ${imagesResponse.status}`);
+              }
+            } catch (imageError: any) {
+              console.error(`❌ Erro ao verificar imagens do SKU ${vtexSku.Id}:`, imageError);
+            }
+          } else {
+            console.log(`⏭️ SKU ${vtexSku.Id} pulado - imagens já importadas do SKU ${skuWithImages?.Id}`);
+          }
+
+          // PASSO 6: Importar estoque do SKU (stock_vtex)
+          console.log(`📦 PASSO 6: Importando estoque do SKU ${vtexSku.Id}...`);
+          try {
+            const stockApiUrl = `${baseUrl}/api/logistics/pvt/inventory/skus/${vtexSku.Id}`;
+            
+            const stockResponse = await fetch(stockApiUrl, {
+              method: 'GET',
+              headers
+            });
+            
+            if (stockResponse.ok) {
+              const stockData = await stockResponse.json();
+              console.log(`📊 SKU ${vtexSku.Id}: ${stockData.balance?.length || 0} warehouses encontrados`);
+              
+              if (stockData.balance && Array.isArray(stockData.balance)) {
+                // Filtrar apenas warehouse com nome "13"
+                const warehouse13 = stockData.balance.filter((balance: any) => 
+                  balance.warehouseName === "13"
+                );
+                
+                console.log(`🏪 Warehouses com nome "13": ${warehouse13.length}`);
+                
+                for (const balance of warehouse13) {
+                  try {
+                    await executeQuery(
+                      `INSERT INTO stock_vtex (
+                        sku_id, vtex_sku_id, warehouse_id, warehouse_name, 
+                        total_quantity, reserved_quantity, has_unlimited_quantity,
+                        time_to_refill, date_of_supply_utc, lead_time,
+                        created_at, updated_at
+                      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                      ON DUPLICATE KEY UPDATE
+                        total_quantity = VALUES(total_quantity),
+                        reserved_quantity = VALUES(reserved_quantity),
+                        has_unlimited_quantity = VALUES(has_unlimited_quantity),
+                        time_to_refill = VALUES(time_to_refill),
+                        date_of_supply_utc = VALUES(date_of_supply_utc),
+                        lead_time = VALUES(lead_time),
+                        updated_at = NOW()`,
+                      [
+                        vtexSku.Id, // sku_id é o ID da VTEX
+                        vtexSku.Id.toString(),
+                        balance.warehouseId,
+                        balance.warehouseName,
+                        balance.totalQuantity,
+                        balance.reservedQuantity,
+                        balance.hasUnlimitedQuantity,
+                        balance.timeToRefill,
+                        balance.dateOfSupplyUtc ? new Date(balance.dateOfSupplyUtc) : null,
+                        balance.leadTime
+                      ]
+                    );
+                    console.log(`✅ Estoque importado: SKU ${vtexSku.Id} - Warehouse: ${balance.warehouseName} - Qtd: ${balance.totalQuantity}`);
+                  } catch (stockError: any) {
+                    console.error(`❌ Erro ao importar estoque do warehouse ${balance.warehouseId}:`, stockError);
+                  }
+                }
+              }
+            } else {
+              console.warn(`⚠️ Erro ao buscar estoque do SKU ${vtexSku.Id}: ${stockResponse.status}`);
+            }
+          } catch (stockError: any) {
+            console.error(`❌ Erro ao importar estoque do SKU ${vtexSku.Id}:`, stockError);
           }
         }
 

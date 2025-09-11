@@ -65,7 +65,7 @@ export function getProductImageUrl(product: Product, size: 'small' | 'medium' | 
   }
 
   // Adiciona protocolo se necessário
-  return `https://${product.first_image_url}`;
+  return `https://projetoinfluencer.${product.first_image_url}`;
 }
 
 /**

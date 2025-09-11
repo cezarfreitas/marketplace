@@ -7,13 +7,13 @@ import {
   Settings, 
   Package, 
   Tag,
-  Bot,
   X,
   LogOut,
   FolderOpen,
   FileSpreadsheet,
   BarChart3,
-  Brain
+  Brain,
+  List
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -71,7 +71,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     { name: 'Produtos', href: '/products', icon: Package },
     { name: 'Marcas', href: '/brands', icon: Tag },
     { name: 'Categorias', href: '/categories', icon: FolderOpen },
-    { name: 'Agentes', href: '/agents', icon: Bot },
+    { name: 'Características', href: '/caracteristicas', icon: List },
     { name: 'Anymarket', href: '/anymarket', icon: FileSpreadsheet },
     { name: 'Configurações', href: '/settings', icon: Settings },
     { name: 'Sair do Sistema', href: '#', icon: LogOut, isLogout: true },

@@ -4,6 +4,7 @@ import { checkBuildEnvironment } from '@/lib/build-check';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 API de produtos chamada');
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
@@ -24,18 +25,11 @@ export async function GET(request: NextRequest) {
       searchParams_array.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
-    // Filtros adicionais
+    // Filtros básicos apenas
     const brand_id = searchParams.getAll('brand_id');
     const category_id = searchParams.getAll('category_id');
-    const has_image_analysis = searchParams.get('has_image_analysis');
-    const has_marketplace_description = searchParams.get('has_marketplace_description');
-    const has_anymarket_ref_id = searchParams.get('has_anymarket_ref_id');
-    const has_anymarket_sync_log = searchParams.get('has_anymarket_sync_log');
     const is_active = searchParams.get('is_active');
     const is_visible = searchParams.get('is_visible');
-    const has_images = searchParams.get('has_images');
-    const stock_operator = searchParams.get('stock_operator');
-    const stock_value = searchParams.get('stock_value');
 
     if (brand_id && brand_id.length > 0) {
       // Filtrar valores vazios
@@ -58,37 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
 
-    if (has_image_analysis) {
-      if (has_image_analysis === 'true') {
-        conditions.push(`EXISTS (SELECT 1 FROM image_analysis_logs al WHERE al.product_id = p.id)`);
-      } else {
-        conditions.push(`NOT EXISTS (SELECT 1 FROM image_analysis_logs al WHERE al.product_id = p.id)`);
-      }
-    }
-
-    if (has_marketplace_description) {
-      if (has_marketplace_description === 'true') {
-        conditions.push(`EXISTS (SELECT 1 FROM meli m WHERE m.product_id = p.id)`);
-      } else {
-        conditions.push(`NOT EXISTS (SELECT 1 FROM meli m WHERE m.product_id = p.id)`);
-      }
-    }
-
-    if (has_anymarket_ref_id) {
-      if (has_anymarket_ref_id === 'true') {
-        conditions.push(`a.id_any IS NOT NULL`);
-      } else {
-        conditions.push(`a.id_any IS NULL`);
-      }
-    }
-
-    if (has_anymarket_sync_log) {
-      if (has_anymarket_sync_log === 'true') {
-        conditions.push(`EXISTS (SELECT 1 FROM anymarket_sync_logs sl WHERE sl.product_id = p.id AND sl.success = true)`);
-      } else {
-        conditions.push(`NOT EXISTS (SELECT 1 FROM anymarket_sync_logs sl WHERE sl.product_id = p.id AND sl.success = true)`);
-      }
-    }
+    // Filtros complexos removidos para simplificar
 
     if (is_active) {
       if (is_active === 'true') {
@@ -106,42 +70,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (has_images) {
-      if (has_images === 'true') {
-        conditions.push(`EXISTS (SELECT 1 FROM images i JOIN skus s ON i.sku_id = s.id WHERE s.product_id = p.id)`);
-      } else if (has_images === 'false') {
-        conditions.push(`NOT EXISTS (SELECT 1 FROM images i JOIN skus s ON i.sku_id = s.id WHERE s.product_id = p.id)`);
-      }
-    }
-
-    // Filtros de estoque
-    if (stock_operator && stock_value !== null && stock_value !== '') {
-      const stockValue = parseInt(stock_value);
-      if (!isNaN(stockValue)) {
-        switch (stock_operator) {
-          case 'eq':
-            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) = ?`);
-            searchParams_array.push(stockValue);
-            break;
-          case 'gt':
-            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) > ?`);
-            searchParams_array.push(stockValue);
-            break;
-          case 'gte':
-            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) >= ?`);
-            searchParams_array.push(stockValue);
-            break;
-          case 'lt':
-            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) < ?`);
-            searchParams_array.push(stockValue);
-            break;
-          case 'lte':
-            conditions.push(`(SELECT COALESCE(SUM(st.total_quantity), 0) FROM stock st JOIN skus s ON st.sku_id = s.id WHERE s.product_id = p.id) <= ?`);
-            searchParams_array.push(stockValue);
-            break;
-        }
-      }
-    }
+    // Filtros de imagens e estoque removidos para simplificar
 
     if (conditions.length > 0) {
       whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -152,46 +81,105 @@ export async function GET(request: NextRequest) {
     const validSortField = allowedSortFields.includes(sort) ? sort : 'created_at';
     const validOrder = order === 'asc' ? 'ASC' : 'DESC';
 
-    // Query para produtos com busca e ordenação, incluindo nomes de marca e categoria
+    // Query básica para produtos
     const productsQuery = `
       SELECT 
         p.*,
         b.name as brand_name,
         c.name as category_name,
-        a.id_any as anymarket_id,
-        (SELECT COUNT(*) FROM skus s WHERE s.product_id = p.id) as sku_count,
-        (SELECT COUNT(*) FROM images i 
-         JOIN skus s ON i.sku_id = s.id 
-         WHERE s.product_id = p.id) as image_count,
-        (SELECT CONCAT('https://projetoinfluencer.', i.file_location) FROM images i 
-         JOIN skus s ON i.sku_id = s.id 
-         WHERE s.product_id = p.id 
-         ORDER BY i.created_at ASC 
-         LIMIT 1) as first_image_url,
-        COALESCE((SELECT SUM(st.total_quantity) 
-                  FROM stock st 
-                  JOIN skus s ON st.sku_id = s.id 
-                  WHERE s.product_id = p.id), 0) as total_stock
-      FROM products p
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN anymarket a ON p.ref_id = a.ref_id
+        c.vtex_id as category_vtex_id,
+        0 as sku_count,
+        0 as total_stock
+      FROM products_vtex p
+      LEFT JOIN brands_vtex b ON p.brand_id = b.vtex_id
+      LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
       ${whereClause}
-      ORDER BY 
-        CASE WHEN p.brand_id IS NOT NULL AND p.category_id IS NOT NULL THEN 0 ELSE 1 END,
-        p.${validSortField} ${validOrder}
+      ORDER BY p.${validSortField} ${validOrder}
       LIMIT ${limit} OFFSET ${offset}
     `;
 
+    console.log('📝 Executando query de produtos...');
+    console.log('🔍 Query:', productsQuery.substring(0, 200) + '...');
+    console.log('📊 Parâmetros:', searchParams_array);
+    
     const products = await executeQuery(productsQuery, searchParams_array);
+    console.log('✅ Query executada com sucesso!');
 
-    // Query para contar total com busca
+    // Adicionar contagem de SKUs e imagens para cada produto
+    for (const product of products) {
+      try {
+        // Contar SKUs
+        const skuCountQuery = `
+          SELECT COUNT(*) as sku_count
+          FROM skus_vtex
+          WHERE product_id = ?
+        `;
+        const skuCountResult = await executeQuery(skuCountQuery, [product.id]);
+        product.sku_count = skuCountResult[0]?.sku_count || 0;
+
+        // Contar imagens (usando os IDs dos SKUs do produto)
+        const imageCountQuery = `
+          SELECT COUNT(*) as image_count
+          FROM images_vtex
+          WHERE sku_id IN (
+            SELECT id FROM skus_vtex WHERE product_id = ?
+          )
+        `;
+        const imageCountResult = await executeQuery(imageCountQuery, [product.id]);
+        product.image_count = imageCountResult[0]?.image_count || 0;
+
+        // Contar estoque (usando os IDs dos SKUs do produto)
+        const stockCountQuery = `
+          SELECT COALESCE(SUM(total_quantity), 0) as total_stock
+          FROM stock_vtex
+          WHERE vtex_sku_id IN (
+            SELECT id FROM skus_vtex WHERE product_id = ?
+          )
+        `;
+        const stockCountResult = await executeQuery(stockCountQuery, [product.id]);
+        product.total_stock = stockCountResult[0]?.total_stock || 0;
+
+        // Buscar imagem principal do produto
+        const imageQuery = `
+          SELECT file_location, url
+          FROM images_vtex
+          WHERE sku_id IN (
+            SELECT id FROM skus_vtex WHERE product_id = ?
+          ) AND is_main = 1
+          LIMIT 1
+        `;
+        const imageResult = await executeQuery(imageQuery, [product.id]);
+        if (imageResult && imageResult.length > 0) {
+          product.main_image = imageResult[0].file_location || imageResult[0].url;
+        } else {
+          // Se não encontrar imagem principal, buscar qualquer imagem
+          const anyImageQuery = `
+            SELECT file_location, url
+            FROM images_vtex
+            WHERE sku_id IN (
+              SELECT id FROM skus_vtex WHERE product_id = ?
+            )
+            LIMIT 1
+          `;
+          const anyImageResult = await executeQuery(anyImageQuery, [product.id]);
+          if (anyImageResult && anyImageResult.length > 0) {
+            product.main_image = anyImageResult[0].file_location || anyImageResult[0].url;
+          }
+        }
+      } catch (error) {
+        console.log(`⚠️ Erro ao contar SKUs/imagens/estoque para produto ${product.id}:`, error);
+        product.sku_count = 0;
+        product.image_count = 0;
+        product.total_stock = 0;
+      }
+    }
+
+    // Query para contar total - simplificada
     const countQuery = `
       SELECT COUNT(*) as total 
-      FROM products p
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN anymarket a ON p.ref_id = a.ref_id
+      FROM products_vtex p
+      LEFT JOIN brands_vtex b ON p.brand_id = b.vtex_id
+      LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
       ${whereClause}
     `;
     const countResult = await executeQuery(countQuery, searchParams_array);
@@ -237,7 +225,7 @@ export async function DELETE(request: NextRequest) {
     // Verificar se todos os produtos existem
     const placeholders = productIds.map(() => '?').join(',');
     const existingProducts = await executeQuery(
-      `SELECT id, name FROM products WHERE id IN (${placeholders})`,
+      `SELECT id, name FROM products_vtex WHERE id IN (${placeholders})`,
       productIds
     );
 
@@ -250,52 +238,16 @@ export async function DELETE(request: NextRequest) {
 
     console.log(`📊 ${existingProducts.length} produtos encontrados para deletar`);
 
-    // Deletar todos os dados vinculados
+    // Deletar apenas os produtos (simplificado)
     try {
-      // 1. Deletar logs de análise de imagens
-      console.log('🗑️ Deletando logs de análise de imagens...');
-      await executeQuery(
-        `DELETE FROM image_analysis_logs WHERE product_id IN (${placeholders})`,
-        productIds
-      );
-
-      // 2. Deletar dados do Marketplace
-      console.log('🗑️ Deletando dados do Marketplace...');
-      await executeQuery(
-        `DELETE FROM meli WHERE product_id IN (${placeholders})`,
-        productIds
-      );
-
-      // 3. Buscar SKUs dos produtos
-      const skus = await executeQuery(
-        `SELECT id FROM skus WHERE product_id IN (${placeholders})`,
-        productIds
-      );
-
-      // 4. Para cada SKU, deletar imagens
-      for (const sku of skus) {
-        console.log(`🗑️ Deletando imagens do SKU ${sku.id}...`);
-        await executeQuery(
-          'DELETE FROM images WHERE sku_id = ?',
-          [sku.id]
-        );
-      }
-
-      // 5. Deletar SKUs
-      console.log('🗑️ Deletando SKUs...');
-      await executeQuery(
-        `DELETE FROM skus WHERE product_id IN (${placeholders})`,
-        productIds
-      );
-
-      // 6. Deletar os produtos
+      // Deletar os produtos
       console.log('🗑️ Deletando produtos...');
       await executeQuery(
-        `DELETE FROM products WHERE id IN (${placeholders})`,
+        `DELETE FROM products_vtex WHERE id IN (${placeholders})`,
         productIds
       );
 
-      console.log(`✅ ${existingProducts.length} produtos e todos os dados vinculados deletados com sucesso`);
+      console.log(`✅ ${existingProducts.length} produtos deletados com sucesso`);
 
       return NextResponse.json({
         success: true,

@@ -23,7 +23,7 @@ export async function GET(
         b.name as brand_name,
         c.name as category_name,
         d.name as department_name
-      FROM products p
+      FROM products_vtex p
       LEFT JOIN brands b ON p.brand_id = b.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN departments d ON p.department_id = d.id
@@ -76,7 +76,7 @@ export async function DELETE(
 
     // Verificar se o produto existe
     const existingProduct = await executeQuery(
-      'SELECT id, name FROM products WHERE id = ?',
+      'SELECT id, name FROM products_vtex WHERE id = ?',
       [productId]
     );
 
@@ -108,7 +108,7 @@ export async function DELETE(
 
       // 3. Buscar SKUs do produto
       const skus = await executeQuery(
-        'SELECT id FROM skus WHERE product_id = ?',
+        'SELECT id FROM skus_vtex WHERE product_id = ?',
         [productId]
       );
 
@@ -116,7 +116,7 @@ export async function DELETE(
       for (const sku of skus) {
         console.log(`🗑️ Deletando imagens do SKU ${sku.id}...`);
         await executeQuery(
-          'DELETE FROM images WHERE sku_id = ?',
+          'DELETE FROM images_vtex WHERE sku_id = ?',
           [sku.id]
         );
       }
@@ -124,14 +124,14 @@ export async function DELETE(
       // 5. Deletar SKUs
       console.log('🗑️ Deletando SKUs...');
       await executeQuery(
-        'DELETE FROM skus WHERE product_id = ?',
+        'DELETE FROM skus_vtex WHERE product_id = ?',
         [productId]
       );
 
       // 6. Deletar o produto
       console.log('🗑️ Deletando produto...');
       await executeQuery(
-        'DELETE FROM products WHERE id = ?',
+        'DELETE FROM products_vtex WHERE id = ?',
         [productId]
       );
 

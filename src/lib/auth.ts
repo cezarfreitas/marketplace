@@ -7,17 +7,21 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface User {
   id: number;
-  username: string;
+  nome: string;
   email: string;
+  role: 'admin' | 'editor' | 'viewer';
   is_active: boolean;
   last_login?: Date;
+  avatar_url?: string;
+  telefone?: string;
+  departamento?: string;
   created_at: Date;
   updated_at: Date;
 }
 
 export interface LoginCredentials {
-  username: string;
-  password: string;
+  email: string;
+  senha: string;
 }
 
 export interface RegisterData {
@@ -32,11 +36,12 @@ export interface AuthToken {
 }
 
 // Função para gerar token JWT
-export const generateToken = (userId: number, username: string): string => {
+export const generateToken = (userId: number, email: string, role: string): string => {
   return jwt.sign(
     { 
       userId, 
-      username,
+      email,
+      role,
       iat: Math.floor(Date.now() / 1000)
     },
     JWT_SECRET,
@@ -45,12 +50,13 @@ export const generateToken = (userId: number, username: string): string => {
 };
 
 // Função para verificar token JWT
-export const verifyToken = (token: string): { userId: number; username: string } | null => {
+export const verifyToken = (token: string): { userId: number; email: string; role: string } | null => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     return {
       userId: decoded.userId,
-      username: decoded.username
+      email: decoded.email,
+      role: decoded.role
     };
   } catch (error) {
     console.error('Erro ao verificar token:', error);
@@ -72,33 +78,48 @@ export const verifyPassword = async (password: string, hashedPassword: string): 
 // Função para fazer login
 export const login = async (credentials: LoginCredentials): Promise<AuthToken | null> => {
   try {
-    const { username, password } = credentials;
+    const { email, senha } = credentials;
+    
+    // Validar parâmetros
+    if (!email || !senha) {
+      throw new Error('Email e senha são obrigatórios');
+    }
+    
+    console.log('🔍 Buscando usuário:', email);
     
     // Buscar usuário no banco
-    const query = 'SELECT * FROM users WHERE username = ? AND is_active = 1';
-    const user = await executeSingleQuery<User & { password_hash: string }>(query, [username]);
+    const query = 'SELECT * FROM usuarios WHERE email = ? AND is_active = 1';
+    const user = await executeSingleQuery<User & { senha: string }>(query, [email]);
     
     if (!user) {
+      console.log('❌ Usuário não encontrado:', email);
       throw new Error('Usuário não encontrado ou inativo');
     }
     
+    console.log('✅ Usuário encontrado:', user.nome);
+    
     // Verificar senha
-    const isValidPassword = await verifyPassword(password, user.password_hash);
+    const isValidPassword = await verifyPassword(senha, user.senha);
     if (!isValidPassword) {
+      console.log('❌ Senha incorreta para:', email);
       throw new Error('Senha incorreta');
     }
     
+    console.log('✅ Senha válida para:', email);
+    
     // Atualizar último login
     await executeQuery(
-      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE usuarios SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
       [user.id]
     );
     
     // Gerar token
-    const token = generateToken(user.id, user.username);
+    const token = generateToken(user.id, user.email, user.role);
     
     // Retornar dados do usuário sem a senha
-    const { password_hash, ...userWithoutPassword } = user;
+    const { senha: _, ...userWithoutPassword } = user;
+    
+    console.log('✅ Login realizado com sucesso para:', email);
     
     return {
       token,
@@ -106,7 +127,7 @@ export const login = async (credentials: LoginCredentials): Promise<AuthToken | 
     };
     
   } catch (error) {
-    console.error('Erro no login:', error);
+    console.error('❌ Erro no login:', error);
     throw error;
   }
 };
@@ -144,7 +165,7 @@ export const register = async (userData: RegisterData): Promise<AuthToken> => {
     );
     
     // Gerar token
-    const token = generateToken(newUser.id, newUser.username);
+    const token = generateToken(newUser.id, newUser.email, 'user');
     
     // Retornar dados do usuário sem a senha
     const { password_hash, ...userWithoutPassword } = newUser;
@@ -163,7 +184,7 @@ export const register = async (userData: RegisterData): Promise<AuthToken> => {
 // Função para buscar usuário por ID
 export const getUserById = async (userId: number): Promise<User | null> => {
   try {
-    const query = 'SELECT id, username, email, is_active, last_login, created_at, updated_at FROM users WHERE id = ? AND is_active = 1';
+    const query = 'SELECT id, nome, email, role, is_active, last_login, avatar_url, telefone, departamento, created_at, updated_at FROM usuarios WHERE id = ? AND is_active = 1';
     return await executeSingleQuery<User>(query, [userId]);
   } catch (error) {
     console.error('Erro ao buscar usuário:', error);

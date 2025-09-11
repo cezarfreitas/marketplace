@@ -117,6 +117,22 @@ export interface VTEXImage {
   Position: number;
 }
 
+export interface VTEXStockBalance {
+  warehouseId: string;
+  warehouseName: string;
+  totalQuantity: number;
+  reservedQuantity: number;
+  hasUnlimitedQuantity: boolean;
+  timeToRefill: string | null;
+  dateOfSupplyUtc: string | null;
+  leadTime: string | null;
+}
+
+export interface VTEXStockResponse {
+  skuId: string;
+  balance: VTEXStockBalance[];
+}
+
 export class VTEXService {
   private config: VTEXConfig;
   private baseUrl: string;
@@ -237,33 +253,33 @@ export class VTEXService {
     return this.makeRequest<VTEXImage[]>(url);
   }
 
-  async getSKUStock(skuId: number): Promise<any[]> {
+  async getSKUStock(skuId: number): Promise<VTEXStockResponse | null> {
     try {
-      const stockApiUrl = `https://${this.config.accountName}.${this.config.environment}.com.br/api/logistics/pvt/inventory/skus/${skuId}`;
+      const stockApiUrl = `${this.baseUrl}/api/logistics/pvt/inventory/skus/${skuId}`;
       
       const stockResponse = await fetch(stockApiUrl, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-VTEX-API-AppKey': this.config.appKey,
-          'X-VTEX-API-AppToken': this.config.appToken,
-        },
+        headers: this.getHeaders(),
       });
 
       if (stockResponse.ok) {
         const stockData = await stockResponse.json();
         if (stockData.balance && Array.isArray(stockData.balance)) {
-          return [{
-            skuId: skuId,
-            balance: stockData.balance
-          }];
+          // Filtrar apenas warehouse com nome "13"
+          const filteredBalance = stockData.balance.filter((balance: VTEXStockBalance) => 
+            balance.warehouseName === "13"
+          );
+          
+          return {
+            skuId: skuId.toString(),
+            balance: filteredBalance
+          };
         }
       }
-      return [];
+      return null;
     } catch (error) {
       console.warn(`⚠️ Erro ao buscar stock do SKU ${skuId}:`, error);
-      return [];
+      return null;
     }
   }
 
@@ -297,16 +313,28 @@ export class VTEXService {
       console.log(`📋 Buscando SKUs do produto ${productId}...`);
       const skus = await this.getProductSKUs(productId);
 
-      // 5. Buscar imagens de todos os SKUs
+      // 5. Buscar imagens apenas do primeiro SKU que tiver imagens
       console.log(`🖼️ Buscando imagens dos SKUs...`);
       const allImages: VTEXImage[] = [];
+      let imagesFound = false;
       
       for (const sku of skus) {
-        try {
-          const skuImages = await this.getSKUImages(sku.Id);
-          allImages.push(...skuImages);
-        } catch (error) {
-          console.warn(`⚠️ Erro ao buscar imagens do SKU ${sku.Id}:`, error);
+        if (!imagesFound) {
+          try {
+            const skuImages = await this.getSKUImages(sku.Id);
+            if (skuImages.length > 0) {
+              console.log(`✅ Imagens encontradas no SKU ${sku.Id}! Parando busca.`);
+              allImages.push(...skuImages);
+              imagesFound = true;
+              break; // Parar assim que encontrar imagens
+            } else {
+              console.log(`❌ SKU ${sku.Id} não possui imagens, tentando próximo...`);
+            }
+          } catch (error) {
+            console.warn(`⚠️ Erro ao buscar imagens do SKU ${sku.Id}:`, error);
+          }
+        } else {
+          console.log(`⏭️ SKU ${sku.Id} pulado - imagens já encontradas`);
         }
       }
 
@@ -317,7 +345,9 @@ export class VTEXService {
       for (const sku of skus) {
         try {
           const skuStock = await this.getSKUStock(sku.Id);
-          allStock.push(...skuStock);
+          if (skuStock && skuStock.balance) {
+            allStock.push(...skuStock.balance);
+          }
         } catch (error) {
           console.warn(`⚠️ Erro ao buscar stock do SKU ${sku.Id}:`, error);
         }

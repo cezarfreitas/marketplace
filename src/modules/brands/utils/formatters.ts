@@ -65,7 +65,7 @@ export function getBrandImageUrl(brand: Brand, size: 'small' | 'medium' | 'large
   }
 
   // Adiciona protocolo se necessário
-  return `https://${brand.image_url}`;
+  return `https://projetoinfluencer.${brand.image_url}`;
 }
 
 /**

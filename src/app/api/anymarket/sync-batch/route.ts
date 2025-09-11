@@ -17,7 +17,7 @@ async function saveSyncLog(productId: number, anymarketId: string, title: string
         error_message TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products_vtex(id) ON DELETE CASCADE,
         INDEX idx_product_id (product_id),
         INDEX idx_anymarket_id (anymarket_id),
         INDEX idx_created_at (created_at)
@@ -83,11 +83,11 @@ export async function POST(request: NextRequest) {
             p.*,
             b.name as brand_name,
             c.name as category_name,
-            a.id_any as anymarket_id
-          FROM products p
+            a.id_produto_any as anymarket_id
+          FROM products_vtex p
           LEFT JOIN brands b ON p.brand_id = b.id
           LEFT JOIN categories c ON p.category_id = c.id
-          LEFT JOIN anymarket a ON p.ref_id = a.ref_id
+          LEFT JOIN anymarket a ON p.ref_id = a.ref_vtex
           WHERE p.id = ?
         `;
 
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
 
         // 2. Buscar dados do Marketplace
         const marketplaceQuery = `
-          SELECT * FROM meli 
+          SELECT * FROM marketplace 
           WHERE product_id = ? 
           ORDER BY created_at DESC 
           LIMIT 1
@@ -144,8 +144,28 @@ export async function POST(request: NextRequest) {
           color: marketplace.color || 'NÃO ENCONTRADO'
         });
 
-        // 3. Preparar dados para envio ao Anymarket
+        // 3. Buscar características da tabela respostas_caracteristicas
+        const characteristicsQuery = `
+          SELECT caracteristica, resposta 
+          FROM respostas_caracteristicas 
+          WHERE produto_id = ?
+        `;
+        
+        const characteristicsData = await executeQuery(characteristicsQuery, [productId]);
+        console.log(`📋 Características encontradas - Produto ${productId}:`, characteristicsData.length);
+
+        // 4. Preparar dados para envio ao Anymarket
         const characteristics = [];
+        
+        // Adicionar características da tabela respostas_caracteristicas
+        characteristicsData.forEach(char => {
+          if (char.caracteristica && char.resposta) {
+            characteristics.push({
+              name: char.caracteristica,
+              value: char.resposta
+            });
+          }
+        });
         
         // Adicionar características baseadas nos campos do marketplace
         if (marketplace.clothing_type) {
@@ -300,7 +320,19 @@ export async function POST(request: NextRequest) {
 
         console.log(`✅ Sincronização com Anymarket realizada com sucesso para produto ${productId}!`);
 
-        // 5. Salvar log da sincronização
+        // 5. Atualizar data_sincronizacao na tabela anymarket
+        try {
+          await executeQuery(`
+            UPDATE anymarket 
+            SET data_sincronizacao = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+            WHERE ref_vtex = ?
+          `, [product.ref_id]);
+          console.log(`📅 Data de sincronização atualizada para produto ${productId}`);
+        } catch (updateError) {
+          console.error(`⚠️ Erro ao atualizar data_sincronizacao para produto ${productId} (não crítico):`, updateError);
+        }
+
+        // 6. Salvar log da sincronização
         await saveSyncLog(productId, product.anymarket_id, marketplace.title, marketplace.description, true, anymarketResult);
 
         results.success++;

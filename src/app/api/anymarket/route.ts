@@ -1,50 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database';
 
+// GET - Listar mapeamentos anymarket
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Buscando dados do Anymarket...');
-    
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '100');
-    const search = searchParams.get('search') || '';
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const status = searchParams.get('status');
+    const syncStatus = searchParams.get('sync_status');
+    const mappingType = searchParams.get('mapping_type');
+    const search = searchParams.get('search');
+
     const offset = (page - 1) * limit;
 
-    // Construir condições de busca
-    let whereClause = '';
-    let searchParams_array: any[] = [];
-    
-    if (search) {
-      whereClause = `WHERE id_any LIKE ? OR ref_id LIKE ? OR product_name LIKE ?`;
-      const searchTerm = `%${search}%`;
-      searchParams_array = [searchTerm, searchTerm, searchTerm];
+    // Construir query com filtros
+    const whereConditions = [];
+    const queryParams: any[] = [];
+
+    if (status) {
+      whereConditions.push('status = ?');
+      queryParams.push(status);
     }
 
-    // Query para buscar dados
-    const query = `
+    if (syncStatus) {
+      whereConditions.push('sync_status = ?');
+      queryParams.push(syncStatus);
+    }
+
+    if (mappingType) {
+      whereConditions.push('mapping_type = ?');
+      queryParams.push(mappingType);
+    }
+
+    if (search) {
+      whereConditions.push('(vtex_name LIKE ? OR anymarket_name LIKE ? OR vtex_ref_id LIKE ? OR anymarket_sku LIKE ?)');
+      const searchTerm = `%${search}%`;
+      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Buscar dados
+    const data = await executeQuery(`
       SELECT 
-        a.*,
-        p.name as product_name
-      FROM anymarket a
-      LEFT JOIN products p ON a.ref_id = p.ref_id
+        id, vtex_id, anymarket_id, vtex_name, anymarket_name,
+        vtex_ref_id, anymarket_sku, mapping_type, status, sync_status,
+        last_sync_at, error_message, created_at, updated_at
+      FROM anymarket 
       ${whereClause}
-      ORDER BY a.created_at DESC
+      ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
-    `;
+    `, [...queryParams, limit, offset]);
 
-    const data = await executeQuery(query, [...searchParams_array, limit.toString(), offset.toString()]);
-
-    // Query para contar total
-    const countQuery = `
+    // Contar total
+    const countResult = await executeQuery(`
       SELECT COUNT(*) as total 
-      FROM anymarket a
+      FROM anymarket 
       ${whereClause}
-    `;
-    const countResult = await executeQuery(countQuery, searchParams_array);
-    const total = countResult[0]?.total || 0;
+    `, queryParams);
 
-    console.log(`✅ ${data.length} registros encontrados`);
+    const total = countResult[0]?.total || 0;
 
     return NextResponse.json({
       success: true,
@@ -58,80 +74,158 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao buscar dados do Anymarket:', error);
-    
+    console.error('❌ Erro ao buscar dados anymarket:', error);
     return NextResponse.json({
       success: false,
-      message: 'Erro interno do servidor ao buscar dados do Anymarket',
-      error: error.message
+      message: 'Erro interno do servidor'
     }, { status: 500 });
   }
 }
 
+// POST - Criar novo mapeamento
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id_any, ref_id, product_name } = body;
+    const {
+      vtex_id,
+      anymarket_id,
+      vtex_name,
+      anymarket_name,
+      vtex_ref_id,
+      anymarket_sku,
+      mapping_type = 'product',
+      status = 'active',
+      sync_status = 'not_synced'
+    } = body;
 
-    if (!id_any || !ref_id) {
+    if (!vtex_id || !anymarket_id) {
       return NextResponse.json({
         success: false,
-        message: 'ID_ANY e REF_ID são obrigatórios'
+        message: 'vtex_id e anymarket_id são obrigatórios'
       }, { status: 400 });
     }
 
-    console.log('➕ Adicionando registro do Anymarket:', { id_any, ref_id });
-
-    // Inserir ou atualizar registro
-    const query = `
-      INSERT INTO anymarket (id_any, ref_id, product_name)
-      VALUES (?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        ref_id = VALUES(ref_id),
-        product_name = VALUES(product_name),
-        updated_at = CURRENT_TIMESTAMP
-    `;
-
-    await executeQuery(query, [id_any, ref_id, product_name]);
-
-    console.log('✅ Registro do Anymarket adicionado/atualizado com sucesso');
+    // Inserir novo mapeamento
+    const result = await executeQuery(`
+      INSERT INTO anymarket (
+        vtex_id, anymarket_id, vtex_name, anymarket_name,
+        vtex_ref_id, anymarket_sku, mapping_type, status, sync_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      vtex_id, anymarket_id, vtex_name, anymarket_name,
+      vtex_ref_id, anymarket_sku, mapping_type, status, sync_status
+    ]);
 
     return NextResponse.json({
       success: true,
-      message: 'Registro adicionado com sucesso'
+      message: 'Mapeamento criado com sucesso',
+      data: { id: (result as any)?.insertId }
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao adicionar registro do Anymarket:', error);
+    console.error('❌ Erro ao criar mapeamento anymarket:', error);
     
+    if (error.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json({
+        success: false,
+        message: 'Mapeamento já existe para este vtex_id e anymarket_id'
+      }, { status: 409 });
+    }
+
     return NextResponse.json({
       success: false,
-      message: 'Erro interno do servidor ao adicionar registro',
-      error: error.message
+      message: 'Erro interno do servidor'
     }, { status: 500 });
   }
 }
 
-export async function DELETE(request: NextRequest) {
+// PUT - Atualizar mapeamento
+export async function PUT(request: NextRequest) {
   try {
-    console.log('🗑️ Limpando todos os dados do Anymarket...');
+    const body = await request.json();
+    const {
+      id,
+      vtex_id,
+      anymarket_id,
+      vtex_name,
+      anymarket_name,
+      vtex_ref_id,
+      anymarket_sku,
+      mapping_type,
+      status,
+      sync_status,
+      error_message
+    } = body;
 
-    await executeQuery('DELETE FROM anymarket');
+    if (!id) {
+      return NextResponse.json({
+        success: false,
+        message: 'ID é obrigatório'
+      }, { status: 400 });
+    }
 
-    console.log('✅ Todos os dados do Anymarket foram limpos');
+    // Atualizar mapeamento
+    await executeQuery(`
+      UPDATE anymarket 
+      SET 
+        vtex_id = COALESCE(?, vtex_id),
+        anymarket_id = COALESCE(?, anymarket_id),
+        vtex_name = COALESCE(?, vtex_name),
+        anymarket_name = COALESCE(?, anymarket_name),
+        vtex_ref_id = COALESCE(?, vtex_ref_id),
+        anymarket_sku = COALESCE(?, anymarket_sku),
+        mapping_type = COALESCE(?, mapping_type),
+        status = COALESCE(?, status),
+        sync_status = COALESCE(?, sync_status),
+        error_message = COALESCE(?, error_message),
+        last_sync_at = CASE WHEN ? IS NOT NULL THEN NOW() ELSE last_sync_at END,
+        updated_at = NOW()
+      WHERE id = ?
+    `, [
+      vtex_id, anymarket_id, vtex_name, anymarket_name,
+      vtex_ref_id, anymarket_sku, mapping_type, status, sync_status,
+      error_message, sync_status, id
+    ]);
 
     return NextResponse.json({
       success: true,
-      message: 'Todos os dados foram limpos com sucesso'
+      message: 'Mapeamento atualizado com sucesso'
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao limpar dados do Anymarket:', error);
-    
+    console.error('❌ Erro ao atualizar mapeamento anymarket:', error);
     return NextResponse.json({
       success: false,
-      message: 'Erro interno do servidor ao limpar dados',
-      error: error.message
+      message: 'Erro interno do servidor'
+    }, { status: 500 });
+  }
+}
+
+// DELETE - Deletar mapeamento
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({
+        success: false,
+        message: 'ID é obrigatório'
+      }, { status: 400 });
+    }
+
+    await executeQuery('DELETE FROM anymarket WHERE id = ?', [id]);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Mapeamento deletado com sucesso'
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao deletar mapeamento anymarket:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Erro interno do servidor'
     }, { status: 500 });
   }
 }

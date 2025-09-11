@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
     // Buscar imagens do produto através dos SKUs
     const images = await executeQuery(`
       SELECT i.id, i.file_location, i.text as alt_text, i.is_main as is_primary, i.sku_id, i.name, i.label
-      FROM images i
-      INNER JOIN skus s ON i.sku_id = s.id
+      FROM images_vtex i
+      INNER JOIN skus_vtex s ON i.sku_id = s.id
       WHERE s.product_id = ?
       ORDER BY i.is_main DESC, i.position ASC, i.id ASC
     `, [productId]);
@@ -168,7 +168,7 @@ Crie uma análise técnica profissional focando nos detalhes visíveis das image
     // Buscar informações do produto
     const products = await executeQuery(`
       SELECT id, name, title, description, brand_id, category_id, ref_id
-      FROM products 
+      FROM products_vtex 
       WHERE id = ?
     `, [productId]);
 

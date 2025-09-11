@@ -12,7 +12,6 @@ export { useProductModal } from './hooks/useProductModal';
 
 // Componentes
 export { ProductTable } from './components/ProductTable';
-export { ProductFiltersComponent } from './components/ProductFilters';
 
 // Utilitários
 export * from './utils/formatters';

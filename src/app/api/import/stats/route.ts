@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) as total_records,
         COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_records,
         COUNT(CASE WHEN is_visible = 1 THEN 1 END) as visible_records
-      FROM products
+      FROM products_vtex
       UNION ALL
       SELECT 
         'categories' as table_name,
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         'brands' as table_name,
         COUNT(*) as total_records,
-        COUNT(CASE WHEN active = 1 THEN 1 END) as active_records,
+        COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_records,
         0 as visible_records
       FROM brands
       UNION ALL
@@ -42,28 +42,34 @@ export async function GET(request: NextRequest) {
         COUNT(*) as total_records,
         COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_records,
         0 as visible_records
-      FROM skus
+      FROM skus_vtex
     `);
     
-    // Buscar última importação de cada tipo
-    const lastImports = await executeQuery(`
-      SELECT 
-        import_type,
-        status,
-        total_items,
-        processed_items,
-        failed_items,
-        started_at,
-        completed_at,
-        created_at
-      FROM import_logs 
-      WHERE id IN (
-        SELECT MAX(id) 
+    // Buscar última importação de cada tipo (se a tabela existir)
+    let lastImports = [];
+    try {
+      lastImports = await executeQuery(`
+        SELECT 
+          import_type,
+          status,
+          total_items,
+          processed_items,
+          failed_items,
+          started_at,
+          completed_at,
+          created_at
         FROM import_logs 
-        GROUP BY import_type
-      )
-      ORDER BY import_type
-    `);
+        WHERE id IN (
+          SELECT MAX(id) 
+          FROM import_logs 
+          GROUP BY import_type
+        )
+        ORDER BY import_type
+      `);
+    } catch (error) {
+      console.log('⚠️ Tabela import_logs não encontrada, usando dados vazios');
+      lastImports = [];
+    }
     
     // Calcular estatísticas de sucesso
     const successRates = importStats.map((stat: any) => ({

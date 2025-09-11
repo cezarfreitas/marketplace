@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
-import { executeQuery } from '@/lib/database';
+import { executeModificationQuery } from '@/lib/database';
 import * as XLSX from 'xlsx';
 
 export async function POST(request: NextRequest) {
@@ -89,25 +89,28 @@ export async function POST(request: NextRequest) {
 
     // Encontrar índices das colunas necessárias
     const idAnyIndex = headers.findIndex(h => 
-      h && (h.toLowerCase().includes('id_any') || 
+      h && (h.toLowerCase().includes('id_produto_any') || 
+           h.toLowerCase().includes('id_any') || 
            h.toLowerCase().includes('idany') ||
            h.toLowerCase().includes('id any'))
     );
     
-    const refIdIndex = headers.findIndex(h => 
-      h && (h.toLowerCase().includes('ref_id') || 
+    const vtexIdIndex = headers.findIndex(h => 
+      h && (h.toLowerCase().includes('ref_vtex') || 
+           h.toLowerCase().includes('ref_id') || 
            h.toLowerCase().includes('refid') ||
-           h.toLowerCase().includes('ref id'))
+           h.toLowerCase().includes('ref id') ||
+           h.toLowerCase().includes('vtex'))
     );
 
-    if (idAnyIndex === -1 || refIdIndex === -1) {
+    if (idAnyIndex === -1 || vtexIdIndex === -1) {
       return NextResponse.json({
         success: false,
-        message: `Colunas obrigatórias não encontradas. Esperado: ID_ANY e REF_ID. Encontrado: ${headers.join(', ')}`
+        message: `Colunas obrigatórias não encontradas. Esperado: ID_PRODUTO_ANY e REF_VTEX. Encontrado: ${headers.join(', ')}`
       }, { status: 400 });
     }
 
-    console.log(`📊 Colunas encontradas - ID_ANY: ${idAnyIndex}, REF_ID: ${refIdIndex}`);
+    console.log(`📊 Colunas encontradas - ID_PRODUTO_ANY: ${idAnyIndex}, REF_VTEX: ${vtexIdIndex}`);
     let processed = 0;
     let errors = 0;
 
@@ -115,32 +118,32 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const idAny = row[idAnyIndex];
-      const refId = row[refIdIndex];
+      const vtexId = row[vtexIdIndex];
 
       // Validar dados
-      if (!idAny || !refId) {
+      if (!idAny || !vtexId) {
         errors++;
         continue;
       }
 
       // Limpar dados
       const cleanIdAny = String(idAny).trim();
-      const cleanRefId = String(refId).trim();
+      const cleanVtexId = String(vtexId).trim();
 
-      if (!cleanIdAny || !cleanRefId) {
+      if (!cleanIdAny || !cleanVtexId) {
         errors++;
         continue;
       }
 
       try {
-        // Inserir ou atualizar registro
-        await executeQuery(`
-          INSERT INTO anymarket (id_any, ref_id)
+        // Inserir ou atualizar registro na tabela anymarket
+        await executeModificationQuery(`
+          INSERT INTO anymarket (id_produto_any, ref_vtex)
           VALUES (?, ?)
           ON DUPLICATE KEY UPDATE
-            ref_id = VALUES(ref_id),
+            ref_vtex = VALUES(ref_vtex),
             updated_at = CURRENT_TIMESTAMP
-        `, [cleanIdAny, cleanRefId]);
+        `, [cleanIdAny, cleanVtexId]);
 
         processed++;
       } catch (insertError: any) {

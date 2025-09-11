@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
         i.is_main as is_primary,
         i.position,
         s.id as sku_id,
-        s.sku_name,
-        s.complement_name as sku_color
-      FROM images i
-      INNER JOIN skus s ON i.sku_id = s.id
+        s.name as sku_name,
+        NULL as sku_color
+      FROM images_vtex i
+      INNER JOIN skus_vtex s ON i.sku_id = s.id
       WHERE s.product_id = ?
       ORDER BY i.is_main DESC, i.position ASC, i.id ASC
     `, [productId]);

@@ -123,15 +123,20 @@ async function consultarEstoqueVTEXIndividual(vtexSkuIds: string[], vtexAppKey: 
 async function atualizarEstoqueLocal(vtexSkuId: string, vtexStock: number, skuId: number): Promise<void> {
   try {
     // Verificar se existe registro na tabela stock para este SKU
-    const checkQuery = `SELECT COUNT(*) as count FROM stock WHERE vtex_sku_id = ?`;
+    const checkQuery = `SELECT COUNT(*) as count FROM stock_vtex WHERE vtex_sku_id = ?`;
     const checkResult = await executeQuery(checkQuery, [vtexSkuId]);
     const recordCount = checkResult[0]?.count || 0;
     
     if (recordCount === 0) {
       // Criar novo registro na tabela stock (warehouse consolidado) com sku_id correto
       const insertStockQuery = `
-        INSERT INTO stock (sku_id, vtex_sku_id, warehouse_id, warehouse_name, total_quantity, reserved_quantity, has_unlimited_quantity, created_at, updated_at)
-        VALUES (?, ?, 'consolidated', 'Consolidated Stock', ?, 0, 0, NOW(), NOW())
+        INSERT INTO stock_vtex (
+          sku_id, vtex_sku_id, warehouse_id, warehouse_name, 
+          total_quantity, reserved_quantity, has_unlimited_quantity,
+          time_to_refill, date_of_supply_utc, lead_time,
+          created_at, updated_at
+        )
+        VALUES (?, ?, 'consolidated', 'Consolidated Stock', ?, 0, 0, NULL, NULL, NULL, NOW(), NOW())
       `;
       
       await executeQuery(insertStockQuery, [skuId, vtexSkuId, vtexStock]);
@@ -140,7 +145,7 @@ async function atualizarEstoqueLocal(vtexSkuId: string, vtexStock: number, skuId
     } else {
       // Atualizar estoque existente (sincronizar com VTEX consolidado)
       const updateStockQuery = `
-        UPDATE stock 
+        UPDATE stock_vtex 
         SET total_quantity = ?, updated_at = NOW()
         WHERE vtex_sku_id = ? AND warehouse_id = 'consolidated'
         LIMIT 1
@@ -211,7 +216,7 @@ export async function GET() {
             }
             
             // Buscar total de SKUs
-            const skusQuery = `SELECT COUNT(*) as total FROM skus`;
+            const skusQuery = `SELECT COUNT(*) as total FROM skus_vtex`;
             const skusResult = await executeQuery(skusQuery, []);
             const totalSkus = skusResult[0]?.total || 0;
             
@@ -230,7 +235,7 @@ export async function GET() {
               // Buscar SKUs do lote atual
               const batchQuery = `
                 SELECT s.id, s.vtex_id, s.product_id, s.name_complete
-                FROM skus s
+                FROM skus_vtex s
                 ORDER BY s.id
                 LIMIT ${batchSize} OFFSET ${offset}
               `;

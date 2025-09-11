@@ -13,7 +13,7 @@ import {
   Trash2,
   Filter,
   Download,
-  RefreshCw
+  RotateCcw
 } from 'lucide-react';
 
 interface AnalysisLog {
@@ -189,7 +189,7 @@ export default function AnalysisLogsPage() {
               onClick={loadLogs}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
+              <RotateCcw className="w-4 h-4 mr-2" />
               Atualizar
             </button>
           </div>

@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Layout from '@/components/Layout';
-import { Package, Trash2, X, ExternalLink, Copy, Check, Image, Loader2, Eye, Camera, RefreshCw, Warehouse, Download, Crop } from 'lucide-react';
+import { Package, Trash2, X, ExternalLink, Copy, Check, Image, Loader2, Eye, Camera, RotateCcw, Warehouse, Download, Crop, List } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
   useProducts, 
   useProductModal, 
   ProductTable, 
-  ProductFiltersComponent,
   Product
 } from '@/modules/products';
 import { CropImagesModal } from '@/components/CropImagesModal';
+import { SimpleSkusModal } from '@/components/SimpleSkusModal';
 
 // Função auxiliar para formatar data
 const formatDate = (dateString: string | null | undefined): string => {
@@ -40,6 +40,7 @@ export default function ProductsPage() {
   const [currentAnalysisData, setCurrentAnalysisData] = useState<any>(null);
   const [productsWithAnalysis, setProductsWithAnalysis] = useState<number[]>([]);
   const [showMarketplaceModal, setShowMarketplaceModal] = useState(false);
+  const [showCharacteristicsModal, setShowCharacteristicsModal] = useState(false);
   const [showAnymarketingModal, setShowAnymarketingModal] = useState(false);
   const [selectedProductForTool, setSelectedProductForTool] = useState<Product | null>(null);
   
@@ -47,8 +48,14 @@ export default function ProductsPage() {
   const [marketplaceDescription, setMarketplaceDescription] = useState<any>(null);
   const [generatingMarketplace, setGeneratingMarketplace] = useState(false);
   const [productsWithMarketplace, setProductsWithMarketplace] = useState<number[]>([]);
+  const [productsWithCharacteristics, setProductsWithCharacteristics] = useState<number[]>([]);
   const [productsWithAnymarketSync, setProductsWithAnymarketSync] = useState<number[]>([]);
   const [productsWithCroppedImages, setProductsWithCroppedImages] = useState<number[]>([]);
+  
+  // Estados para Características
+  const [generatingCharacteristics, setGeneratingCharacteristics] = useState(false);
+  const [existingCharacteristics, setExistingCharacteristics] = useState<any[]>([]);
+  const [loadingCharacteristics, setLoadingCharacteristics] = useState(false);
   
   // Estados para modal de crop
   const [showCropModal, setShowCropModal] = useState(false);
@@ -56,6 +63,36 @@ export default function ProductsPage() {
     product: any;
     originalImages: any[];
   } | null>(null);
+
+  // Estados para notificações
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+    duration?: number;
+  }>>([]);
+
+  // Funções para gerenciar notificações
+  const addNotification = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string, duration = 5000) => {
+    const id = Date.now().toString();
+    const notification = { id, type, title, message, duration };
+    
+    setNotifications(prev => [...prev, notification]);
+    
+    // Auto-remover após a duração especificada
+    setTimeout(() => {
+      removeNotification(id);
+    }, duration);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  // Estados para modal de SKUs
+  const [showSkusModal, setShowSkusModal] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   
   // Estados para Anymarket Modal
   const [showSyncLogsModal, setShowSyncLogsModal] = useState(false);
@@ -94,84 +131,122 @@ export default function ProductsPage() {
     isRunning: false
   });
 
+  // Estados para geração de características em lote
+  const [batchCharacteristicsProgress, setBatchCharacteristicsProgress] = useState({
+    current: 0,
+    total: 0,
+    currentProduct: '',
+    isRunning: false
+  });
+
   // Estado para exportação
   const [isExporting, setIsExporting] = useState(false);
 
   // Função para buscar produtos que já têm análise
   const fetchProductsWithAnalysis = async () => {
     try {
+      // console.log('🔍 [DEBUG] fetchProductsWithAnalysis - Iniciando...');
       const response = await fetch('/api/analysis-logs-simple?limit=1000');
+      // console.log('🔍 [DEBUG] Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        // console.log('🔍 [DEBUG] Dados recebidos da API:', data);
+        
         if (data.success && data.logs) {
           const productIds = Array.from(new Set(data.logs.map((log: any) => log.product_id))) as number[];
+          // console.log('🔍 [DEBUG] Product IDs extraídos:', productIds);
+          // console.log('🔍 [DEBUG] Produto 203723663 está na lista?', productIds.includes(203723663));
           setProductsWithAnalysis(productIds);
+        } else {
+          // console.log('🔍 [DEBUG] Nenhum log encontrado ou data.success = false');
+          setProductsWithAnalysis([]);
         }
+      } else {
+        // console.log('🔍 [DEBUG] Erro na resposta:', response.status, response.statusText);
       }
     } catch (error) {
-      console.error('Erro ao buscar produtos com análise:', error);
+      // console.error('🔍 [DEBUG] Erro ao buscar produtos com análise:', error);
     }
   };
 
   // Função para buscar produtos que já têm descrição do Marketplace
   const fetchProductsWithMarketplace = async () => {
     try {
-      console.log('🔍 Buscando produtos com descrição do Marketplace...');
+      // console.log('🔍 Buscando produtos com descrição do Marketplace...');
       const response = await fetch('/api/marketplace');
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 Resposta da API marketplace:', data);
+        // console.log('📊 Resposta da API marketplace:', data);
         if (data.success) {
           const productIds = data.data.map((item: any) => item.product_id);
-          console.log('📋 Product IDs com marketplace:', productIds);
+          // console.log('📋 Product IDs com marketplace:', productIds);
           setProductsWithMarketplace(productIds);
         }
       } else {
-        console.error('❌ Erro na resposta da API marketplace:', response.status);
+        // console.error('❌ Erro na resposta da API marketplace:', response.status);
       }
     } catch (error) {
-      console.error('Erro ao buscar produtos com descrição do Marketplace:', error);
+      // console.error('Erro ao buscar produtos com descrição do Marketplace:', error);
+    }
+  };
+
+  // Função para buscar produtos que já têm características
+  const fetchProductsWithCharacteristics = async () => {
+    try {
+      // console.log('🔍 Buscando produtos com características...');
+      const response = await fetch('/api/respostas-caracteristicas');
+      if (response.ok) {
+        const data = await response.json();
+        // console.log('📊 Resposta da API características:', data);
+        if (data.success) {
+          const productIds = Array.from(new Set(data.data.map((item: any) => item.produto_id))) as number[];
+          // console.log('📋 Product IDs com características:', productIds);
+          setProductsWithCharacteristics(productIds);
+        }
+      } else {
+        // console.error('❌ Erro na resposta da API características:', response.status);
+      }
+    } catch (error) {
+      // console.error('Erro ao buscar produtos com características:', error);
     }
   };
 
   // Função para buscar produtos que já foram sincronizados com Anymarket
   const fetchProductsWithAnymarketSync = async () => {
     try {
-      console.log('🔍 Buscando produtos sincronizados com Anymarket...');
-      const response = await fetch('/api/anymarket/sync-logs');
-      console.log('📡 Response status:', response.status);
+      // console.log('🔍 [ANYMARKET SYNC] Iniciando busca de produtos com mapeamento...');
+      
+      // Buscar produtos que têm mapeamento na tabela anymarket
+      const response = await fetch('/api/anymarket/mapped-products');
+      // console.log('📡 [ANYMARKET SYNC] Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 Resposta da API anymarket sync:', data);
-        console.log('📊 Data length:', data.data?.length);
-        if (data.success) {
-          // Filtrar apenas logs de sucesso (success pode ser 1 ou true)
-          const successLogs = data.data.filter((log: any) => log.success === true || log.success === 1);
-          console.log('✅ Logs de sucesso encontrados:', successLogs.length);
-          console.log('📋 Logs de sucesso:', successLogs);
-          const productIds = Array.from(new Set(successLogs.map((log: any) => Number(log.product_id)))) as number[];
-          console.log('📋 Product IDs sincronizados com Anymarket:', productIds);
-          console.log('📋 Tipo dos IDs:', productIds.map(id => typeof id));
+        // console.log('📊 [ANYMARKET SYNC] Resposta da API:', data);
+        // console.log('📊 [ANYMARKET SYNC] Data length:', data.data?.length);
+        
+        if (data.success && data.data) {
+          const productIds = data.data.map((product: any) => Number(product.id)) as number[];
+          // console.log('📋 [ANYMARKET SYNC] Product IDs extraídos:', productIds);
+          // console.log('📋 [ANYMARKET SYNC] Total de produtos mapeados:', productIds.length);
+          // console.log('📋 [ANYMARKET SYNC] Produto 203721565 está na lista?', productIds.includes(203721565));
+          
           setProductsWithAnymarketSync(productIds);
-          console.log('✅ Estado productsWithAnymarketSync atualizado com:', productIds);
+          // console.log('✅ [ANYMARKET SYNC] Estado atualizado com sucesso!');
         } else {
-          console.log('❌ API retornou success: false');
+          // console.log('❌ [ANYMARKET SYNC] API retornou success: false ou data vazia');
+          setProductsWithAnymarketSync([]);
         }
       } else {
-        console.error('❌ Erro na resposta da API anymarket sync:', response.status);
+        // console.error('❌ [ANYMARKET SYNC] Erro na resposta da API:', response.status);
+        setProductsWithAnymarketSync([]);
       }
     } catch (error) {
-      console.error('Erro ao buscar produtos sincronizados com Anymarket:', error);
+      // console.error('❌ [ANYMARKET SYNC] Erro ao buscar produtos:', error);
+      setProductsWithAnymarketSync([]);
     }
   };
-
-  // Buscar produtos com análise, descrição do Marketplace e sincronização Anymarket quando a página carregar
-  useEffect(() => {
-    console.log('🔄 useEffect executado - buscando dados...');
-    fetchProductsWithAnalysis();
-    fetchProductsWithMarketplace();
-    fetchProductsWithAnymarketSync();
-  }, []);
 
   // Hooks do módulo
   const {
@@ -184,6 +259,7 @@ export default function ProductsPage() {
     filters,
     sort,
     itemsPerPage,
+    anymarketMappings,
     fetchProducts,
     updateFilters,
     clearFilters,
@@ -195,6 +271,32 @@ export default function ProductsPage() {
     hasProducts,
     hasFilters
   } = useProducts();
+
+  // Buscar produtos com análise, descrição do Marketplace e sincronização Anymarket quando a página carregar
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        await Promise.all([
+          fetchProductsWithAnalysis(),
+          fetchProductsWithMarketplace(),
+          fetchProductsWithCharacteristics(),
+          fetchProductsWithAnymarketSync()
+        ]);
+      } catch (error) {
+        // console.error('Erro ao carregar dados iniciais:', error);
+      }
+    };
+    
+    fetchAllData();
+  }, []);
+
+  // Debug: verificar productsWithAnalysis quando muda (apenas em desenvolvimento) - removido
+  // useEffect(() => {
+  //   if (process.env.NODE_ENV === 'development') {
+  //     console.log('🔍 [DEBUG] productsWithAnalysis atualizado:', productsWithAnalysis);
+  //   }
+  // }, [productsWithAnalysis]);
+
 
   const {
     showModal,
@@ -209,41 +311,44 @@ export default function ProductsPage() {
     copyToClipboard
   } = useProductModal();
 
-  // Funções de seleção
-  const handleSelectProduct = (productId: number) => {
+  // Funções de seleção memoizadas
+  const handleSelectProduct = useCallback((productId: number) => {
     setSelectedProducts(prev => 
       prev.includes(productId) 
         ? prev.filter(id => id !== productId)
         : [...prev, productId]
     );
-  };
+  }, []);
 
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     if (selectedProducts.length === products.length) {
       setSelectedProducts([]);
     } else {
       setSelectedProducts(products.map(p => p.id));
     }
-  };
+  }, [selectedProducts.length, products]);
 
-  // Funções de ação
-  const handleViewProduct = (product: Product) => {
-    console.log('👁️ Clicou em ver detalhes do produto:', product.name, 'ID:', product.id);
+  // Funções de ação memoizadas
+  const handleViewProduct = useCallback((product: Product) => {
+    // Debug removido
+    // if (process.env.NODE_ENV === 'development') {
+    //   console.log('👁️ Clicou em ver detalhes do produto:', product.name, 'ID:', product.id);
+    // }
     openModal(product);
-  };
+  }, [openModal]);
 
   // Função de edição removida
 
-  const handleDeleteProduct = async (product: Product) => {
+  const handleDeleteProduct = useCallback(async (product: Product) => {
     if (confirm(`Tem certeza que deseja excluir o produto "${product.name}"?`)) {
       const success = await deleteProduct(product.id);
       if (success) {
         setSelectedProducts(prev => prev.filter(id => id !== product.id));
       }
     }
-  };
+  }, [deleteProduct]);
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = useCallback(async () => {
     if (selectedProducts.length === 0) return;
     
     if (confirm(`Tem certeza que deseja excluir ${selectedProducts.length} produtos?`)) {
@@ -252,7 +357,7 @@ export default function ProductsPage() {
         setSelectedProducts([]);
       }
     }
-  };
+  }, [selectedProducts, deleteMultipleProducts]);
 
   const handleAnalyzeSelectedImages = async () => {
     if (selectedProducts.length === 0) return;
@@ -287,7 +392,7 @@ export default function ProductsPage() {
               currentProduct: product.name
             }));
             
-            console.log(`🔄 Analisando produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
+            // console.log(`🔄 Analisando produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
             
             // Chamar API diretamente
             const timestamp = Date.now();
@@ -299,7 +404,8 @@ export default function ProductsPage() {
               body: JSON.stringify({ 
                 productId: product.id,
                 timestamp: timestamp,
-                forceNewAnalysis: true
+                forceNewAnalysis: true,
+                categoryVtexId: product.category_vtex_id
               }),
             });
 
@@ -310,12 +416,12 @@ export default function ProductsPage() {
             const result = await response.json();
             
             if (result.success) {
-              console.log(`✅ Análise concluída para: ${product.name}`);
+              // console.log(`✅ Análise concluída para: ${product.name}`);
               
               // Atualizar lista de produtos com análise em tempo real
               setProductsWithAnalysis(prev => {
                 if (!prev.includes(product.id)) {
-                  console.log(`✅ Adicionando produto ${product.id} à lista de produtos com análise`);
+                  // console.log(`✅ Adicionando produto ${product.id} à lista de produtos com análise`);
                   return [...prev, product.id];
                 }
                 return prev;
@@ -323,7 +429,7 @@ export default function ProductsPage() {
               
               successCount++;
             } else {
-              console.error(`❌ Falha na análise para: ${product.name}`, result.error);
+              // console.error(`❌ Falha na análise para: ${product.name}`, result.error);
               errorCount++;
             }
             
@@ -331,7 +437,7 @@ export default function ProductsPage() {
             await new Promise(resolve => setTimeout(resolve, 1500));
             
           } catch (error) {
-            console.error(`❌ Erro ao analisar produto ${product.name}:`, error);
+            // console.error(`❌ Erro ao analisar produto ${product.name}:`, error);
             errorCount++;
           }
         }
@@ -345,7 +451,7 @@ export default function ProductsPage() {
         // Lista já foi atualizada em tempo real durante o processamento
         
       } catch (error) {
-        console.error('Erro na análise em lote:', error);
+        // console.error('Erro na análise em lote:', error);
         alert('Erro durante a análise em lote. Verifique o console para mais detalhes.');
       } finally {
         setAnalyzingSingleImage(false);
@@ -373,7 +479,7 @@ export default function ProductsPage() {
       });
 
       try {
-        console.log(`🔄 Iniciando sincronização em lote com Anymarket para ${selectedProducts.length} produtos`);
+        // console.log(`🔄 Iniciando sincronização em lote com Anymarket para ${selectedProducts.length} produtos`);
 
         // Chamar API de sincronização em lote
         const response = await fetch('/api/anymarket/sync-batch', {
@@ -386,21 +492,21 @@ export default function ProductsPage() {
           })
         });
 
-        console.log('📡 Resposta recebida, status:', response.status);
+        // console.log('📡 Resposta recebida, status:', response.status);
         const result = await response.json();
 
         if (response.ok && result.success) {
-          console.log('✅ Sincronização em lote concluída:', result.data);
+          // console.log('✅ Sincronização em lote concluída:', result.data);
           alert(`✅ Sincronização em lote concluída!\n\nSucessos: ${result.data.success}\nFalhas: ${result.data.failed}\nTotal: ${result.data.total}`);
           
           // Recarregar lista de produtos
           await fetchProducts();
         } else {
-          console.error('❌ Erro na sincronização em lote:', result.message);
+          // console.error('❌ Erro na sincronização em lote:', result.message);
           alert('❌ Erro na sincronização em lote: ' + result.message);
         }
       } catch (error) {
-        console.error('❌ Erro ao sincronizar com Anymarket em lote:', error);
+        // console.error('❌ Erro ao sincronizar com Anymarket em lote:', error);
         alert('❌ Erro ao sincronizar com Anymarket em lote: ' + (error as Error).message);
       } finally {
         setBatchAnymarketProgress({
@@ -445,7 +551,7 @@ export default function ProductsPage() {
               currentProduct: product.name
             }));
 
-            console.log(`🔄 Gerando descrição do Marketplace para produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
+            // console.log(`🔄 Gerando descrição do Marketplace para produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
 
             // Gerar descrição do Marketplace
             const response = await fetch('/api/generate-marketplace-description', {
@@ -466,12 +572,12 @@ export default function ProductsPage() {
             const result = await response.json();
             
             if (result.success) {
-              console.log(`✅ Descrição do Marketplace gerada para: ${product.name}`);
+              // console.log(`✅ Descrição do Marketplace gerada para: ${product.name}`);
               
               // Atualizar lista de produtos com Marketplace em tempo real
               setProductsWithMarketplace(prev => {
                 if (!prev.includes(product.id)) {
-                  console.log(`✅ Adicionando produto ${product.id} à lista de produtos com Marketplace`);
+                  // console.log(`✅ Adicionando produto ${product.id} à lista de produtos com Marketplace`);
                   return [...prev, product.id];
                 }
                 return prev;
@@ -479,7 +585,7 @@ export default function ProductsPage() {
               
               successCount++;
             } else {
-              console.error(`❌ Falha na geração para: ${product.name}`, result.error);
+              // console.error(`❌ Falha na geração para: ${product.name}`, result.error);
               errorCount++;
             }
 
@@ -487,7 +593,7 @@ export default function ProductsPage() {
             await new Promise(resolve => setTimeout(resolve, 1500));
 
           } catch (error) {
-            console.error(`❌ Erro ao processar produto ${product.name}:`, error);
+            // console.error(`❌ Erro ao processar produto ${product.name}:`, error);
             errorCount++;
           }
         }
@@ -501,10 +607,95 @@ export default function ProductsPage() {
         setSelectedProducts([]);
 
       } catch (error) {
-        console.error('Erro na geração em lote do Marketplace:', error);
+        // console.error('Erro na geração em lote do Marketplace:', error);
         alert('Erro durante a geração em lote do Marketplace. Verifique o console para mais detalhes.');
       } finally {
         setBatchMarketplaceProgress({
+          current: 0,
+          total: 0,
+          currentProduct: '',
+          isRunning: false
+        });
+      }
+    }
+  };
+
+  // Função para gerar características em lote
+  const handleGenerateCharacteristicsBatch = async () => {
+    if (selectedProducts.length === 0) return;
+    
+    if (confirm(`Deseja gerar características para ${selectedProducts.length} produtos selecionados?`)) {
+      // Encontrar os produtos selecionados
+      const selectedProductsData = products.filter(p => selectedProducts.includes(p.id));
+      
+      // Inicializar progresso
+      setBatchCharacteristicsProgress({
+        current: 0,
+        total: selectedProductsData.length,
+        currentProduct: '',
+        isRunning: true
+      });
+      
+      try {
+        let successCount = 0;
+        let errorCount = 0;
+        
+        // Gerar características para cada produto sequencialmente
+        for (let i = 0; i < selectedProductsData.length; i++) {
+          const product = selectedProductsData[i];
+          
+          try {
+            // Atualizar progresso
+            setBatchCharacteristicsProgress(prev => ({
+              ...prev,
+              current: i + 1,
+              currentProduct: product.name
+            }));
+            
+            console.log(`🤖 Gerando características para produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
+            
+            // Gerar características
+            const response = await fetch('/api/generate-characteristics', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                productId: product.id
+              })
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success) {
+                successCount++;
+                console.log(`✅ Características geradas para ${product.name}`);
+              } else {
+                errorCount++;
+                console.error(`❌ Erro ao gerar características para ${product.name}:`, result.message);
+              }
+            } else {
+              errorCount++;
+              console.error(`❌ Erro HTTP ao gerar características para ${product.name}:`, response.status);
+            }
+          } catch (error) {
+            errorCount++;
+            console.error(`❌ Erro ao gerar características para ${product.name}:`, error);
+          }
+        }
+        
+        // Mostrar resultado final
+        alert(`Geração de características em lote concluída!\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`);
+        
+        // Limpar seleção após geração
+        setSelectedProducts([]);
+        
+        // Atualizar lista de produtos com características
+        await fetchProductsWithCharacteristics();
+        
+      } catch (error) {
+        console.error('Erro na geração de características em lote:', error);
+        alert('Erro durante a geração de características em lote. Verifique o console para mais detalhes.');
+      } finally {
+        setBatchCharacteristicsProgress({
           current: 0,
           total: 0,
           currentProduct: '',
@@ -546,7 +737,7 @@ export default function ProductsPage() {
               currentProduct: product.name
             }));
             
-            console.log(`🔄 Atualizando estoque do produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
+            // console.log(`🔄 Atualizando estoque do produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
             
             // Chamar API para atualizar estoque
             const response = await fetch(`/api/products/${product.id}/stock`, {
@@ -563,10 +754,10 @@ export default function ProductsPage() {
             const result = await response.json();
             
             if (result.success) {
-              console.log(`✅ Estoque atualizado para: ${product.name}`);
+              // console.log(`✅ Estoque atualizado para: ${product.name}`);
               successCount++;
             } else {
-              console.error(`❌ Falha na atualização para: ${product.name}`, result.error);
+              // console.error(`❌ Falha na atualização para: ${product.name}`, result.error);
               errorCount++;
             }
             
@@ -574,7 +765,7 @@ export default function ProductsPage() {
             await new Promise(resolve => setTimeout(resolve, 1000));
             
           } catch (error) {
-            console.error(`❌ Erro ao atualizar estoque para ${product.name}:`, error);
+            // console.error(`❌ Erro ao atualizar estoque para ${product.name}:`, error);
             errorCount++;
           }
         }
@@ -592,7 +783,7 @@ export default function ProductsPage() {
         alert(`Atualização de estoque concluída!\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`);
         
       } catch (error) {
-        console.error('❌ Erro na atualização de estoque em lote:', error);
+        // console.error('❌ Erro na atualização de estoque em lote:', error);
         setBatchStockProgress(prev => ({
           ...prev,
           isRunning: false
@@ -622,9 +813,8 @@ export default function ProductsPage() {
         'Marca': product.brand_name || '',
         'Categoria': product.category_name || '',
         'Departamento': product.department_name || '',
-        'SKUs': product.sku_count || 0,
+        'SKUs / Estoque': `${product.sku_count || 0} / ${product.total_stock || 0}`,
         'Imagens': product.image_count || 0,
-        'Estoque Total': product.total_stock || 0,
         'Ativo': product.is_active ? 'Sim' : 'Não',
         'Visível': product.is_visible ? 'Sim' : 'Não',
         'Data Criação': product.created_at ? new Date(product.created_at).toLocaleDateString('pt-BR') : '',
@@ -645,9 +835,8 @@ export default function ProductsPage() {
         { wch: 20 },  // Marca
         { wch: 25 },  // Categoria
         { wch: 20 },  // Departamento
-        { wch: 8 },   // SKUs
+        { wch: 15 },  // SKUs / Estoque
         { wch: 10 },  // Imagens
-        { wch: 12 },  // Estoque Total
         { wch: 8 },   // Ativo
         { wch: 10 },  // Visível
         { wch: 12 },  // Data Criação
@@ -665,11 +854,11 @@ export default function ProductsPage() {
       // Exportar arquivo
       XLSX.writeFile(workbook, fileName);
 
-      console.log(`✅ Arquivo exportado: ${fileName}`);
-      console.log(`📊 ${selectedProductsData.length} produtos exportados`);
+      // console.log(`✅ Arquivo exportado: ${fileName}`);
+      // console.log(`📊 ${selectedProductsData.length} produtos exportados`);
 
     } catch (error) {
-      console.error('❌ Erro ao exportar produtos:', error);
+      // console.error('❌ Erro ao exportar produtos:', error);
       alert('Erro ao exportar produtos. Verifique o console para mais detalhes.');
     } finally {
       setIsExporting(false);
@@ -713,6 +902,7 @@ export default function ProductsPage() {
               duration_ms: analysisLog.analysis_duration_ms || 0,
               openai_response_time_ms: analysisLog.openai_response_time_ms || 0,
               tokens_used: analysisLog.tokens_used || 0,
+              openai_cost: analysisLog.openai_cost || 0,
               analysis_type: analysisLog.analysis_type || 'openai'
             }
           };
@@ -730,7 +920,7 @@ export default function ProductsPage() {
         setShowImageAnalysisModal(true);
       }
     } catch (error) {
-      console.error('Erro ao verificar análise existente:', error);
+      // console.error('Erro ao verificar análise existente:', error);
       // Em caso de erro, mostrar modal para gerar nova análise
       setCurrentAnalysisData(null);
       setShowImageAnalysisModal(true);
@@ -759,7 +949,8 @@ export default function ProductsPage() {
         body: JSON.stringify({ 
           productId: selectedProductForAnalysis.id,
           timestamp: timestamp,
-          forceNewAnalysis: forceRegenerate
+          forceNewAnalysis: forceRegenerate,
+          categoryVtexId: selectedProductForAnalysis.category_vtex_id
         }),
       });
 
@@ -887,6 +1078,124 @@ export default function ProductsPage() {
     setShowMarketplaceModal(true);
   };
 
+  const handleGenerateCharacteristics = async (product: Product) => {
+    setSelectedProductForTool(product);
+    
+    // Verificar se o produto tem análise de imagem
+    const hasImageAnalysis = productsWithAnalysis.includes(product.id);
+    if (!hasImageAnalysis) {
+      addNotification('warning', 'Pré-requisito necessário', 'Este produto precisa ter análise de imagem antes de gerar características. Execute a análise de imagem primeiro.');
+      return;
+    }
+    
+    // Verificar se o produto tem descrição do marketplace
+    const hasMarketplaceDescription = productsWithMarketplace.includes(product.id);
+    if (!hasMarketplaceDescription) {
+      addNotification('warning', 'Pré-requisito necessário', 'Este produto precisa ter descrição do marketplace antes de gerar características. Execute a geração de descrição do marketplace primeiro.');
+      return;
+    }
+    
+    // Verificar se o produto tem categoria definida
+    if (!product.category_id) {
+      addNotification('error', 'Categoria não definida', 'Este produto não possui categoria definida. Não é possível gerar características sem categoria.');
+      return;
+    }
+    
+    // Carregar dados do marketplace
+    try {
+      const marketplaceResponse = await fetch(`/api/marketplace?productId=${product.id}`);
+      if (marketplaceResponse.ok) {
+        const marketplaceResult = await marketplaceResponse.json();
+        if (marketplaceResult.success && marketplaceResult.data) {
+          setMarketplaceDescription(marketplaceResult.data);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados do marketplace:', error);
+    }
+
+
+    // Carregar características existentes se houver
+    const hasExistingCharacteristics = productsWithCharacteristics.includes(product.id);
+    if (hasExistingCharacteristics) {
+      setLoadingCharacteristics(true);
+      try {
+        const response = await fetch(`/api/respostas-caracteristicas?productId=${product.id}`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setExistingCharacteristics(result.data || []);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar características existentes:', error);
+      } finally {
+        setLoadingCharacteristics(false);
+      }
+    } else {
+      setExistingCharacteristics([]);
+    }
+    
+    setShowCharacteristicsModal(true);
+  };
+
+  const handleStartCharacteristicsGeneration = async () => {
+    if (!selectedProductForTool || generatingCharacteristics) return;
+    
+    setGeneratingCharacteristics(true);
+    
+    try {
+      console.log(`🤖 Gerando características para produto: ${selectedProductForTool.name} (ID: ${selectedProductForTool.id})`);
+      
+      const response = await fetch('/api/generate-characteristics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: selectedProductForTool.id
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('✅ Características geradas com sucesso:', result.data);
+        addNotification('success', 'Características geradas!', `${result.data.characteristicsGenerated} respostas salvas com sucesso.`);
+        
+        // Atualizar lista de produtos com características
+        await fetchProductsWithCharacteristics();
+        
+        // Recarregar características do produto atual no modal
+        try {
+          const response = await fetch(`/api/respostas-caracteristicas?productId=${selectedProductForTool.id}`);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setExistingCharacteristics(result.data || []);
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao recarregar características:', error);
+        }
+      } else {
+        console.error('Erro ao gerar características:', result.message);
+        
+        // Verificar se é erro relacionado à categoria
+        if (result.message.includes('categoria') || result.message.includes('característica está configurada')) {
+          addNotification('warning', 'Configuração necessária', result.message);
+        } else {
+          addNotification('error', 'Erro ao gerar características', result.message);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao gerar características:', error);
+      addNotification('error', 'Erro ao gerar características', 'Ocorreu um erro inesperado. Tente novamente.');
+    } finally {
+      setGeneratingCharacteristics(false);
+    }
+  };
+
   const handleGenerateMeliDescription = async (forceRegenerate = false) => {
     if (!selectedProductForTool) return;
 
@@ -927,12 +1236,16 @@ export default function ProductsPage() {
   };
 
   const handleSyncAnymarketing = async (product: Product) => {
-    if (!product.anymarket_id) {
+    // Verificar se o produto tem mapeamento Anymarket
+    const anymarketId = anymarketMappings[product.ref_id || ''];
+    if (!anymarketId) {
       alert('Este produto não possui ID_ANY vinculado ao Anymarket');
       return;
     }
     
-    setSelectedProductForTool(product);
+    // Adicionar anymarket_id ao produto para usar no modal
+    const productWithAnymarketId = { ...product, anymarket_id: anymarketId };
+    setSelectedProductForTool(productWithAnymarketId);
     setShowAnymarketingModal(true);
     
     // Carregar logs de sincronização
@@ -953,17 +1266,31 @@ export default function ProductsPage() {
   };
 
   const handleCropImages = async (product: Product) => {
-    console.log('🖼️ Iniciando busca de imagens para produto:', product.name);
+    // console.log('🖼️ Iniciando busca de imagens para produto:', product.name);
     
-    if (!product.anymarket_id) {
+    // Verificar se tem anymarket_id direto ou através do mapeamento - CACHE FIX
+    const anymarketId = product.anymarket_id || anymarketMappings[product.ref_id || ''];
+    
+    // Debug temporário - removido por segurança
+    // console.log('🔍 Debug - Product:', {
+    //   id: product.id,
+    //   name: product.name,
+    //   ref_id: product.ref_id,
+    //   anymarket_id: product.anymarket_id,
+    //   anymarketMappings: anymarketMappings,
+    //   mappedId: anymarketMappings[product.ref_id || ''],
+    //   finalAnymarketId: anymarketId
+    // });
+    
+    if (!anymarketId) {
       alert('Este produto não possui ID_ANY vinculado ao Anymarket');
       return;
     }
 
     try {
-      console.log(`🔍 Buscando imagens do produto ${product.anymarket_id} no Anymarket...`);
+      // console.log(`🔍 Buscando imagens do produto ${anymarketId} no Anymarket...`);
       
-      const response = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
+      const response = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
         method: 'GET',
         headers: {
           'gumgaToken': 'MjU5MDYwMTI2Lg==.xk0BLaBr6Xp5ErWLBXq/Fp7MebhAY9G8/cduGnJECoETHLw1AvWwEFcX5z68M0HtWzBJazQWW5eNBL+eMUnHjw==',
@@ -974,11 +1301,11 @@ export default function ProductsPage() {
         cache: 'no-store'
       });
 
-      console.log('📡 Resposta recebida da API Anymarket:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
+      // console.log('📡 Resposta recebida da API Anymarket:', {
+      //   status: response.status,
+      //   statusText: response.statusText,
+      //   ok: response.ok
+      // });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -988,7 +1315,7 @@ export default function ProductsPage() {
       }
 
       const imagesData = await response.json();
-      console.log('📸 Dados das imagens recebidos:', imagesData);
+      // console.log('📸 Dados das imagens recebidos:', imagesData);
 
       // Filtrar apenas imagens com originalImage
       const originalImages = imagesData
@@ -1006,14 +1333,14 @@ export default function ProductsPage() {
         product: {
           id: product.id,
           name: product.name,
-          anymarket_id: product.anymarket_id
+          anymarket_id: anymarketId
         },
         originalImages
       });
       setShowCropModal(true);
       
       if (originalImages.length === 0) {
-        console.log(`📷 Nenhuma imagem original encontrada para o produto "${product.name}" (ID: ${product.anymarket_id})`);
+        // console.log(`📷 Nenhuma imagem original encontrada para o produto "${product.name}" (ID: ${product.anymarket_id})`);
       }
 
     } catch (error: any) {
@@ -1030,6 +1357,19 @@ export default function ProductsPage() {
       }
       return prev;
     });
+  };
+
+  const handleViewSkus = () => {
+    if (selectedProducts.length === 0) {
+      alert('Selecione pelo menos um produto para visualizar os SKUs');
+      return;
+    }
+    // Buscar o vtex_id do primeiro produto selecionado
+    const firstProduct = products.find(p => p.id === selectedProducts[0]);
+    if (firstProduct) {
+      setSelectedProductId(firstProduct.vtex_id);
+      setShowSkusModal(true);
+    }
   };
 
   // Estados para processamento em lote
@@ -1069,7 +1409,6 @@ export default function ProductsPage() {
 
     const productsToProcess = products.filter(p => 
       selectedProducts.includes(p.id) && 
-      p.anymarket_id && 
       !productsWithCroppedImages.includes(p.id)
     );
 
@@ -1197,8 +1536,7 @@ export default function ProductsPage() {
     }
 
     const productsToProcess = products.filter(p => 
-      selectedProducts.includes(p.id) && 
-      p.anymarket_id
+      selectedProducts.includes(p.id)
     );
 
     if (productsToProcess.length === 0) {
@@ -1251,7 +1589,7 @@ export default function ProductsPage() {
         }));
 
         try {
-          console.log(`📸 Analisando produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+          // console.log(`📸 Analisando produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
           
           const response = await fetch('/api/analyze-images', {
             method: 'POST',
@@ -1259,7 +1597,8 @@ export default function ProductsPage() {
             body: JSON.stringify({ 
               productId: product.id,
               timestamp: Date.now(),
-              forceNewAnalysis: true
+              forceNewAnalysis: true,
+              categoryVtexId: product.category_vtex_id
             }),
           });
 
@@ -1634,7 +1973,8 @@ export default function ProductsPage() {
         body: JSON.stringify({ 
           productId: selectedProductForAnalysis.id,
           timestamp: timestamp,
-          forceNewAnalysis: true
+          forceNewAnalysis: true,
+          categoryVtexId: selectedProductForAnalysis.category_vtex_id
         }),
       });
 
@@ -1666,16 +2006,10 @@ export default function ProductsPage() {
   return (
     <Layout title="Produtos" subtitle="Gerencie os produtos importados da VTEX">
 
-      {/* Filtros */}
-      <ProductFiltersComponent
-        filters={filters}
-        onFiltersChange={updateFilters}
-        onClearFilters={clearFilters}
-      />
 
       {/* Ações em Lote */}
       {selectedProducts.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 relative z-[100]">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 relative z-[90]">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-sm text-gray-600 mb-2">
@@ -1684,7 +2018,7 @@ export default function ProductsPage() {
               
               {/* Barra de Progresso - Análise de Imagens */}
               {batchAnalysisProgress.isRunning && (
-                <div className="w-full relative z-[110] mb-3">
+                <div className="w-full relative z-[95] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Analisando: {batchAnalysisProgress.currentProduct}</span>
                     <span>{batchAnalysisProgress.current}/{batchAnalysisProgress.total}</span>
@@ -1705,7 +2039,7 @@ export default function ProductsPage() {
 
               {/* Barra de Progresso - Marketplace */}
               {batchMarketplaceProgress.isRunning && (
-                <div className="w-full relative z-[110] mb-3">
+                <div className="w-full relative z-[95] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Gerando Marketplace: {batchMarketplaceProgress.currentProduct}</span>
                     <span>{batchMarketplaceProgress.current}/{batchMarketplaceProgress.total}</span>
@@ -1724,9 +2058,30 @@ export default function ProductsPage() {
                 </div>
               )}
 
+              {/* Barra de Progresso - Características */}
+              {batchCharacteristicsProgress.isRunning && (
+                <div className="w-full relative z-[95] mb-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span>Gerando Características: {batchCharacteristicsProgress.currentProduct}</span>
+                    <span>{batchCharacteristicsProgress.current}/{batchCharacteristicsProgress.total}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-purple-600 h-2 rounded-full transition-all duration-300 ease-out"
+                      style={{ 
+                        width: `${batchCharacteristicsProgress.total > 0 ? (batchCharacteristicsProgress.current / batchCharacteristicsProgress.total) * 100 : 0}%` 
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {Math.round((batchCharacteristicsProgress.current / batchCharacteristicsProgress.total) * 100)}% concluído
+                  </div>
+                </div>
+              )}
+
               {/* Barra de Progresso - Anymarket */}
               {batchAnymarketProgress.isRunning && (
-                <div className="w-full relative z-[110] mb-3">
+                <div className="w-full relative z-[95] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Sincronizando Anymarket: {batchAnymarketProgress.currentProduct}</span>
                     <span>{batchAnymarketProgress.current}/{batchAnymarketProgress.total}</span>
@@ -1747,7 +2102,7 @@ export default function ProductsPage() {
 
               {/* Barra de Progresso - Atualização de Estoque */}
               {batchStockProgress.isRunning && (
-                <div className="w-full relative z-[110] mb-3">
+                <div className="w-full relative z-[95] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Atualizando Estoque: {batchStockProgress.currentProduct}</span>
                     <span>{batchStockProgress.current}/{batchStockProgress.total}</span>
@@ -1768,7 +2123,7 @@ export default function ProductsPage() {
 
               {/* Barra de Progresso - Crop de Imagens */}
               {batchCropProgress.isRunning && (
-                <div className="w-full relative z-[110] mb-3">
+                <div className="w-full relative z-[95] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Processando Crop: {batchCropProgress.currentProduct}</span>
                     <span>{batchCropProgress.current}/{batchCropProgress.total}</span>
@@ -1789,7 +2144,7 @@ export default function ProductsPage() {
 
               {/* Barra de Progresso - Processamento "All" */}
               {batchAllProgress.isRunning && (
-                <div className="w-full relative z-[110] mb-3">
+                <div className="w-full relative z-[95] mb-3">
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                     <span>Processamento All - {batchAllProgress.currentStep}: {batchAllProgress.currentProduct}</span>
                     <span>{batchAllProgress.current}/{batchAllProgress.total}</span>
@@ -1812,98 +2167,127 @@ export default function ProductsPage() {
               )}
             </div>
             
-            <div className="flex space-x-2 ml-4">
+            <div className="flex flex-wrap gap-1 ml-4">
               <button
                 onClick={handleAnalyzeSelectedImages}
-                disabled={batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
-                className="px-4 py-2 text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning || batchCharacteristicsProgress.isRunning}
+                className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Analisar Imagens"
               >
                 {batchAnalysisProgress.isRunning ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <Camera className="h-4 w-4 mr-2" />
+                  <Camera className="h-3 w-3 mr-1" />
                 )}
-                {batchAnalysisProgress.isRunning ? 'Analisando...' : 'Analisar Imagens'}
+                {batchAnalysisProgress.isRunning ? 'Analisando...' : 'Análise'}
               </button>
               <button
                 onClick={handleGenerateMeliBatch}
-                disabled={batchMarketplaceProgress.isRunning || batchAnalysisProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
-                className="px-4 py-2 text-yellow-600 border border-yellow-300 rounded-lg hover:bg-yellow-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={batchMarketplaceProgress.isRunning || batchAnalysisProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning || batchCharacteristicsProgress.isRunning}
+                className="px-2 py-1 text-xs text-yellow-600 border border-yellow-300 rounded hover:bg-yellow-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Gerar Marketplace"
               >
                 {batchMarketplaceProgress.isRunning ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <span className="h-4 w-4 mr-2 flex items-center justify-center font-bold text-sm">M</span>
+                  <span className="h-3 w-3 mr-1 flex items-center justify-center font-bold text-xs">M</span>
                 )}
                 {batchMarketplaceProgress.isRunning ? 'Gerando...' : 'Marketplace'}
               </button>
               <button
+                onClick={handleGenerateCharacteristicsBatch}
+                disabled={batchCharacteristicsProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
+                className="px-2 py-1 text-xs text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Gerar Características"
+              >
+                {batchCharacteristicsProgress.isRunning ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <span className="h-3 w-3 mr-1 flex items-center justify-center font-bold text-xs">C</span>
+                )}
+                {batchCharacteristicsProgress.isRunning ? 'Gerando...' : 'Características'}
+              </button>
+              <button
                 onClick={handleAnymarketSyncBatch}
-                disabled={batchAnymarketProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
-                className="px-4 py-2 text-green-600 border border-green-300 rounded-lg hover:bg-green-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={batchAnymarketProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning || batchCharacteristicsProgress.isRunning}
+                className="px-2 py-1 text-xs text-green-600 border border-green-300 rounded hover:bg-green-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Sincronizar Anymarket"
               >
                 {batchAnymarketProgress.isRunning ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <span className="h-4 w-4 mr-2 flex items-center justify-center font-bold text-sm">A</span>
+                  <span className="h-3 w-3 mr-1 flex items-center justify-center font-bold text-xs">A</span>
                 )}
                 {batchAnymarketProgress.isRunning ? 'Sincronizando...' : 'Anymarket'}
               </button>
               <button
                 onClick={handleUpdateStockBatch}
                 disabled={batchStockProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
-                className="px-4 py-2 text-purple-600 border border-purple-300 rounded-lg hover:bg-purple-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 text-xs text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Atualizar Estoque"
               >
                 {batchStockProgress.isRunning ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <Warehouse className="h-4 w-4 mr-2" />
+                  <Warehouse className="h-3 w-3 mr-1" />
                 )}
-                {batchStockProgress.isRunning ? 'Atualizando...' : 'Atualizar Estoque'}
+                {batchStockProgress.isRunning ? 'Atualizando...' : 'Estoque'}
               </button>
               <button
                 onClick={handleBatchCropImages}
                 disabled={batchCropProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchAllProgress.isRunning}
-                className="px-4 py-2 text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 text-xs text-orange-600 border border-orange-300 rounded hover:bg-orange-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Crop de Imagens"
               >
                 {batchCropProgress.isRunning ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <Crop className="h-4 w-4 mr-2" />
+                  <Crop className="h-3 w-3 mr-1" />
                 )}
-                {batchCropProgress.isRunning ? 'Processando...' : 'Crop Imagens'}
+                {batchCropProgress.isRunning ? 'Processando...' : 'Crop'}
               </button>
               <button
                 onClick={handleBatchAll}
                 disabled={batchAllProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCropProgress.isRunning}
-                className="px-4 py-2 text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+                className="px-2 py-1 text-xs text-indigo-600 border border-indigo-300 rounded hover:bg-indigo-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+                title="Processar Todas as Ações"
               >
                 {batchAllProgress.isRunning ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <span className="h-4 w-4 mr-2 flex items-center justify-center font-bold text-sm">ALL</span>
+                  <span className="h-3 w-3 mr-1 flex items-center justify-center font-bold text-xs">T</span>
                 )}
-                {batchAllProgress.isRunning ? 'Processando All...' : 'ALL'}
+                {batchAllProgress.isRunning ? 'Processando...' : 'Todas'}
               </button>
               <button
                 onClick={handleExportSelected}
                 disabled={isExporting || batchStockProgress.isRunning || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchCropProgress.isRunning || batchAllProgress.isRunning}
-                className="px-4 py-2 text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 text-xs text-indigo-600 border border-indigo-300 rounded hover:bg-indigo-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Exportar XLSX"
               >
                 {isExporting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                 ) : (
-                  <Download className="h-4 w-4 mr-2" />
+                  <Download className="h-3 w-3 mr-1" />
                 )}
-                {isExporting ? 'Exportando...' : 'Exportar XLSX'}
+                {isExporting ? 'Exportando...' : 'Exportar'}
+              </button>
+              <button
+                onClick={handleViewSkus}
+                disabled={selectedProducts.length === 0}
+                className="px-2 py-1 text-xs text-cyan-600 border border-cyan-300 rounded hover:bg-cyan-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Visualizar SKUs"
+              >
+                <Package className="h-3 w-3 mr-1" />
+                SKUs
               </button>
               <button
                 onClick={handleDeleteSelected}
                 disabled={isExporting || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning}
-                className="px-4 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Excluir Selecionados"
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir Selecionados
+                <Trash2 className="h-3 w-3" />
               </button>
             </div>
           </div>
@@ -1911,7 +2295,7 @@ export default function ProductsPage() {
       )}
 
       {/* Tabela de Produtos */}
-      <div className={isExporting || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning ? 'pointer-events-none opacity-75' : ''}>
+      <div className={isExporting || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCharacteristicsProgress.isRunning ? 'pointer-events-none opacity-75' : ''}>
         <ProductTable
           products={products}
           loading={loading}
@@ -1930,17 +2314,20 @@ export default function ProductsPage() {
           onDeleteProduct={handleDeleteProduct}
           onAnalyzeImages={handleAnalyzeImages}
           onGenerateMarketplaceDescription={handleGenerateMarketplaceDescription}
+          onGenerateCharacteristics={handleGenerateCharacteristics}
           onSyncAnymarketing={handleSyncAnymarketing}
           onCropImages={handleCropImages}
           productsWithAnalysis={productsWithAnalysis}
           productsWithMarketplace={productsWithMarketplace}
+          productsWithCharacteristics={productsWithCharacteristics}
           productsWithAnymarketSync={productsWithAnymarketSync}
           productsWithCroppedImages={productsWithCroppedImages}
+          anymarketMappings={anymarketMappings}
         />
       </div>
 
       {/* Modal de Detalhes do Produto */}
-      {console.log('🔍 Estado do modal - showModal:', showModal, 'selectedProduct:', selectedProduct?.name)}
+      {/* {console.log('🔍 Estado do modal - showModal:', showModal, 'selectedProduct:', selectedProduct?.name)} */}
       {showModal && selectedProduct && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
@@ -2244,7 +2631,7 @@ export default function ProductsPage() {
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-                  <RefreshCw className="w-8 h-8 text-green-600 mr-3" />
+                  <RotateCcw className={`w-8 h-8 mr-3 ${anymarketSyncLogs.length > 0 ? 'text-orange-500' : 'text-gray-600'}`} />
                   Anymarket - {selectedProductForTool.name}
                 </h2>
                 <button
@@ -2291,7 +2678,7 @@ export default function ProductsPage() {
                     onClick={performAnymarketSync}
                     className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
                   >
-                    <RefreshCw className="w-5 h-5 mr-2" />
+                    <RotateCcw className="w-5 h-5 mr-2" />
                     Sincronizar com Anymarket
                   </button>
                 </div>
@@ -2375,7 +2762,7 @@ export default function ProductsPage() {
                 ) : (
                   <div className="text-center py-8">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <RefreshCw className="w-8 h-8 text-gray-400" />
+                      <RotateCcw className="w-8 h-8 text-gray-400" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
                       Nenhuma sincronização encontrada
@@ -2549,196 +2936,222 @@ export default function ProductsPage() {
                 </button>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-6 relative">
+                {analyzingSingleImage && (
+                  <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">Regenerando análise...</p>
+                    </div>
+                  </div>
+                )}
+                
                 {currentAnalysisData ? (
                   <>
-                    {/* Análise Existente */}
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                          <Check className="w-4 h-4 text-green-600" />
+                    {/* Header com Status */}
+                    <div className={`border rounded-lg p-6 ${analyzingSingleImage ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200' : 'bg-gradient-to-r from-green-50 to-blue-50 border-green-200'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-4 ${analyzingSingleImage ? 'bg-blue-100' : 'bg-green-100'}`}>
+                            {analyzingSingleImage ? (
+                              <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                            ) : (
+                              <Check className="w-6 h-6 text-green-600" />
+                            )}
+                          </div>
+                          <div>
+                            <h3 className={`text-lg font-semibold ${analyzingSingleImage ? 'text-blue-800' : 'text-green-800'}`}>
+                              {analyzingSingleImage ? 'Regenerando Análise...' : 'Análise Concluída'}
+                            </h3>
+                            <p className={`text-sm ${analyzingSingleImage ? 'text-blue-600' : 'text-green-600'}`}>
+                              {analyzingSingleImage ? 'Aguarde enquanto processamos as imagens...' : new Date(currentAnalysisData.analysis_log?.created_at || Date.now()).toLocaleString('pt-BR')}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-green-800">Análise já existe</p>
-                          <p className="text-xs text-green-600">
-                            Criada em: {new Date(currentAnalysisData.analysis_log?.created_at || Date.now()).toLocaleString('pt-BR')}
+                        <div className="text-right">
+                          <div className="flex items-center space-x-4 text-sm text-gray-600">
+                            <div className="flex items-center">
+                              <Image className="w-4 h-4 mr-1" />
+                              <span>{currentAnalysisData.analysis.image_count} imagens</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+                              <span className="capitalize">{currentAnalysisData.analysis.product_type}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-2 h-2 bg-purple-500 rounded-full mr-1"></span>
+                              <span className="capitalize">{currentAnalysisData.analysis.analysis_quality?.level || 'média-alta'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Análise Principal */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                          <span className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-full flex items-center justify-center text-sm mr-3">🤖</span>
+                          Análise Técnica
+                        </h3>
+                        <div className="flex items-center space-x-2 text-xs text-gray-500">
+                          <span className="bg-gray-100 px-2 py-1 rounded-full">
+                            {currentAnalysisData.analysis.openai_analysis?.tokens_used || 0} tokens
+                          </span>
+                          <span className="bg-gray-100 px-2 py-1 rounded-full">
+                            {currentAnalysisData.analysis.agent_configuration?.model || 'GPT-4o'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-purple-500">
+                        <div className="prose prose-sm max-w-none">
+                          <p className="text-gray-700 leading-relaxed text-sm">
+                            {currentAnalysisData.analysis.contextual_analysis}
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Informações do Agente */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-blue-900 mb-2">Agente Utilizado</h3>
-                      <p className="text-blue-800">{currentAnalysisData.agent_used}</p>
-                      {currentAnalysisData.analysis.agent_configuration && (
-                        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                          <div>
-                            <span className="font-medium text-blue-700">Modelo:</span>
-                            <p className="text-blue-600">{currentAnalysisData.analysis.agent_configuration.model}</p>
-                          </div>
-                          <div>
-                            <span className="font-medium text-blue-700">Max Tokens:</span>
-                            <p className="text-blue-600">{currentAnalysisData.analysis.agent_configuration.max_tokens}</p>
-                          </div>
-                          <div>
-                            <span className="font-medium text-blue-700">Qualidade:</span>
-                            <p className="text-blue-600 capitalize">{currentAnalysisData.analysis.agent_configuration.quality_level}</p>
-                          </div>
+                    {/* Atributos Utilizados na Análise */}
+                    {currentAnalysisData.product_attributes && currentAnalysisData.product_attributes.length > 0 && (
+                      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <span className="w-8 h-8 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-full flex items-center justify-center text-sm mr-3">📋</span>
+                            Atributos Utilizados na Análise
+                          </h3>
+                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                            {currentAnalysisData.product_attributes.length} atributos
+                          </span>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Resumo da Análise */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-gray-900 mb-2">Tipo de Produto</h4>
-                        <p className="text-lg font-bold text-blue-600 capitalize">{currentAnalysisData.analysis.product_type}</p>
-                      </div>
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-gray-900 mb-2">Imagens Analisadas</h4>
-                        <p className="text-2xl font-bold text-green-600">{currentAnalysisData.analysis.image_count}</p>
-                        {currentAnalysisData.analysis.invalid_image_count > 0 && (
-                          <p className="text-xs text-red-600 mt-1">{currentAnalysisData.analysis.invalid_image_count} inválidas</p>
-                        )}
-                      </div>
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-gray-900 mb-2">Qualidade da Análise</h4>
-                        <p className="text-lg font-bold text-indigo-600 capitalize">{currentAnalysisData.analysis.analysis_quality?.level || 'Média'}</p>
-                        <p className="text-xs text-gray-500 mt-1">{currentAnalysisData.analysis.agent_configuration?.model || 'N/A'}</p>
-                      </div>
-                    </div>
-
-
-                    {/* Indicador de Análise com GPT-4o */}
-                    {currentAnalysisData.analysis.openai_analysis && (
-                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 mb-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <span className="w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm mr-2">🤖</span>
-                            <span className="font-semibold text-purple-900">Análise com GPT-4o</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            {currentAnalysisData.analysis.openai_analysis.tokens_used && (
-                              <span className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                                {currentAnalysisData.analysis.openai_analysis.tokens_used} tokens
-                              </span>
-                            )}
-                            {currentAnalysisData.analysis.agent_configuration?.model && (
-                              <span className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                                {currentAnalysisData.analysis.agent_configuration.model}
-                              </span>
-                            )}
-                            {currentAnalysisData.analysis.agent_configuration?.max_tokens && (
-                              <span className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                                Max: {currentAnalysisData.analysis.agent_configuration.max_tokens}
-                              </span>
-                            )}
-                          </div>
+                        <div className="mb-3">
+                          <p className="text-sm text-gray-600">
+                            Os seguintes atributos técnicos foram utilizados para complementar a análise visual:
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {currentAnalysisData.product_attributes.map((attr: any, index: number) => {
+                            const values = typeof attr.attribute_values === 'string' 
+                              ? JSON.parse(attr.attribute_values) 
+                              : attr.attribute_values;
+                            const valuesList = Array.isArray(values) ? values.join(', ') : values;
+                            
+                            return (
+                              <div key={index} className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-gray-900 text-sm mb-1">
+                                      {attr.attribute_name}
+                                    </h4>
+                                    <p className="text-gray-600 text-sm leading-relaxed">
+                                      {valuesList}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
 
-                    {/* Análise Contextualizada Rica */}
-                    <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
-                      <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
-                        <span className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm mr-2">
-                          {currentAnalysisData.analysis.openai_analysis ? '🤖' : '📊'}
-                        </span>
-                        {currentAnalysisData.analysis.openai_analysis ? 'Análise com GPT-4o' : 'Análise Técnica Contextualizada'}
-                      </h3>
-                      <div className="bg-white rounded-lg p-4 border border-green-100">
-                        <p className="text-gray-700 leading-relaxed text-sm">
-                          {currentAnalysisData.analysis.contextual_analysis}
-                        </p>
-                      </div>
-                    </div>
-
-
                     {/* Imagens Analisadas */}
                     {currentAnalysisData.images && currentAnalysisData.images.length > 0 && (
-                      <div>
-                        <h3 className="font-semibold text-gray-900 mb-4">Imagens Analisadas ({currentAnalysisData.images.length} válidas)</h3>
+                      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                        <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+                          <Image className="w-5 h-5 mr-2 text-blue-600" />
+                          Imagens Analisadas
+                          <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                            {currentAnalysisData.images.length}
+                          </span>
+                        </h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          {currentAnalysisData.images.map((image: any) => (
+                          {currentAnalysisData.images.map((image: any, index: number) => (
                             <div key={image.id} className="relative group">
-                              <img
-                                src={image.url}
-                                alt={image.alt_text || 'Imagem do produto'}
-                                className="w-full h-24 object-cover rounded-lg border border-gray-200 group-hover:border-blue-300 transition-colors"
-                                onError={(e) => {
-                                  e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2VtPC90ZXh0Pjwvc3ZnPg==';
-                                }}
-                              />
+                              <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 group-hover:border-blue-300 transition-colors">
+                                <img
+                                  src={image.url}
+                                  alt={image.alt_text || 'Imagem do produto'}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2VtPC90ZXh0Pjwvc3ZnPg==';
+                                  }}
+                                />
+                              </div>
                               {image.is_primary && (
-                                <span className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-2 py-1 rounded">
+                                <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-medium">
                                   Principal
                                 </span>
                               )}
-                              <div className="absolute bottom-1 right-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
-                                ✓
+                              <div className="absolute bottom-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center">
+                                <Check className="w-3 h-3 mr-1" />
+                                Analisada
                               </div>
-                              {image.name && (
-                                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {image.name}
-                                </div>
-                              )}
+                              <div className="absolute top-2 right-2 bg-gray-800 text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                #{index + 1}
+                              </div>
                             </div>
                           ))}
                         </div>
-                        
-                        {/* Mostrar imagens inválidas se houver */}
-                        {currentAnalysisData.invalid_images && currentAnalysisData.invalid_images.length > 0 && (
-                          <div className="mt-4">
-                            <h4 className="font-medium text-red-600 mb-2">⚠️ Imagens com Problemas ({currentAnalysisData.invalid_images.length})</h4>
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                              <ul className="text-sm text-red-700 space-y-1">
-                                {currentAnalysisData.invalid_images.map((image: any, index: number) => (
-                                  <li key={index}>• {image.file_location} - {image.error}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 
                     {/* Botões de Ação */}
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => handleGenerateNewAnalysis(true)}
-                        disabled={analyzingSingleImage}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                      >
-                        {analyzingSingleImage ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                            Regenerando...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Regenerar Análise
-                          </>
-                        )}
-                      </button>
-                      
-                      <button
-                        onClick={() => copyToClipboard(currentAnalysisData.analysis.contextual_analysis, 'image-analysis')}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                      >
-                        {copiedText === 'image-analysis' ? (
-                          <>
-                            <Check className="w-4 h-4 mr-2" />
-                            Copiado!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copiar Análise
-                          </>
-                        )}
-                      </button>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => handleGenerateNewAnalysis(true)}
+                            disabled={analyzingSingleImage}
+                            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-medium shadow-sm"
+                          >
+                            {analyzingSingleImage ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                Regenerando...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw className="w-4 h-4 mr-2" />
+                                Regenerar Análise
+                              </>
+                            )}
+                          </button>
+                          
+                          <button
+                            onClick={() => copyToClipboard(currentAnalysisData.analysis.contextual_analysis, 'image-analysis')}
+                            className="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:border-blue-500 hover:text-blue-600 transition-all duration-200 flex items-center font-medium shadow-sm"
+                          >
+                            {copiedText === 'image-analysis' ? (
+                              <>
+                                <Check className="w-4 h-4 mr-2" />
+                                Copiado!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4 mr-2" />
+                                Copiar Análise
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        
+                        {/* Informações Técnicas (Discretas) */}
+                        <div className="text-xs text-gray-500 flex items-center space-x-3">
+                          <div className="flex items-center">
+                            <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                            <span>{currentAnalysisData.analysis_log?.duration_ms ? Math.round(currentAnalysisData.analysis_log.duration_ms / 1000) + 's' : 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+                            <span>{currentAnalysisData.analysis.openai_analysis?.tokens_used || 0} tokens</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-2 h-2 bg-purple-500 rounded-full mr-1"></span>
+                            <span>${currentAnalysisData.analysis_log?.openai_cost ? parseFloat(currentAnalysisData.analysis_log.openai_cost).toFixed(6) : '0.000000'}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -2805,27 +3218,19 @@ export default function ProductsPage() {
               <div className="space-y-6">
                 {marketplaceDescription ? (
                   <>
-                    {/* Descrição Existente */}
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                          <Check className="w-4 h-4 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-green-800">Descrição já existe</p>
-                          <p className="text-xs text-green-600">
-                            Criada em: {formatDate(marketplaceDescription.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+
 
                     {/* Título */}
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Título Otimizado</h3>
                       <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <p className="text-gray-900 font-medium">{marketplaceDescription.title}</p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-gray-900 font-medium">{marketplaceDescription.title}</p>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✓ Único no banco
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">
                           {marketplaceDescription.title.length} caracteres
                         </p>
                       </div>
@@ -2842,215 +3247,153 @@ export default function ProductsPage() {
                       </div>
                     </div>
 
-                    {/* Informações do Produto */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {marketplaceDescription.clothing_type && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Tipo de Roupa</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.clothing_type}</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {marketplaceDescription.sleeve_type && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Tipo de Manga</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.sleeve_type}</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {marketplaceDescription.gender && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Gênero</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.gender}</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {marketplaceDescription.color && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Cor</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.color}</p>
-                          </div>
-                        </div>
-                      )}
 
-                      {marketplaceDescription.seller_sku && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">SKU (SELLER_SKU)</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.seller_sku}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {marketplaceDescription.wedge_shape && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Forma de Caimento (WEDGE_SHAPE)</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.wedge_shape}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {marketplaceDescription.is_sportive && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">É Esportiva (IS_SPORTIVE)</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.is_sportive}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {marketplaceDescription.main_color && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Cor Principal (MAIN_COLOR)</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.main_color}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {marketplaceDescription.item_condition && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Condição do Item (ITEM_CONDITION)</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.item_condition}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {marketplaceDescription.brand && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Marca (BRAND)</h4>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-700 font-medium">{marketplaceDescription.brand}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Variações do Nome (Modelo) */}
-                    {marketplaceDescription.modelo && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-3">Variações do Nome</h3>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <p className="text-sm text-blue-800 font-medium mb-2">Termos de busca alternativos:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {marketplaceDescription.modelo.split(',').map((termo: string, index: number) => (
-                              <span 
-                                key={index}
-                                className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full"
-                              >
-                                {termo.trim()}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Informações Técnicas */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="font-semibold text-blue-900 mb-3">Informações Técnicas</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <span className="font-medium text-blue-700">Agente:</span>
-                          <p className="text-blue-600">{marketplaceDescription.agent_used || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-blue-700">Modelo:</span>
-                          <p className="text-blue-600">{marketplaceDescription.model_used || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-blue-700">Tokens:</span>
-                          <p className="text-blue-600">{marketplaceDescription.tokens_used || 0}</p>
+                    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                          <span className="w-8 h-8 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-full flex items-center justify-center text-sm mr-3">💰</span>
+                          Informações Técnicas
+                        </h3>
+                        <div className="flex items-center space-x-2 text-xs text-gray-500">
+                          <span className="bg-gray-100 px-2 py-1 rounded-full">
+                            {marketplaceDescription.openai_tokens_used || 0} tokens
+                          </span>
+                          <span className="bg-gray-100 px-2 py-1 rounded-full">
+                            {marketplaceDescription.openai_model || 'GPT-4o'}
+                          </span>
                         </div>
                       </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">Modelo OpenAI:</span>
+                          <p className="text-gray-600">{marketplaceDescription.openai_model || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Tokens Utilizados:</span>
+                          <p className="text-gray-600">{marketplaceDescription.openai_tokens_used || 0}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Custo:</span>
+                          <p className="text-gray-600">${marketplaceDescription.openai_cost ? parseFloat(marketplaceDescription.openai_cost).toFixed(6) : '0.000000'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Tempo de Resposta:</span>
+                          <p className="text-gray-600">{marketplaceDescription.openai_response_time_ms || 0}ms</p>
+                        </div>
+                      </div>
+                      {marketplaceDescription.openai_request_id && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <span className="font-medium text-gray-700">Request ID:</span>
+                          <p className="text-gray-600 text-xs font-mono">{marketplaceDescription.openai_request_id}</p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Botões de Ação */}
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => handleGenerateMeliDescription(true)}
-                        disabled={generatingMarketplace}
-                        className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                      >
-                        {generatingMarketplace ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                            Regenerando...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Regenerar Descrição
-                          </>
-                        )}
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          // Remover tags HTML para copiar apenas o texto
-                          const textOnly = marketplaceDescription.description
-                            .replace(/<br\s*\/?>/gi, '\n')
-                            .replace(/<li>/gi, '• ')
-                            .replace(/<\/li>/gi, '\n')
-                            .replace(/<b>/gi, '')
-                            .replace(/<\/b>/gi, '')
-                            .replace(/<[^>]*>/g, '')
-                            .trim();
-                          copyToClipboard(textOnly, 'marketplace-description');
-                        }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                      >
-                        {copiedText === 'marketplace-description' ? (
-                          <>
-                            <Check className="w-4 h-4 mr-2" />
-                            Copiado!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copiar Descrição
-                          </>
-                        )}
-                      </button>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => handleGenerateMeliDescription(true)}
+                            disabled={generatingMarketplace}
+                            className="px-6 py-3 bg-gradient-to-r from-yellow-600 to-orange-600 text-white rounded-lg hover:from-yellow-700 hover:to-orange-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-medium shadow-sm"
+                          >
+                            {generatingMarketplace ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                Regenerando...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw className="w-4 h-4 mr-2" />
+                                Regenerar Descrição
+                              </>
+                            )}
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              // Remover tags HTML para copiar apenas o texto
+                              const textOnly = marketplaceDescription.description
+                                .replace(/<br\s*\/?>/gi, '\n')
+                                .replace(/<li>/gi, '• ')
+                                .replace(/<\/li>/gi, '\n')
+                                .replace(/<b>/gi, '')
+                                .replace(/<\/b>/gi, '')
+                                .replace(/<[^>]*>/g, '')
+                                .trim();
+                              copyToClipboard(textOnly, 'marketplace-description');
+                            }}
+                            className="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:border-blue-500 hover:text-blue-600 transition-all duration-200 flex items-center font-medium shadow-sm"
+                          >
+                            {copiedText === 'marketplace-description' ? (
+                              <>
+                                <Check className="w-4 h-4 mr-2" />
+                                Copiado!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4 mr-2" />
+                                Copiar Descrição
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        
+                        {/* Informações Técnicas (Discretas) */}
+                        <div className="text-xs text-gray-500 flex items-center space-x-3">
+                          <div className="flex items-center">
+                            <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                            <span>{marketplaceDescription.openai_response_time_ms ? Math.round(marketplaceDescription.openai_response_time_ms / 1000) + 's' : 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+                            <span>{marketplaceDescription.openai_tokens_used || 0} tokens</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-2 h-2 bg-purple-500 rounded-full mr-1"></span>
+                            <span>${marketplaceDescription.openai_cost ? parseFloat(marketplaceDescription.openai_cost).toFixed(6) : '0.000000'}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </>
                 ) : (
                   <>
                     {/* Gerar Nova Descrição */}
                     <div className="text-center">
-                      <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <span className="text-2xl font-bold text-yellow-600">M</span>
+                      <div className="w-16 h-16 bg-yellow-500 flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
                       </div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">
                         Gerar Descrição para Marketplace
                       </h3>
                       <p className="text-gray-600 mb-6">
-                        Produto: <span className="font-medium">{selectedProductForTool.name}</span>
+                        O sistema irá analisar o produto e gerar um título otimizado e uma descrição completa para o marketplace, utilizando dados da VTEX, SKUs e análise de imagens quando disponível.
                       </p>
                       
                       <button
                         onClick={() => handleGenerateMeliDescription(false)}
                         disabled={generatingMarketplace}
-                        className="w-full px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        className="px-6 py-3 bg-gradient-to-r from-yellow-600 to-orange-600 text-white rounded-lg hover:from-yellow-700 hover:to-orange-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center mx-auto font-medium shadow-sm"
                       >
                         {generatingMarketplace ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                            Gerando Descrição...
+                            <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                            Gerando...
                           </>
                         ) : (
                           <>
-                            <span className="text-lg font-bold mr-2">M</span>
-                            Gerar Descrição do Marketplace
+                            <span className="w-5 h-5 mr-2 bg-yellow-500 flex items-center justify-center">
+                              <svg className="w-3 h-3 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </span>
+                            Gerar Descrição
                           </>
                         )}
                       </button>
@@ -3065,6 +3408,119 @@ export default function ProductsPage() {
                     setShowMarketplaceModal(false);
                     setMarketplaceDescription(null);
                     setSelectedProductForTool(null);
+                  }}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Características */}
+      {showCharacteristicsModal && selectedProductForTool && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                  <span className="w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center mr-3">
+                    <List className="h-5 w-5" />
+                  </span>
+                  Características - {marketplaceDescription?.title || selectedProductForTool.name}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowCharacteristicsModal(false);
+                    setSelectedProductForTool(null);
+                    setExistingCharacteristics([]);
+                    setLoadingCharacteristics(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Características Existentes */}
+                {loadingCharacteristics ? (
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-green-600 mr-3" />
+                      <span className="text-green-600">Carregando características existentes...</span>
+                    </div>
+                  </div>
+                ) : existingCharacteristics.length > 0 && (
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                      Características Existentes ({existingCharacteristics.length})
+                    </h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                      {existingCharacteristics.map((char, index) => (
+                        <div key={index} className="bg-white rounded-md p-2 border border-green-200 hover:shadow-sm transition-shadow">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-gray-900 text-sm truncate" title={char.caracteristica}>
+                                {char.caracteristica}
+                              </h4>
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2" title={char.resposta}>
+                                {char.resposta}
+                              </p>
+                              {char.confianca && (
+                                <div className="mt-1">
+                                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                    char.confianca >= 0.8 ? 'bg-green-100 text-green-700' : 
+                                    char.confianca >= 0.6 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {Math.round(char.confianca * 100)}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="ml-2 flex-shrink-0">
+                              <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                <Check className="h-2.5 w-2.5 text-white" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Botão de Iniciar */}
+                <div className="text-center">
+                  <button
+                    onClick={handleStartCharacteristicsGeneration}
+                    disabled={generatingCharacteristics}
+                    className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center mx-auto font-medium shadow-sm text-lg"
+                  >
+                    {generatingCharacteristics ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin mr-3" />
+                        Gerando Características...
+                      </>
+                    ) : (
+                      <>
+                        <List className="w-5 h-5 mr-3" />
+                        {existingCharacteristics.length > 0 ? 'Regenerar Características' : 'Iniciar Geração de Características'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-6 border-t border-gray-200 mt-6">
+                <button
+                  onClick={() => {
+                    setShowCharacteristicsModal(false);
+                    setSelectedProductForTool(null);
+                    setExistingCharacteristics([]);
+                    setLoadingCharacteristics(false);
                   }}
                   className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                 >
@@ -3227,6 +3683,74 @@ export default function ProductsPage() {
         originalImages={cropModalData?.originalImages || []}
         onProcessingComplete={handleCropProcessingComplete}
       />
+
+      {/* Modal de SKUs */}
+      {showSkusModal && (
+        <SimpleSkusModal
+          isOpen={showSkusModal}
+          onClose={() => {
+            setShowSkusModal(false);
+          }}
+          productIds={products.filter(p => selectedProducts.includes(p.id)).map(p => p.vtex_id)}
+        />
+      )}
+      {/* Sistema de Notificações */}
+      <div className="fixed top-4 right-4 z-[60] space-y-2">
+        {notifications.map((notification) => (
+          <div
+            key={notification.id}
+            className={`max-w-sm w-full bg-white rounded-lg shadow-lg border-l-4 p-4 transform transition-all duration-300 ease-in-out ${
+              notification.type === 'success' ? 'border-green-500' :
+              notification.type === 'error' ? 'border-red-500' :
+              notification.type === 'warning' ? 'border-yellow-500' :
+              'border-blue-500'
+            }`}
+          >
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                {notification.type === 'success' && <Check className="h-5 w-5 text-green-500" />}
+                {notification.type === 'error' && <X className="h-5 w-5 text-red-500" />}
+                {notification.type === 'warning' && <X className="h-5 w-5 text-yellow-500" />}
+                {notification.type === 'info' && <X className="h-5 w-5 text-blue-500" />}
+              </div>
+              <div className="ml-3 flex-1">
+                <h4 className={`text-sm font-medium ${
+                  notification.type === 'success' ? 'text-green-800' :
+                  notification.type === 'error' ? 'text-red-800' :
+                  notification.type === 'warning' ? 'text-yellow-800' :
+                  'text-blue-800'
+                }`}>
+                  {notification.title}
+                </h4>
+                <p className={`mt-1 text-sm ${
+                  notification.type === 'success' ? 'text-green-700' :
+                  notification.type === 'error' ? 'text-red-700' :
+                  notification.type === 'warning' ? 'text-yellow-700' :
+                  'text-blue-700'
+                }`}>
+                  {notification.message}
+                </p>
+              </div>
+              <div className="ml-4 flex-shrink-0">
+                <button
+                  onClick={() => removeNotification(notification.id)}
+                  className={`inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    notification.type === 'success' ? 'text-green-500 hover:bg-green-100 focus:ring-green-600' :
+                    notification.type === 'error' ? 'text-red-500 hover:bg-red-100 focus:ring-red-600' :
+                    notification.type === 'warning' ? 'text-yellow-500 hover:bg-yellow-100 focus:ring-yellow-600' :
+                    'text-blue-500 hover:bg-blue-100 focus:ring-blue-600'
+                  }`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </Layout>
   );
 }
+
+
+

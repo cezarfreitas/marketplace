@@ -23,7 +23,7 @@ export async function GET(
         b.name as brand_name,
         c.name as category_name,
         d.name as department_name
-      FROM products p
+      FROM products_vtex p
       LEFT JOIN brands b ON p.brand_id = b.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN departments d ON p.department_id = d.id
@@ -49,7 +49,7 @@ export async function GET(
       const skusTableExists = await executeQuery(checkSkusTable, []);
       
       if (skusTableExists.length > 0) {
-        const skusQuery = `SELECT * FROM skus WHERE product_id = ?`;
+        const skusQuery = `SELECT * FROM skus_vtex WHERE product_id = ?`;
         skus = await executeQuery(skusQuery, [productId]);
         console.log('📦 SKUs encontrados:', skus.length);
       }
@@ -68,8 +68,8 @@ export async function GET(
           SELECT 
             i.*,
             CONCAT('https://projetoinfluencer.', i.file_location) as file_url
-          FROM images i
-          JOIN skus s ON i.sku_id = s.id
+          FROM images_vtex i
+          JOIN skus_vtex s ON i.sku_id = s.id
           WHERE s.product_id = ?
         `;
         images = await executeQuery(imagesQuery, [productId]);

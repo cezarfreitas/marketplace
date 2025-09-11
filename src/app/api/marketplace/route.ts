@@ -12,9 +12,19 @@ export async function GET(request: NextRequest) {
         SELECT 
           m.*,
           p.name as product_name,
-          p.ref_id as product_ref_id
-        FROM meli m
-        JOIN products p ON m.product_id = p.id
+          p.ref_id as product_ref_id,
+          p.brand_id,
+          p.category_id,
+          p.description as product_description,
+          p.title as product_title,
+          p.keywords,
+          p.meta_tag_description,
+          b.name as brand_name,
+          c.name as category_name
+        FROM marketplace m
+        JOIN products_vtex p ON m.product_id = p.id
+        LEFT JOIN brands b ON p.brand_id = b.id
+        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
         WHERE m.product_id = ?
         ORDER BY m.created_at DESC
         LIMIT 1
@@ -32,9 +42,19 @@ export async function GET(request: NextRequest) {
         SELECT 
           m.*,
           p.name as product_name,
-          p.ref_id as product_ref_id
-        FROM meli m
-        JOIN products p ON m.product_id = p.id
+          p.ref_id as product_ref_id,
+          p.brand_id,
+          p.category_id,
+          p.description as product_description,
+          p.title as product_title,
+          p.keywords,
+          p.meta_tag_description,
+          b.name as brand_name,
+          c.name as category_name
+        FROM marketplace m
+        JOIN products_vtex p ON m.product_id = p.id
+        LEFT JOIN brands b ON p.brand_id = b.id
+        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
         ORDER BY m.created_at DESC
       `;
 

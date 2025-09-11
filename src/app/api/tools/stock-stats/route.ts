@@ -20,13 +20,13 @@ export async function GET() {
     // Query para somar total de estoque
     const stockQuery = `
       SELECT COALESCE(SUM(total_quantity), 0) as total_stock
-      FROM stock
+      FROM stock_vtex
     `;
 
     // Query para buscar última atualização (assumindo que há uma tabela de logs ou usando timestamp)
     const lastUpdateQuery = `
       SELECT MAX(updated_at) as last_update
-      FROM stock
+      FROM stock_vtex
       WHERE updated_at IS NOT NULL
     `;
 

@@ -28,6 +28,7 @@ export interface Product {
   measurement_unit: string;
   unit_multiplier: number;
   information_source: string;
+  anymarket_id?: string;
   modal_type: string;
   created_at: Date;
   updated_at: Date;
@@ -284,4 +285,171 @@ export interface CreateSku {
   unit_multiplier: number;
   information_source: string;
   modal_type: string;
+}
+
+export interface SkuSeller {
+  id: number;
+  sku_id: number;
+  seller_id: string;
+  seller_sku_id: string;
+  is_active: boolean;
+  freight_commission_percentage: number;
+  product_commission_percentage: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateSkuSeller {
+  sku_id: number;
+  seller_id: string;
+  seller_sku_id?: string;
+  is_active?: boolean;
+  freight_commission_percentage?: number;
+  product_commission_percentage?: number;
+}
+
+export interface ImagesVtex {
+  id: number;
+  vtex_id: number;
+  archive_id: number;
+  sku_id: number;
+  name: string;
+  is_main: boolean;
+  text?: string;
+  label?: string;
+  url?: string;
+  file_location: string;
+  position: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateImagesVtex {
+  vtex_id: number;
+  archive_id: number;
+  sku_id: number;
+  name: string;
+  is_main?: boolean;
+  text?: string;
+  label?: string;
+  url?: string;
+  file_location: string;
+  position?: number;
+}
+
+export interface BrandsVtex {
+  id: number;
+  vtex_id: number;
+  name: string;
+  is_active: boolean;
+  title?: string;
+  meta_tag_description?: string;
+  image_url?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateBrandsVtex {
+  vtex_id: number;
+  name: string;
+  is_active?: boolean;
+  title?: string;
+  meta_tag_description?: string;
+  image_url?: string;
+}
+
+export interface CategoriesVtex {
+  id: number;
+  vtex_id: number;
+  name: string;
+  father_category_id?: number;
+  title?: string;
+  description?: string;
+  keywords?: string;
+  is_active: boolean;
+  lomadee_campaign_code?: string;
+  adwords_remarketing_code?: string;
+  show_in_store_front: boolean;
+  show_brand_filter: boolean;
+  active_store_front_link: boolean;
+  global_category_id: number;
+  stock_keeping_unit_selection_mode?: string;
+  score: number;
+  link_id?: string;
+  has_children: boolean;
+  tree_path?: string;
+  tree_path_ids?: string;
+  tree_path_link_ids?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateCategoriesVtex {
+  vtex_id: number;
+  name: string;
+  father_category_id?: number;
+  title?: string;
+  description?: string;
+  keywords?: string;
+  is_active?: boolean;
+  lomadee_campaign_code?: string;
+  adwords_remarketing_code?: string;
+  show_in_store_front?: boolean;
+  show_brand_filter?: boolean;
+  active_store_front_link?: boolean;
+  global_category_id?: number;
+  stock_keeping_unit_selection_mode?: string;
+  score?: number;
+  link_id?: string;
+  has_children?: boolean;
+  tree_path?: string;
+  tree_path_ids?: string;
+  tree_path_link_ids?: string;
+}
+
+export interface Usuario {
+  id: number;
+  nome: string;
+  email: string;
+  senha: string;
+  role: 'admin' | 'editor' | 'viewer';
+  is_active: boolean;
+  last_login?: Date;
+  login_attempts: number;
+  locked_until?: Date;
+  avatar_url?: string;
+  telefone?: string;
+  departamento?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateUsuario {
+  nome: string;
+  email: string;
+  senha: string;
+  role?: 'admin' | 'editor' | 'viewer';
+  is_active?: boolean;
+  avatar_url?: string;
+  telefone?: string;
+  departamento?: string;
+}
+
+export interface LoginUsuario {
+  email: string;
+  senha: string;
+}
+
+export interface UsuarioResponse {
+  id: number;
+  nome: string;
+  email: string;
+  role: 'admin' | 'editor' | 'viewer';
+  is_active: boolean;
+  last_login?: Date;
+  avatar_url?: string;
+  telefone?: string;
+  departamento?: string;
+  created_at: Date;
+  updated_at: Date;
 }

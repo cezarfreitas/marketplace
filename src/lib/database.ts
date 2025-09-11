@@ -5,20 +5,68 @@ config();
 
 // Configuração do banco de dados
 const dbConfig = {
-  host: 'server.idenegociosdigitais.com.br',
-  port: 3349,
-  user: 'meli',
-  password: '7dd3e59ddb3c3a5da0e3',
-  database: 'meli',
+  host: process.env.DB_HOST || 'server.idenegociosdigitais.com.br',
+  port: parseInt(process.env.DB_PORT || '3342'),
+  user: process.env.DB_USER || 'seo_data',
+  password: process.env.DB_PASSWORD || '54779042baaa70be95c0',
+  database: process.env.DB_NAME || 'seo_data',
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+  connectionLimit: 10, // Aumentado para suportar mais operações simultâneas
+  queueLimit: 50, // Aumentado significativamente para importações em lote
+  acquireTimeout: 120000, // 2 minutos para adquirir conexão
+  timeout: 120000, // 2 minutos de timeout
+  reconnect: true, // Reconectar automaticamente
   timezone: '-03:00', // UTC-3
   charset: 'utf8mb4',
+  // Configurações adicionais para melhor performance
+  multipleStatements: false, // Segurança
+  supportBigNumbers: true,
+  bigNumberStrings: true,
+  dateStrings: false,
+  debug: false,
 };
 
 // Pool de conexões
 let pool: mysql.Pool | null = null;
+
+// Sistema de controle de concorrência para importações
+class ConcurrencyController {
+  private activeOperations = 0;
+  private maxConcurrentOperations = 8; // Aumentado para 8 operações simultâneas
+  private queue: Array<() => void> = [];
+
+  async acquire(): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.activeOperations < this.maxConcurrentOperations) {
+        this.activeOperations++;
+        resolve();
+      } else {
+        this.queue.push(resolve);
+      }
+    });
+  }
+
+  release(): void {
+    this.activeOperations--;
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      if (next) {
+        this.activeOperations++;
+        next();
+      }
+    }
+  }
+
+  getStatus() {
+    return {
+      activeOperations: this.activeOperations,
+      queueLength: this.queue.length,
+      maxConcurrentOperations: this.maxConcurrentOperations
+    };
+  }
+}
+
+const concurrencyController = new ConcurrencyController();
 
 export const getPool = (): mysql.Pool => {
   if (!pool) {
@@ -46,10 +94,15 @@ export const executeQuery = async <T = any>(
   query: string,
   params: any[] = []
 ): Promise<T[]> => {
+  await concurrencyController.acquire();
   let connection;
   try {
     connection = await getPool().getConnection();
-    const [rows] = await connection.execute(query, params);
+    
+    // Validar parâmetros
+    const validParams = params.map(param => param === undefined ? null : param);
+    
+    const [rows] = await connection.execute(query, validParams);
     return rows as T[];
   } catch (error) {
     console.error('Erro ao executar query:', error);
@@ -58,6 +111,7 @@ export const executeQuery = async <T = any>(
     if (connection) {
       connection.release();
     }
+    concurrencyController.release();
   }
 };
 
@@ -66,12 +120,22 @@ export const executeModificationQuery = async (
   query: string,
   params: any[] = []
 ): Promise<{ affectedRows: number; insertId?: number }> => {
+  let connection;
   try {
-    const [result] = await getPool().execute(query, params);
+    connection = await getPool().getConnection();
+    
+    // Validar parâmetros
+    const validParams = params.map(param => param === undefined ? null : param);
+    
+    const [result] = await connection.execute(query, validParams);
     return result as { affectedRows: number; insertId?: number };
   } catch (error) {
     console.error('Erro ao executar query de modificação:', error);
     throw error;
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
@@ -80,13 +144,23 @@ export const executeSingleQuery = async <T = any>(
   query: string,
   params: any[] = []
 ): Promise<T> => {
+  let connection;
   try {
-    const [rows] = await getPool().execute(query, params);
+    connection = await getPool().getConnection();
+    
+    // Validar parâmetros
+    const validParams = params.map(param => param === undefined ? null : param);
+    
+    const [rows] = await connection.execute(query, validParams);
     const result = rows as any[];
     return result[0] as T;
   } catch (error) {
     console.error('Erro ao executar query única:', error);
     throw error;
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
@@ -159,6 +233,16 @@ export const getTableInfo = async (tableName: string) => {
     console.error('Erro ao obter informações da tabela:', error);
     throw error;
   }
+};
+
+// Função para obter status do controle de concorrência
+export const getConcurrencyStatus = () => {
+  return concurrencyController.getStatus();
+};
+
+// Função para ajustar o limite de concorrência
+export const setMaxConcurrentOperations = (max: number) => {
+  concurrencyController['maxConcurrentOperations'] = max;
 };
 
 export default getPool;

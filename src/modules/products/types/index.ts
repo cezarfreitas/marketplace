@@ -31,41 +31,31 @@ export interface Product {
   modal_type: string;
   created_at: Date;
   updated_at: Date;
-  // Campos calculados
-  sku_count?: number;
-  image_count?: number;
-  first_image_url?: string;
+  // Campos básicos calculados
   brand_name?: string;
   category_name?: string;
+  category_vtex_id?: number;
   department_name?: string;
-  anymarket_id?: string;
   total_stock?: number;
-  
-  // Dados detalhados do modal
-  stats?: {
-    skuCount: number;
-    imageCount: number;
-    analysisCount: number;
-  };
-  skus?: any[];
-  images?: any[];
-  analysisLogs?: any[];
+  sku_count?: number;
+  image_count?: number;
+  main_image?: string;
+  anymarket_id?: string;
 }
 
 export interface ProductFilters {
   search: string;
   brand_id: string | string[];
   category_id: string | string[];
-  has_image_analysis: string;
-  has_marketplace_description: string;
-  has_anymarket_ref_id: string;
-  has_anymarket_sync_log: string;
   is_active: string;
   is_visible: string;
-  has_images: string;
-  stock_status: string;
-  stock_operator: string; // 'eq', 'gt', 'gte', 'lt', 'lte'
-  stock_value: string; // valor numérico para comparação
+  has_image_analysis?: boolean;
+  has_marketplace_description?: boolean;
+  has_anymarket_ref_id?: boolean;
+  has_anymarket_sync_log?: boolean;
+  has_images?: boolean;
+  stock_operator?: string;
+  stock_value?: number;
 }
 
 export interface ProductListResponse {
@@ -116,7 +106,7 @@ export interface UpdateProductRequest extends Partial<CreateProductRequest> {
 }
 
 export interface ProductSortOptions {
-  field: 'name' | 'created_at' | 'updated_at' | 'vtex_id' | 'sku_count' | 'image_count' | 'brand_name' | 'category_name';
+  field: 'name' | 'created_at' | 'updated_at' | 'vtex_id' | 'brand_name' | 'category_name';
   direction: 'asc' | 'desc';
 }
 

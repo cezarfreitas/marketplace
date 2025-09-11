@@ -3,6 +3,59 @@ import { vtexService } from '@/lib/vtex-service';
 import { executeQuery } from '@/lib/db-ultra-simple';
 import { checkBuildEnvironment } from '@/lib/build-check';
 
+// Função auxiliar para salvar marca e categoria
+async function saveBrandAndCategory(brand: any, category: any) {
+  // Inserir marca no banco
+  console.log(`🏷️ Inserindo marca no banco...`);
+  await executeQuery(
+    `INSERT INTO brands (vtex_id, name, is_active, title, meta_tag_description, image_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE 
+     name = VALUES(name), is_active = VALUES(is_active), title = VALUES(title), updated_at = NOW()`,
+    [
+      brand.id,
+      brand.name,
+      brand.isActive,
+      brand.title || null,
+      brand.metaTagDescription || null,
+      brand.imageUrl || null
+    ]
+  );
+  console.log(`✅ Marca inserida no banco`);
+
+  // Inserir categoria no banco
+  console.log(`📂 Inserindo categoria no banco...`);
+  await executeQuery(
+    `INSERT INTO categories_vtex (vtex_id, name, father_category_id, title, description, keywords, is_active, lomadee_campaign_code, adwords_remarketing_code, show_in_store_front, show_brand_filter, active_store_front_link, global_category_id, stock_keeping_unit_selection_mode, score, link_id, has_children, tree_path, tree_path_ids, tree_path_link_ids, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE 
+     name = VALUES(name), title = VALUES(title), description = VALUES(description), updated_at = NOW()`,
+    [
+      category.Id,
+      category.Name,
+      category.FatherCategoryId,
+      category.Title,
+      category.Description || null,
+      category.Keywords || null,
+      category.IsActive,
+      category.LomadeeCampaignCode || null,
+      category.AdWordsRemarketingCode || null,
+      category.ShowInStoreFront,
+      category.ShowBrandFilter,
+      category.ActiveStoreFrontLink,
+      category.GlobalCategoryId || null,
+      category.StockKeepingUnitSelectionMode || null,
+      category.Score || null,
+      category.LinkId || null,
+      category.HasChildren,
+      category.TreePath ? JSON.stringify(category.TreePath) : null,
+      category.TreePathIds ? JSON.stringify(category.TreePathIds) : null,
+      category.TreePathLinkIds ? JSON.stringify(category.TreePathLinkIds) : null
+    ]
+  );
+  console.log(`✅ Categoria inserida no banco`);
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Evitar execução durante o build do Next.js
@@ -30,83 +83,89 @@ export async function POST(request: NextRequest) {
     const product = await vtexService.getProductByRefId(refId);
     console.log(`✅ Produto encontrado:`, product.Name);
     
-    // Buscar marca na VTEX
-    console.log(`🏷️ Buscando marca ID ${product.BrandId} na VTEX...`);
-    const brand = await vtexService.getBrand(product.BrandId);
-    console.log(`✅ Marca encontrada:`, brand.name);
-    
-    // Buscar categoria na VTEX
-    console.log(`📂 Buscando categoria ID ${product.CategoryId} na VTEX...`);
-    const category = await vtexService.getCategory(product.CategoryId);
-    console.log(`✅ Categoria encontrada:`, category.Name);
-    
-    // Inserir marca no banco
-    console.log(`🏷️ Inserindo marca no banco...`);
-    const [brandResult] = await executeQuery(
-      `INSERT INTO brands (vtex_id, name, is_active, title, meta_tag_description, image_url, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
-       ON DUPLICATE KEY UPDATE 
-       name = VALUES(name), is_active = VALUES(is_active), title = VALUES(title), updated_at = NOW()`,
-      [
-        brand.id,
-        brand.name,
-        brand.isActive,
-        brand.title || null,
-        brand.metaTagDescription || null,
-        brand.imageUrl || null
-      ]
+    // Verificar se o produto já existe na products_vtex
+    console.log(`🔍 Verificando se produto já existe na products_vtex...`);
+    const existingProductVtex = await executeQuery(
+      'SELECT vtex_id, category_id, brand_id FROM products_vtex WHERE vtex_id = ?',
+      [product.Id]
     );
-    console.log(`✅ Marca inserida no banco:`, brandResult);
     
-    // Inserir categoria no banco
-    console.log(`📂 Inserindo categoria no banco...`);
-    const [categoryResult] = await executeQuery(
-      `INSERT INTO categories (vtex_id, name, father_category_id, title, description, keywords, is_active, lomadee_campaign_code, adwords_remarketing_code, show_in_store_front, show_brand_filter, active_store_front_link, global_category_id, stock_keeping_unit_selection_mode, score, link_id, has_children, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-       ON DUPLICATE KEY UPDATE 
-       name = VALUES(name), title = VALUES(title), description = VALUES(description), updated_at = NOW()`,
-      [
-        category.Id,
-        category.Name,
-        category.FatherCategoryId,
-        category.Title,
-        category.Description || null,
-        category.Keywords || null,
-        category.IsActive,
-        category.LomadeeCampaignCode || null,
-        category.AdWordsRemarketingCode || null,
-        category.ShowInStoreFront,
-        category.ShowBrandFilter,
-        category.ActiveStoreFrontLink,
-        category.GlobalCategoryId || null,
-        category.StockKeepingUnitSelectionMode || null,
-        category.Score || null,
-        category.LinkId || null,
-        category.HasChildren
-      ]
-    );
-    console.log(`✅ Categoria inserida no banco:`, categoryResult);
+    let categoryId, brandId;
+    let brand, category;
+    let brandResult, categoryResult;
     
-    // Buscar ID interno da marca
-    const [brandRow] = await executeQuery(
-      'SELECT id FROM brands WHERE vtex_id = ?',
-      [brand.id]
-    );
-    const brandId = (brandRow as any)[0]?.id;
-    console.log(`✅ ID interno da marca: ${brandId}`);
+    if (existingProductVtex && Array.isArray(existingProductVtex) && existingProductVtex.length > 0) {
+      // Produto já existe na products_vtex, usar os IDs existentes
+      console.log(`✅ Produto já existe na products_vtex`);
+      categoryId = (existingProductVtex[0] as any).category_id;
+      brandId = (existingProductVtex[0] as any).brand_id;
+      console.log(`📂 Usando category_id existente: ${categoryId}`);
+      console.log(`🏷️ Usando brand_id existente: ${brandId}`);
+      
+      // Buscar dados da marca e categoria para o retorno
+      const brandRow = await executeQuery('SELECT vtex_id, name FROM brands WHERE id = ?', [brandId]);
+      const categoryRow = await executeQuery('SELECT vtex_id, name FROM categories_vtex WHERE vtex_id = ?', [categoryId]);
+      
+      brand = { id: (brandRow as any)[0]?.vtex_id, name: (brandRow as any)[0]?.name };
+      category = { Id: (categoryRow as any)[0]?.vtex_id, Name: (categoryRow as any)[0]?.name };
+      
+      // Criar variáveis de resultado para o retorno
+      brandResult = { success: true, id: brandId };
+      categoryResult = { success: true, id: categoryId };
+    } else {
+      // Produto não existe, buscar marca e categoria da VTEX
+      console.log(`📦 Produto não existe na products_vtex, buscando dados da VTEX...`);
+      
+      // Buscar marca na VTEX
+      console.log(`🏷️ Buscando marca ID ${product.BrandId} na VTEX...`);
+      brand = await vtexService.getBrand(product.BrandId);
+      console.log(`✅ Marca encontrada:`, brand.name);
+      
+      // Buscar categoria na VTEX
+      console.log(`📂 Buscando categoria ID ${product.CategoryId} na VTEX...`);
+      category = await vtexService.getCategory(product.CategoryId);
+      console.log(`✅ Categoria encontrada:`, category.Name);
+      
+      // Salvar marca e categoria primeiro
+      await saveBrandAndCategory(brand, category);
+      
+      // Buscar IDs internos
+      const brandRow = await executeQuery('SELECT id FROM brands WHERE vtex_id = ?', [brand.id]);
+      const categoryRow = await executeQuery('SELECT vtex_id FROM categories_vtex WHERE vtex_id = ?', [category.Id]);
+      
+      brandId = (brandRow as any)[0]?.id;
+      categoryId = (categoryRow as any)[0]?.vtex_id;
+      
+      // Criar variáveis de resultado para o retorno
+      brandResult = { success: true, id: brandId };
+      categoryResult = { success: true, id: categoryId };
+      
+      // Salvar produto na products_vtex
+      await executeQuery(
+        `INSERT INTO products_vtex (vtex_id, name, department_id, category_id, brand_id, ref_id, is_visible, description, title, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE 
+         name = VALUES(name), description = VALUES(description), updated_at = NOW()`,
+        [
+          product.Id,
+          product.Name,
+          product.DepartmentId,
+          categoryId,
+          brandId,
+          product.RefId,
+          product.IsVisible,
+          product.Description,
+          product.Title,
+          product.IsActive
+        ]
+      );
+      console.log(`✅ Produto salvo na products_vtex`);
+    }
     
-    // Buscar ID interno da categoria
-    const [categoryRow] = await executeQuery(
-      'SELECT id FROM categories WHERE vtex_id = ?',
-      [category.Id]
-    );
-    const categoryId = (categoryRow as any)[0]?.id;
-    console.log(`✅ ID interno da categoria: ${categoryId}`);
-    
-    // Inserir produto no banco
-    console.log(`📦 Inserindo produto no banco...`);
+    // Inserir produto no banco (tabela products)
+    console.log(`📦 Inserindo produto na tabela products...`);
     const [productResult] = await executeQuery(
-      `INSERT INTO products (vtex_id, name, department_id, category_id, brand_id, ref_id, is_visible, description, title, is_active, created_at, updated_at)
+      `INSERT INTO products_vtex (vtex_id, name, department_id, category_id, brand_id, ref_id, is_visible, description, title, is_active, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
        ON DUPLICATE KEY UPDATE 
        name = VALUES(name), description = VALUES(description), brand_id = VALUES(brand_id), category_id = VALUES(category_id), updated_at = NOW()`,
@@ -123,11 +182,11 @@ export async function POST(request: NextRequest) {
         product.IsActive
       ]
     );
-    console.log(`✅ Produto inserido no banco:`, productResult);
+    console.log(`✅ Produto inserido na tabela products:`, productResult);
     
     // Buscar ID interno do produto
-    const [productRow] = await executeQuery(
-      'SELECT id FROM products WHERE vtex_id = ?',
+    const productRow = await executeQuery(
+      'SELECT id FROM products_vtex WHERE vtex_id = ?',
       [product.Id]
     );
     const productId = (productRow as any)[0]?.id;
@@ -144,30 +203,85 @@ export async function POST(request: NextRequest) {
     
     for (const sku of skus) {
       console.log(`📋 Inserindo SKU ${sku.Id}...`);
-      const [skuResult] = await executeQuery(
-        `INSERT INTO skus (vtex_id, product_id, name_complete, complement_name, product_name, product_description, product_ref_id, tax_code, sku_name, is_active, is_transported, is_inventoried, is_gift_card_recharge, image_url, detail_url, csc_identification, brand_id, brand_name, manufacturer_code, is_kit, commercial_condition_id, reward_value, estimated_date_arrival, measurement_unit, unit_multiplier, information_source, modal_type, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      const skuResult = await executeQuery(
+        `INSERT INTO skus (
+          vtex_id, product_id, name_complete, complement_name, product_name, product_description, 
+          product_ref_id, tax_code, sku_name, ref_id, height, real_height, width, real_width, 
+          length, real_length, weight_kg, real_weight_kg, modal_id, cubic_weight, internal_note, 
+          date_updated, is_active, is_transported, is_inventoried, is_gift_card_recharge, 
+          image_url, detail_url, csc_identification, brand_id, brand_name, manufacturer_code, 
+          is_kit, commercial_condition_id, reward_value, estimated_date_arrival, measurement_unit, 
+          unit_multiplier, information_source, modal_type, flag_kit_itens_sell_apart, 
+          reference_stock_keeping_unit_id, position, activate_if_possible, is_kit_optimized, 
+          created_at, updated_at
+        )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE 
-         sku_name = VALUES(sku_name), is_active = VALUES(is_active), updated_at = NOW()`,
+         name_complete = VALUES(name_complete), 
+         sku_name = VALUES(sku_name), 
+         ref_id = VALUES(ref_id),
+         height = VALUES(height),
+         real_height = VALUES(real_height),
+         width = VALUES(width),
+         real_width = VALUES(real_width),
+         length = VALUES(length),
+         real_length = VALUES(real_length),
+         weight_kg = VALUES(weight_kg),
+         real_weight_kg = VALUES(real_weight_kg),
+         modal_id = VALUES(modal_id),
+         cubic_weight = VALUES(cubic_weight),
+         internal_note = VALUES(internal_note),
+         date_updated = VALUES(date_updated),
+         is_active = VALUES(is_active), 
+         is_transported = VALUES(is_transported),
+         is_inventoried = VALUES(is_inventoried),
+         is_gift_card_recharge = VALUES(is_gift_card_recharge),
+         manufacturer_code = VALUES(manufacturer_code),
+         is_kit = VALUES(is_kit),
+         commercial_condition_id = VALUES(commercial_condition_id),
+         reward_value = VALUES(reward_value),
+         estimated_date_arrival = VALUES(estimated_date_arrival),
+         measurement_unit = VALUES(measurement_unit),
+         unit_multiplier = VALUES(unit_multiplier),
+         modal_type = VALUES(modal_type),
+         flag_kit_itens_sell_apart = VALUES(flag_kit_itens_sell_apart),
+         reference_stock_keeping_unit_id = VALUES(reference_stock_keeping_unit_id),
+         position = VALUES(position),
+         activate_if_possible = VALUES(activate_if_possible),
+         is_kit_optimized = VALUES(is_kit_optimized),
+         updated_at = NOW()`,
         [
           sku.Id,
           productId, // Usar ID interno do produto
-          sku.Name || null,
+          sku.Name || null, // name_complete
           sku.Name || null, // complement_name
           product.Name, // product_name
           product.Description || null, // product_description
           product.RefId || null, // product_ref_id
           null, // tax_code
           sku.Name || null, // sku_name
+          sku.RefId || null, // ref_id
+          sku.Height || null, // height
+          sku.RealHeight || null, // real_height
+          sku.Width || null, // width
+          sku.RealWidth || null, // real_width
+          sku.Length || null, // length
+          sku.RealLength || null, // real_length
+          sku.WeightKg || null, // weight_kg
+          sku.RealWeightKg || null, // real_weight_kg
+          sku.ModalId || null, // modal_id
+          sku.CubicWeight || null, // cubic_weight
+          sku.InternalNote || null, // internal_note
+          sku.DateUpdated || null, // date_updated
           sku.IsActive,
-          sku.IsTransported || false,
-          sku.IsInventoried || false,
-          sku.IsGiftCardRecharge || false,
+          sku.IsTransported,
+          sku.IsInventoried,
+          sku.IsGiftCardRecharge,
           null, // image_url
           null, // detail_url
           null, // csc_identification
-          brand.id.toString(), // brand_id
-          brand.name, // brand_name
+          brandId?.toString() || null, // brand_id
+          null, // brand_name (não disponível no escopo atual)
           sku.ManufacturerCode || null,
           sku.IsKit || false,
           sku.CommercialConditionId || null,
@@ -176,7 +290,12 @@ export async function POST(request: NextRequest) {
           sku.MeasurementUnit || 'un',
           sku.UnitMultiplier || 1,
           'vtex', // information_source
-          sku.ModalType || 'default'
+          sku.ModalType || 'default',
+          sku.FlagKitItensSellApart || false,
+          sku.ReferenceStockKeepingUnitId || null,
+          sku.Position || null,
+          sku.ActivateIfPossible || true,
+          (sku as any).isKitOptimized || false
         ]
       );
       skuResults.push(skuResult);
@@ -224,8 +343,8 @@ export async function POST(request: NextRequest) {
         console.log(`🖼️ Inserindo ${images.length} imagens do SKU ${skuWithImages.Id}...`);
         
         // Buscar ID interno do SKU que tem imagens
-        const [skuRow] = await executeQuery(
-          'SELECT id FROM skus WHERE vtex_id = ?',
+        const skuRow = await executeQuery(
+          'SELECT id FROM skus_vtex WHERE vtex_id = ?',
           [skuWithImages.Id]
         );
         const skuInternalId = (skuRow as any)[0]?.id;
@@ -234,7 +353,7 @@ export async function POST(request: NextRequest) {
           // Inserir imagens no banco
           for (const image of images) {
             console.log(`🖼️ Inserindo imagem ${image.Id}...`);
-            const [imageResult] = await executeQuery(
+            const imageResult = await executeQuery(
               `INSERT INTO images (vtex_id, archive_id, sku_id, name, is_main, text, label, url, file_location, position, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
                ON DUPLICATE KEY UPDATE 
@@ -292,8 +411,8 @@ export async function POST(request: NextRequest) {
           console.log(`📊 SKU ${sku.Id}: ${stockData.balance?.length || 0} warehouses encontrados`);
           
           // Buscar ID interno do SKU
-          const [skuRow] = await executeQuery(
-            'SELECT id FROM skus WHERE vtex_id = ?',
+          const skuRow = await executeQuery(
+            'SELECT id FROM skus_vtex WHERE vtex_id = ?',
             [sku.Id]
           );
           const skuInternalId = (skuRow as any)[0]?.id;
@@ -303,7 +422,7 @@ export async function POST(request: NextRequest) {
             for (const balance of stockData.balance) {
               try {
                 await executeQuery(`
-                  INSERT INTO stock (
+                  INSERT INTO stock_vtex (
                     sku_id, vtex_sku_id, warehouse_id, warehouse_name,
                     total_quantity, reserved_quantity, has_unlimited_quantity,
                     time_to_refill, date_of_supply_utc, lead_time
@@ -363,7 +482,7 @@ export async function POST(request: NextRequest) {
       message: `Produto ${refId}, marca, categoria, ${skus.length} SKUs, ${images.length} imagens e estoque de ${stockSuccessCount} SKUs importados com sucesso!`,
       data: {
         product: product,
-        brand: brand,
+        brand: { id: brandId, name: 'N/A' },
         category: category,
         skus: skus,
         images: images,

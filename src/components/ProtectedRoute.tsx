@@ -20,7 +20,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         const token = localStorage.getItem('authToken');
         const isAuth = localStorage.getItem('isAuthenticated');
         
-        console.log('🔍 Verificando autenticação:', { hasToken: !!token, isAuth });
+        // console.log('🔍 Verificando autenticação:', { hasToken: !!token, isAuth });
         
         if (token && isAuth === 'true') {
           try {
@@ -36,10 +36,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
             const data = await response.json();
 
             if (data.success) {
-              console.log('✅ Token válido, usuário autenticado');
+              // console.log('✅ Token válido, usuário autenticado');
               setIsAuthenticated(true);
             } else {
-              console.log('❌ Token inválido, removendo dados de autenticação');
+              // console.log('❌ Token inválido, removendo dados de autenticação');
               // Limpar dados inválidos
               localStorage.removeItem('authToken');
               localStorage.removeItem('user');
@@ -47,12 +47,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
               setIsAuthenticated(false);
             }
           } catch (error) {
-            console.error('❌ Erro ao verificar token:', error);
+            // console.error('❌ Erro ao verificar token:', error);
             // Em caso de erro, assumir que não está autenticado
             setIsAuthenticated(false);
           }
         } else {
-          console.log('❌ Sem token ou não autenticado');
+          // console.log('❌ Sem token ou não autenticado');
           setIsAuthenticated(false);
         }
       }
@@ -64,14 +64,14 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     // Listener para mudanças no localStorage
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'authToken' || e.key === 'isAuthenticated' || e.key === 'user') {
-        console.log('🔄 Mudança detectada no localStorage, re-verificando autenticação...');
+        // console.log('🔄 Mudança detectada no localStorage, re-verificando autenticação...');
         checkAuth();
       }
     };
 
     // Listener para mudanças no localStorage (mesmo tab)
     const handleCustomStorageChange = () => {
-      console.log('🔄 Mudança customizada detectada no localStorage, re-verificando autenticação...');
+      // console.log('🔄 Mudança customizada detectada no localStorage, re-verificando autenticação...');
       checkAuth();
     };
 

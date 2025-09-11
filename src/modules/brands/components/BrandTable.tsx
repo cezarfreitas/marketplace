@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Brand, BrandSortOptions } from '../types';
 import { formatDate, formatNumber, getBrandImageUrl } from '../utils/formatters';
 import { 
-  Eye, Edit, Trash2, MoreVertical, Star, StarOff, ExternalLink, Copy, 
+  Eye, Trash2, MoreVertical, Star, StarOff, ExternalLink, Copy, 
   ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Bot, Download
 } from 'lucide-react';
 
@@ -51,7 +51,6 @@ export function BrandTable({
   console.log('BrandTable - brands:', brands);
   console.log('BrandTable - loading:', loading);
   console.log('BrandTable - brands.length:', brands?.length);
-  const [showActionsMenu, setShowActionsMenu] = useState<number | null>(null);
 
   const getSortIcon = (field: BrandSortOptions['field']) => {
     if (sort.field !== field) {
@@ -171,14 +170,9 @@ export function BrandTable({
                         </div>
                         <div className="flex items-center space-x-1">
                           {brand.is_active ? (
-                            <div className="w-2 h-2 bg-green-500 rounded-full" title="Ativa"></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full" title="Marca ativa"></div>
                           ) : (
-                            <div className="w-2 h-2 bg-red-500 rounded-full" title="Inativa"></div>
-                          )}
-                          {brand.auxiliary_data_generated ? (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full" title="Dados auxiliares gerados"></div>
-                          ) : (
-                            <div className="w-2 h-2 bg-orange-500 rounded-full" title="Dados auxiliares pendentes"></div>
+                            <div className="w-2 h-2 bg-red-500 rounded-full" title="Marca inativa"></div>
                           )}
                         </div>
                       </div>
@@ -201,22 +195,13 @@ export function BrandTable({
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-center">
-                  <div className="flex flex-col items-center space-y-2">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${
-                      brand.is_active 
-                        ? 'bg-green-50 text-green-700 border-green-200' 
-                        : 'bg-red-50 text-red-700 border-red-200'
-                    }`}>
-                      {brand.is_active ? 'Ativa' : 'Inativa'}
-                    </span>
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${
-                      brand.auxiliary_data_generated 
-                        ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                        : 'bg-orange-50 text-orange-700 border-orange-200'
-                    }`}>
-                      {brand.auxiliary_data_generated ? 'Gerados' : 'Pendentes'}
-                    </span>
-                  </div>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${
+                    brand.is_active 
+                      ? 'bg-green-50 text-green-700 border-green-200' 
+                      : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    {brand.is_active ? 'Ativa' : 'Inativa'}
+                  </span>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                   <div className="flex flex-col">
@@ -234,55 +219,19 @@ export function BrandTable({
                       <Eye className="h-4 w-4" />
                     </button>
                     <button 
-                      onClick={() => onEditBrand(brand)}
-                      className="p-2 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200 border border-transparent hover:border-emerald-200" 
-                      title="Editar"
+                      onClick={() => onGenerateAuxiliary(brand)}
+                      className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all duration-200 border border-transparent hover:border-purple-200"
+                      title="Gerar dados auxiliares"
                     >
-                      <Edit className="h-4 w-4" />
+                      <Bot className="h-4 w-4" />
                     </button>
-                    <div className="relative">
-                      <button 
-                        onClick={() => setShowActionsMenu(showActionsMenu === brand.id ? null : brand.id)}
-                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200 border border-transparent hover:border-gray-200"
-                        title="Mais ações"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                      
-                      {showActionsMenu === brand.id && (
-                        <div className="absolute right-0 top-12 bg-white border border-gray-200 rounded-xl shadow-xl z-10 min-w-[200px] overflow-hidden">
-                          <div className="py-2">
-                            <button 
-                              onClick={() => onGenerateAuxiliary(brand)}
-                              className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-purple-50 flex items-center transition-colors"
-                            >
-                              <Bot className="h-4 w-4 mr-3 text-purple-500" />
-                              Gerar Dados Auxiliares
-                            </button>
-                            <button className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-yellow-50 flex items-center transition-colors">
-                              <Star className="h-4 w-4 mr-3 text-yellow-500" />
-                              Favoritar
-                            </button>
-                            <button className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-blue-50 flex items-center transition-colors">
-                              <ExternalLink className="h-4 w-4 mr-3 text-blue-500" />
-                              Ver na VTEX
-                            </button>
-                            <button className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center transition-colors">
-                              <Copy className="h-4 w-4 mr-3 text-gray-500" />
-                              Copiar ID
-                            </button>
-                            <hr className="my-2 border-gray-100" />
-                            <button 
-                              onClick={() => onDeleteBrand(brand)}
-                              className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50 flex items-center transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4 mr-3" />
-                              Excluir
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <button 
+                      onClick={() => onDeleteBrand(brand)}
+                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 border border-transparent hover:border-red-200"
+                      title="Excluir marca"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </td>
               </tr>

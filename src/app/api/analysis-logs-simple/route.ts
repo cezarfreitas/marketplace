@@ -23,13 +23,25 @@ export async function GET(request: NextRequest) {
       console.log('🔍 Buscando logs para produto:', productId);
       logs = await executeQuery(`
         SELECT 
-          id, product_id, product_ref_id, analysis_type, model_used, 
-          tokens_used, success, created_at, analysis_text as contextual_analysis,
-          product_type, valid_images as image_count, invalid_images as invalid_image_count, analysis_quality,
-          analysis_duration_ms, openai_response_time_ms, max_tokens,
-          'Agente de Imagens' as agent_name
-        FROM image_analysis_logs
-        WHERE product_id = ?
+          id_produto as product_id, 
+          COALESCE((SELECT ref_id FROM products_vtex WHERE id = id_produto), 'N/A') as product_ref_id,
+          'image_analysis' as analysis_type, 
+          openai_model as model_used, 
+          openai_tokens_used as tokens_used, 
+          openai_cost,
+          1 as success, 
+          created_at, 
+          contextualizacao as contextual_analysis,
+          product_type, 
+          valid_images as image_count, 
+          invalid_images as invalid_image_count, 
+          analysis_quality,
+          analysis_duration_ms, 
+          openai_response_time_ms, 
+          openai_max_tokens as max_tokens,
+          COALESCE(agent_name, 'Agente de Imagens') as agent_name
+        FROM analise_imagens
+        WHERE id_produto = ?
         ORDER BY created_at DESC 
         LIMIT ?
       `, [productId, limit.toString()]);
@@ -37,12 +49,24 @@ export async function GET(request: NextRequest) {
       console.log('🔍 Buscando todos os logs');
       logs = await executeQuery(`
         SELECT 
-          id, product_id, product_ref_id, analysis_type, model_used, 
-          tokens_used, success, created_at, analysis_text as contextual_analysis,
-          product_type, valid_images as image_count, invalid_images as invalid_image_count, analysis_quality,
-          analysis_duration_ms, openai_response_time_ms, max_tokens,
-          'Agente de Imagens' as agent_name
-        FROM image_analysis_logs
+          id_produto as product_id, 
+          COALESCE((SELECT ref_id FROM products_vtex WHERE id = id_produto), 'N/A') as product_ref_id,
+          'image_analysis' as analysis_type, 
+          openai_model as model_used, 
+          openai_tokens_used as tokens_used, 
+          openai_cost,
+          1 as success, 
+          created_at, 
+          contextualizacao as contextual_analysis,
+          product_type, 
+          valid_images as image_count, 
+          invalid_images as invalid_image_count, 
+          analysis_quality,
+          analysis_duration_ms, 
+          openai_response_time_ms, 
+          openai_max_tokens as max_tokens,
+          COALESCE(agent_name, 'Agente de Imagens') as agent_name
+        FROM analise_imagens
         ORDER BY created_at DESC 
         LIMIT ?
       `, [limit.toString()]);

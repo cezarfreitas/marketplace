@@ -14,11 +14,11 @@ export async function GET() {
         SUM(CASE WHEN is_active = 1 AND is_visible = 1 THEN 1 ELSE 0 END) as active_and_visible_products,
         SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_products,
         SUM(CASE WHEN is_visible = 0 THEN 1 ELSE 0 END) as invisible_products,
-        SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM images i JOIN skus s ON i.sku_id = s.id WHERE s.product_id = p.id) THEN 1 ELSE 0 END) as products_without_images,
-        SUM(CASE WHEN EXISTS (SELECT 1 FROM images i JOIN skus s ON i.sku_id = s.id WHERE s.product_id = p.id) THEN 1 ELSE 0 END) as products_with_images,
+        SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM images_vtex i JOIN skus_vtex s ON i.sku_id = s.id WHERE s.product_id = p.id) THEN 1 ELSE 0 END) as products_without_images,
+        SUM(CASE WHEN EXISTS (SELECT 1 FROM images_vtex i JOIN skus_vtex s ON i.sku_id = s.id WHERE s.product_id = p.id) THEN 1 ELSE 0 END) as products_with_images,
         SUM(CASE WHEN EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_id = p.ref_id) THEN 1 ELSE 0 END) as products_in_anymarket,
         SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_id = p.ref_id) THEN 1 ELSE 0 END) as products_not_in_anymarket
-      FROM products p
+      FROM products_vtex p
     `;
 
     const result = await executeQuery(statsQuery);

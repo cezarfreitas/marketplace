@@ -26,10 +26,9 @@ export async function POST(request: NextRequest) {
           i.is_main as is_primary,
           i.position,
           s.id as sku_id,
-          s.sku_name,
-          s.complement_name as sku_color
-        FROM images i
-        INNER JOIN skus s ON i.sku_id = s.id
+          s.name as sku_name
+        FROM images_vtex i
+        INNER JOIN skus_vtex s ON i.sku_id = s.id
         WHERE s.product_id = ?
         ORDER BY i.is_main DESC, i.position ASC, i.id ASC
       `, [productId]);
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest) {
         id: image.id,
         skuId: image.sku_id,
         skuName: image.sku_name,
-        skuColor: image.sku_color,
+        skuColor: null, // Coluna complement_name não existe
         url: imageUrl,
         isPrimary: image.is_primary,
         position: image.position

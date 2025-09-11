@@ -1,151 +1,76 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Layout from '@/components/Layout';
 import Card from '@/components/Card';
-import { Settings, Key, Globe, Database, Save, TestTube, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { Settings, Key, Globe, Database, Eye, EyeOff, FileText, Trash2, AlertTriangle } from 'lucide-react';
 
-interface VtexConfig {
-  accountName: string;
-  environment: string;
-  appKey: string;
-  appToken: string;
-  openaiKey: string;
-}
-
-interface ConnectionTest {
-  status: 'idle' | 'testing' | 'success' | 'error';
-  message: string;
+interface EnvConfig {
+  database: {
+    host: string;
+    port: string;
+    name: string;
+    user: string;
+    password: string;
+  };
+  vtex: {
+    accountName: string;
+    environment: string;
+    appKey: string;
+    appToken: string;
+  };
+  openai: {
+    apiKey: string;
+    organization: string;
+  };
+  anymarket: {
+    token: string;
+    apiUrl: string;
+  };
+  system: {
+    nodeEnv: string;
+    nextAuthSecret: string;
+    nextAuthUrl: string;
+  };
+  other: Record<string, string>;
 }
 
 export default function SettingsPage() {
-  const [config, setConfig] = useState<VtexConfig>({
-    accountName: '',
-    environment: 'vtexcommercestable',
-    appKey: '',
-    appToken: '',
-    openaiKey: '',
-  });
+  const [envConfig, setEnvConfig] = useState<EnvConfig | null>(null);
+  const [loadingEnv, setLoadingEnv] = useState(false);
+  const [showSensitiveValues, setShowSensitiveValues] = useState(false);
+  const [clearingData, setClearingData] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState(false);
 
-  const [connectionTest, setConnectionTest] = useState<ConnectionTest>({
-    status: 'idle',
-    message: '',
-  });
-
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [cleaning, setCleaning] = useState(false);
-
-  // Carregar configurações salvas
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const response = await fetch('/api/settings/save');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setConfig(data.config);
-          }
-        }
-      } catch (error) {
-        console.log('Configurações não encontradas no servidor');
-      }
-    };
-    
-    loadConfig();
-  }, []);
-
-  const handleInputChange = (field: keyof VtexConfig, value: string) => {
-    setConfig(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
+  // Carregar configurações do .env
+  const loadEnvConfig = async () => {
+    setLoadingEnv(true);
     try {
-      const response = await fetch('/api/settings/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(config),
-      });
-
+      const response = await fetch('/api/settings/env-config');
       const data = await response.json();
-
+      
       if (data.success) {
-        alert('Configurações salvas com sucesso!');
+        setEnvConfig(data.data);
       } else {
-        alert(data.message || 'Erro ao salvar configurações');
+        console.error('Erro ao carregar configurações do .env:', data.message);
       }
     } catch (error) {
-      alert('Erro de rede ao salvar configurações');
+      console.error('Erro ao carregar configurações do .env:', error);
     } finally {
-      setSaving(false);
+      setLoadingEnv(false);
     }
   };
 
-  const testConnection = async () => {
-    setTesting(true);
-    setConnectionTest({ status: 'testing', message: 'Testando conexão...' });
-
-    try {
-      const response = await fetch('/api/vtex/test-connection', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(config),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setConnectionTest({
-          status: 'success',
-          message: 'Conexão com VTEX estabelecida com sucesso!'
-        });
-      } else {
-        setConnectionTest({
-          status: 'error',
-          message: data.message || 'Erro ao conectar com VTEX'
-        });
-      }
-    } catch (error) {
-      setConnectionTest({
-        status: 'error',
-        message: 'Erro de rede ao testar conexão'
-      });
-    } finally {
-      setTesting(false);
+  // Limpar todos os dados de produtos e itens relacionados
+  const clearAllProductData = async () => {
+    if (!clearConfirm) {
+      setClearConfirm(true);
+      return;
     }
-  };
 
-  const cleanAllProducts = async () => {
-    const confirmed = window.confirm(
-      '⚠️ ATENÇÃO: Esta operação irá deletar TODOS os dados relacionados aos produtos!\n\n' +
-      'Serão removidos:\n' +
-      '• Todos os produtos\n' +
-      '• Todos os SKUs\n' +
-      '• Todas as imagens\n' +
-      '• Todas as marcas\n' +
-      '• Todas as categorias\n' +
-      '• Todos os dados do marketplace\n' +
-      '• Todos os logs de análise\n' +
-      '• Todos os dados do anymarket\n\n' +
-      'As configurações do sistema serão preservadas.\n\n' +
-      'Esta operação é IRREVERSÍVEL!\n\n' +
-      'Deseja continuar?'
-    );
-
-    if (!confirmed) return;
-
-    setCleaning(true);
-
+    setClearingData(true);
     try {
-      const response = await fetch('/api/settings/clean-products', {
+      const response = await fetch('/api/admin/clear-all-data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -153,368 +78,283 @@ export default function SettingsPage() {
       });
 
       const data = await response.json();
-
+      
       if (data.success) {
-        alert(`✅ Limpeza concluída com sucesso!\n\n` +
-              `📊 Total de registros deletados: ${data.data.totalDeleted}\n` +
-              `⚙️ Configurações preservadas: ${data.data.configsPreserved}`);
+        alert('✅ Todos os dados foram limpos com sucesso!');
+        setClearConfirm(false);
       } else {
-        alert(`❌ Erro durante a limpeza: ${data.message}`);
+        alert(`❌ Erro ao limpar dados: ${data.message}`);
       }
     } catch (error) {
-      alert('❌ Erro de rede ao executar limpeza');
+      console.error('Erro ao limpar dados:', error);
+      alert('❌ Erro ao limpar dados. Verifique o console para mais detalhes.');
     } finally {
-      setCleaning(false);
+      setClearingData(false);
     }
   };
 
-  const getConnectionIcon = () => {
-    switch (connectionTest.status) {
-      case 'testing':
-        return <TestTube className="h-5 w-5 text-blue-500 animate-spin" />;
-      case 'success':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case 'error':
-        return <XCircle className="h-5 w-5 text-red-500" />;
-      default:
-        return <AlertCircle className="h-5 w-5 text-gray-400" />;
-    }
-  };
-
-  const getConnectionColor = () => {
-    switch (connectionTest.status) {
-      case 'testing':
-        return 'text-blue-600';
-      case 'success':
-        return 'text-green-600';
-      case 'error':
-        return 'text-red-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
 
   return (
-    <Layout title="Configurações" subtitle="Configure as credenciais da VTEX e outras opções">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Configurações VTEX */}
+    <Layout title="Configurações" subtitle="Visualizar configurações do arquivo .env">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Configurações do Arquivo .env */}
         <Card>
-          <div className="flex items-center mb-6">
-            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center mr-4">
-              <Key className="h-5 w-5 text-primary-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Credenciais VTEX</h2>
-              <p className="text-gray-600">Configure suas credenciais de API da VTEX</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nome da Conta VTEX
-              </label>
-              <input
-                type="text"
-                value={config.accountName}
-                onChange={(e) => handleInputChange('accountName', e.target.value)}
-                placeholder="ex: minhaloja"
-                className="input-field"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Nome da sua conta VTEX (sem .vtexcommercestable.com.br)
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ambiente
-              </label>
-              <select
-                value={config.environment}
-                onChange={(e) => handleInputChange('environment', e.target.value)}
-                className="input-field"
-              >
-                <option value="vtexcommercestable">Produção</option>
-                <option value="vtexcommercestable">Homologação</option>
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Ambiente da API VTEX
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                App Key
-              </label>
-              <input
-                type="text"
-                value={config.appKey}
-                onChange={(e) => handleInputChange('appKey', e.target.value)}
-                placeholder="Sua App Key da VTEX"
-                className="input-field"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Identificador único da sua API key
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                App Token
-              </label>
-              <input
-                type="password"
-                value={config.appToken}
-                onChange={(e) => handleInputChange('appToken', e.target.value)}
-                placeholder="Seu App Token da VTEX"
-                className="input-field"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Token secreto da sua API key
-              </p>
-            </div>
-
-          </div>
-
-          {/* URL Base */}
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              URL Base da API
-            </label>
-            <div className="flex items-center space-x-2">
-              <Globe className="h-5 w-5 text-gray-400" />
-              <code className="flex-1 bg-gray-100 px-3 py-2 rounded-lg text-sm">
-                https://{config.accountName || 'sua-conta'}.{config.environment}.com.br
-              </code>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              URL base que será usada para as requisições à API VTEX
-            </p>
-          </div>
-
-          {/* Teste de Conexão */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                {getConnectionIcon()}
-                <span className={`ml-2 text-sm font-medium ${getConnectionColor()}`}>
-                  {connectionTest.message || 'Teste a conexão com a API VTEX'}
-                </span>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                <FileText className="h-5 w-5 text-blue-600" />
               </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Configurações do .env</h2>
+                <p className="text-gray-600">Visualizar configurações atuais do arquivo de ambiente</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
               <button
-                onClick={testConnection}
-                disabled={testing || !config.accountName || !config.appKey || !config.appToken}
+                onClick={() => setShowSensitiveValues(!showSensitiveValues)}
+                className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+                title={showSensitiveValues ? 'Ocultar valores sensíveis' : 'Mostrar valores sensíveis'}
+              >
+                {showSensitiveValues ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
+                {showSensitiveValues ? 'Ocultar' : 'Mostrar'}
+              </button>
+              <button
+                onClick={loadEnvConfig}
+                disabled={loadingEnv}
                 className="btn-secondary text-sm"
               >
-                {testing ? 'Testando...' : 'Testar Conexão'}
+                {loadingEnv ? 'Carregando...' : 'Atualizar'}
               </button>
             </div>
           </div>
 
-          {/* Configurações de IA */}
-          <div className="mt-8">
-            <div className="flex items-center mb-4">
-              <div className="bg-purple-100 p-2 rounded-lg mr-3">
-                <Key className="h-5 w-5 text-purple-600" />
+          {envConfig ? (
+            <div className="space-y-6">
+              {/* Banco de Dados */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Database className="h-5 w-5 mr-2 text-gray-600" />
+                  Banco de Dados
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Host</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.database.host}</code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Porta</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.database.port}</code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Banco</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.database.name}</code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.database.user}</code>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm font-mono">
+                      {showSensitiveValues ? process.env.DB_PASSWORD || 'Não configurado' : envConfig.database.password}
+                    </code>
+                  </div>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Configurações de IA</h3>
-                <p className="text-sm text-gray-600">Configure as chaves de API para funcionalidades de inteligência artificial</p>
+
+              {/* VTEX */}
+              <div className="bg-purple-50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Globe className="h-5 w-5 mr-2 text-purple-600" />
+                  Configurações VTEX
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Conta</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.vtex.accountName}</code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ambiente</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.vtex.environment}</code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">App Key</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm font-mono">
+                      {showSensitiveValues ? process.env.VTEX_APP_KEY || 'Não configurado' : envConfig.vtex.appKey}
+                    </code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">App Token</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm font-mono">
+                      {showSensitiveValues ? process.env.VTEX_APP_TOKEN || 'Não configurado' : envConfig.vtex.appToken}
+                    </code>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Chave da OpenAI
-              </label>
-              <input
-                type="password"
-                value={config.openaiKey}
-                onChange={(e) => handleInputChange('openaiKey', e.target.value)}
-                placeholder="sk-..."
-                className="input-field"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Chave da API da OpenAI para funcionalidades de IA (análise de produtos, geração de conteúdo, etc.)
-              </p>
-            </div>
-          </div>
-
-          {/* Botões de Ação */}
-          <div className="flex justify-end space-x-4 mt-6">
-            <button
-              onClick={handleSave}
-              disabled={saving || !config.accountName || !config.appKey || !config.appToken}
-              className="btn-primary flex items-center"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Salvando...' : 'Salvar Configurações'}
-            </button>
-          </div>
-        </Card>
-
-        {/* Configurações do Banco de Dados */}
-        <Card>
-          <div className="flex items-center mb-6">
-            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center mr-4">
-              <Database className="h-5 w-5 text-primary-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Banco de Dados</h2>
-              <p className="text-gray-600">Configurações de conexão com MySQL</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Host
-              </label>
-              <input
-                type="text"
-                value="server.idenegociosdigitais.com.br"
-                disabled
-                className="input-field bg-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Porta
-              </label>
-              <input
-                type="text"
-                value="3349"
-                disabled
-                className="input-field bg-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Banco de Dados
-              </label>
-              <input
-                type="text"
-                value="meli"
-                disabled
-                className="input-field bg-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Usuário
-              </label>
-              <input
-                type="text"
-                value="meli"
-                disabled
-                className="input-field bg-gray-100"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center">
-              <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-              <span className="text-sm text-green-700">
-                Conexão com banco de dados estabelecida com sucesso
-              </span>
-            </div>
-          </div>
-        </Card>
-
-        {/* Informações da API */}
-        <Card>
-          <div className="flex items-center mb-6">
-            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center mr-4">
-              <Settings className="h-5 w-5 text-primary-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Informações da API</h2>
-              <p className="text-gray-600">Documentação e exemplos de uso</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Exemplo de Requisição cURL:</h3>
-              <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
-{`curl --request get \\
-  --url https://${config.accountName || 'sua-conta'}.${config.environment}.com.br/api/catalog_system/pvt/brand/list \\
-  --header 'Accept: application/json' \\
-  --header 'Content-Type: application/json' \\
-  --header 'X-VTEX-API-AppKey: ${config.appKey || 'sua-app-key'}' \\
-  --header 'X-VTEX-API-AppToken: ${config.appToken || 'seu-app-token'}'`}
-              </pre>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Endpoints Principais:</h3>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• <code>/api/catalog_system/pvt/brand/list</code> - Listar marcas</li>
-                <li>• <code>/api/catalog_system/pvt/category/tree</code> - Listar categorias</li>
-                <li>• <code>/api/catalog_system/pvt/product/GetProductAndSkuIds</code> - Listar produtos</li>
-                <li>• <code>/api/catalog_system/pvt/stockkeepingunit</code> - Listar SKUs</li>
-              </ul>
-            </div>
-          </div>
-        </Card>
-
-        {/* Limpeza de Dados */}
-        <Card>
-          <div className="flex items-center mb-6">
-            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-4">
-              <Trash2 className="h-5 w-5 text-red-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Limpeza de Dados</h2>
-              <p className="text-gray-600">Remover todos os dados relacionados aos produtos</p>
-            </div>
-          </div>
-
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-start">
-              <AlertCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
-              <div>
-                <h3 className="text-sm font-medium text-red-800 mb-2">⚠️ Operação Irreversível</h3>
-                <p className="text-sm text-red-700 mb-3">
-                  Esta operação irá deletar TODOS os dados relacionados aos produtos do sistema, incluindo:
-                </p>
-                <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
-                  <li>Todos os produtos e SKUs</li>
-                  <li>Todas as imagens e vídeos</li>
-                  <li>Todas as marcas e categorias</li>
-                  <li>Todos os dados do marketplace</li>
-                  <li>Todos os logs de análise</li>
-                  <li>Todos os dados do anymarket</li>
-                </ul>
-                <p className="text-sm text-red-700 mt-3 font-medium">
-                  As configurações do sistema serão preservadas.
-                </p>
+              {/* OpenAI */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Key className="h-5 w-5 mr-2 text-green-600" />
+                  Configurações OpenAI
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm font-mono">
+                      {showSensitiveValues ? process.env.OPENAI_API_KEY || 'Não configurado' : envConfig.openai.apiKey}
+                    </code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Organização</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.openai.organization}</code>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <button
-            onClick={cleanAllProducts}
-            disabled={cleaning}
-            className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
-          >
-            {cleaning ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                Limpando dados...
-              </>
-            ) : (
-              <>
-                <Trash2 className="h-5 w-5 mr-2" />
-                Limpar Todos os Dados de Produtos
-              </>
-            )}
-          </button>
+              {/* Anymarket */}
+              <div className="bg-yellow-50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <FileText className="h-5 w-5 mr-2 text-yellow-600" />
+                  Configurações Anymarket
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Token</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm font-mono">
+                      {showSensitiveValues ? process.env.ANYMARKET_TOKEN || 'Não configurado' : envConfig.anymarket.token}
+                    </code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">URL da API</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.anymarket.apiUrl}</code>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sistema */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Settings className="h-5 w-5 mr-2 text-blue-600" />
+                  Configurações do Sistema
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ambiente Node</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.system.nodeEnv}</code>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">NextAuth URL</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm">{envConfig.system.nextAuthUrl}</code>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">NextAuth Secret</label>
+                    <code className="block bg-white px-3 py-2 rounded border text-sm font-mono">
+                      {showSensitiveValues ? process.env.NEXTAUTH_SECRET || 'Não configurado' : envConfig.system.nextAuthSecret}
+                    </code>
+                  </div>
+                </div>
+              </div>
+
+              {/* Limpeza de Dados */}
+              <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Trash2 className="h-5 w-5 mr-2 text-red-600" />
+                  Limpeza de Dados
+                </h3>
+                <div className="space-y-4">
+                  <div className="bg-red-100 border border-red-300 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-sm font-medium text-red-800 mb-2">⚠️ Ação Irreversível</h4>
+                        <p className="text-sm text-red-700 mb-3">
+                          Esta operação irá apagar <strong>TODOS</strong> os dados relacionados a produtos, incluindo:
+                        </p>
+                        <ul className="text-sm text-red-700 list-disc list-inside space-y-1 mb-4">
+                          <li>Produtos VTEX</li>
+                          <li>SKUs e variações</li>
+                          <li>Imagens dos produtos</li>
+                          <li>Análises de imagem</li>
+                          <li>Descrições do marketplace</li>
+                          <li>Características e respostas</li>
+                          <li>Estoque</li>
+                          <li>Sincronizações Anymarket</li>
+                        </ul>
+                        <p className="text-sm font-medium text-red-800">
+                          Esta ação <strong>NÃO PODE</strong> ser desfeita!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3">
+                    {!clearConfirm ? (
+                      <button
+                        onClick={clearAllProductData}
+                        disabled={clearingData}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {clearingData ? 'Limpando...' : 'Limpar Todos os Dados'}
+                      </button>
+                    ) : (
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={clearAllProductData}
+                          disabled={clearingData}
+                          className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          {clearingData ? 'Confirmando...' : 'Confirmar Limpeza'}
+                        </button>
+                        <button
+                          onClick={() => setClearConfirm(false)}
+                          disabled={clearingData}
+                          className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Outras configurações sensíveis */}
+              {Object.keys(envConfig.other).length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <Key className="h-5 w-5 mr-2 text-gray-600" />
+                    Outras Configurações Sensíveis
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(envConfig.other).map(([key, value]) => (
+                      <div key={key}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{key}</label>
+                        <code className="block bg-white px-3 py-2 rounded border text-sm font-mono">
+                          {showSensitiveValues ? process.env[key] || 'Não configurado' : value}
+                        </code>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Configurações não carregadas</h3>
+              <p className="text-gray-500 mb-4">Clique em &quot;Atualizar&quot; para carregar as configurações do arquivo .env</p>
+              <button
+                onClick={loadEnvConfig}
+                disabled={loadingEnv}
+                className="btn-primary"
+              >
+                {loadingEnv ? 'Carregando...' : 'Carregar Configurações'}
+              </button>
+            </div>
+          )}
         </Card>
       </div>
     </Layout>

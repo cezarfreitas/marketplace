@@ -95,7 +95,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Verificar se a categoria tem produtos associados
     const productsCount = await executeQuery(
-      'SELECT COUNT(*) as count FROM products WHERE category_id = ?',
+      'SELECT COUNT(*) as count FROM products_vtex WHERE category_id = ?',
       [id]
     );
 

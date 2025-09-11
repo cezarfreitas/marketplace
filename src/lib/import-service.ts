@@ -48,7 +48,7 @@ export class ImportService {
     try {
       const [brandsCount] = await executeQuery('SELECT COUNT(*) as count FROM brands');
       const [categoriesCount] = await executeQuery('SELECT COUNT(*) as count FROM categories');
-      const [productsCount] = await executeQuery('SELECT COUNT(*) as count FROM products');
+      const [productsCount] = await executeQuery('SELECT COUNT(*) as count FROM products_vtex');
       
       return {
         brands: brandsCount.count,
@@ -75,7 +75,7 @@ export class ImportService {
       let importedCount = 0;
       for (const product of products) {
         await executeQuery(
-          `INSERT INTO products (vtex_id, name, description, brand_id, category_id, is_active, created_at, updated_at)
+          `INSERT INTO products_vtex (vtex_id, name, description, brand_id, category_id, is_active, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
            ON DUPLICATE KEY UPDATE 
            name = VALUES(name), description = VALUES(description), brand_id = VALUES(brand_id), 
@@ -158,7 +158,7 @@ export class ImportService {
           'product' as type,
           name,
           created_at
-        FROM products 
+        FROM products_vtex 
         ORDER BY created_at DESC 
         LIMIT ?
         ORDER BY created_at DESC 
@@ -182,7 +182,7 @@ export class ImportService {
       let importedCount = 0;
       for (const category of categories) {
         await executeQuery(
-          `INSERT INTO categories (vtex_id, name, father_category_id, title, is_active, created_at, updated_at)
+          `INSERT INTO categories_vtex (vtex_id, name, father_category_id, title, is_active, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, NOW(), NOW())
            ON DUPLICATE KEY UPDATE 
            name = VALUES(name), title = VALUES(title), updated_at = NOW()`,
@@ -233,7 +233,7 @@ export class ImportService {
       
       // Inserir produto
       const [productResult] = await executeQuery(
-        `INSERT INTO products (vtex_id, name, department_id, category_id, brand_id, is_visible, description, title, is_active, created_at, updated_at)
+        `INSERT INTO products_vtex (vtex_id, name, department_id, category_id, brand_id, is_visible, description, title, is_active, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE 
          name = VALUES(name), description = VALUES(description), updated_at = NOW()`,
@@ -301,7 +301,7 @@ export class ImportService {
       // Inserir apenas o produto (sem dependências)
       console.log(`📦 Inserindo produto...`);
       const [productResult] = await executeQuery(
-        `INSERT INTO products (vtex_id, name, department_id, ref_id, is_visible, description, title, is_active, created_at, updated_at)
+        `INSERT INTO products_vtex (vtex_id, name, department_id, ref_id, is_visible, description, title, is_active, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE 
          name = VALUES(name), description = VALUES(description), updated_at = NOW()`,

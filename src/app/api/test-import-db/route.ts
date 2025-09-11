@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     // 3. Inserir produto
     console.log('📦 Inserindo produto...');
     const [productResult] = await executeQuery(
-      `INSERT INTO products (vtex_id, name, department_id, category_id, brand_id, is_visible, description, title, is_active, created_at, updated_at)
+      `INSERT INTO products_vtex (vtex_id, name, department_id, category_id, brand_id, is_visible, description, title, is_active, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
        ON DUPLICATE KEY UPDATE 
        name = VALUES(name), description = VALUES(description), updated_at = NOW()`,

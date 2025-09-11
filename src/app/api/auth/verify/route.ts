@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       const user = await getUserById(decoded.userId);
       
       if (user && user.is_active) {
-        console.log('✅ Token válido para usuário:', user.username);
+        console.log('✅ Token válido para usuário:', user.nome);
         
         return NextResponse.json({
           success: true,

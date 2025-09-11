@@ -6,7 +6,7 @@ import { formatDate, formatNumber, getProductImageUrl } from '../utils/formatter
 import { StockTooltip } from './StockTooltip';
 import { 
   Eye, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon,
-  Camera, FileText, RefreshCw, Crop
+  Camera, FileText, RotateCcw, Crop, Package, List
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -28,12 +28,15 @@ interface ProductTableProps {
   onDeleteProduct: (product: Product) => void;
   onAnalyzeImages: (product: Product) => void;
   onGenerateMarketplaceDescription: (product: Product) => void;
+  onGenerateCharacteristics: (product: Product) => void;
   onSyncAnymarketing: (product: Product) => void;
   onCropImages: (product: Product) => void;
   productsWithAnalysis?: number[]; // IDs dos produtos que já têm análise
   productsWithMarketplace?: number[]; // IDs dos produtos que já têm descrição do Marketplace
+  productsWithCharacteristics?: number[]; // IDs dos produtos que já têm características
   productsWithAnymarketSync?: number[]; // IDs dos produtos que já foram sincronizados com Anymarket
   productsWithCroppedImages?: number[]; // IDs dos produtos que já têm imagens cropadas
+  anymarketMappings?: Record<string, string>; // Mapeamentos ref_id -> id_produto_any
 }
 
 export function ProductTable({
@@ -54,16 +57,24 @@ export function ProductTable({
   onDeleteProduct,
   onAnalyzeImages,
   onGenerateMarketplaceDescription,
+  onGenerateCharacteristics,
   onSyncAnymarketing,
   onCropImages,
   productsWithAnalysis = [],
   productsWithMarketplace = [],
+  productsWithCharacteristics = [],
   productsWithAnymarketSync = [],
-  productsWithCroppedImages = []
+  productsWithCroppedImages = [],
+  anymarketMappings = {}
 }: ProductTableProps) {
-  // Debug: verificar se a lista está chegando
-  console.log('🔍 ProductTable - productsWithMarketplace:', productsWithMarketplace);
-  console.log('🔍 ProductTable - productsWithAnymarketSync:', productsWithAnymarketSync);
+  // Debug temporário - removido
+  // console.log('🔍 [DEBUG] ProductTable renderizado');
+  // console.log('🔍 [DEBUG] productsWithAnalysis:', productsWithAnalysis);
+  // console.log('🔍 [DEBUG] products.length:', products.length);
+  // if (products.length > 0) {
+  //   console.log('🔍 [DEBUG] Primeiro produto ID:', products[0].id);
+  //   console.log('🔍 [DEBUG] Primeiro produto tem análise?', productsWithAnalysis.includes(products[0].id));
+  // }
 
   // Função para truncar texto
   const truncateText = (text: string, maxLength: number = 30): string => {
@@ -104,7 +115,7 @@ export function ProductTable({
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 relative">
-      <div className="overflow-x-auto" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="overflow-x-auto" style={{ position: 'relative', zIndex: 0 }}>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
             <tr>
@@ -125,22 +136,22 @@ export function ProductTable({
                   {getSortIcon('name')}
                 </div>
               </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-20">
+              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-24">
                 <div className="flex items-center justify-center space-x-1">
-                  <span>Estoque</span>
+                  <span>SKUs / Estoque</span>
                 </div>
               </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                RefId / ID_ANY
-              </th>
               <th 
-                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell cursor-pointer hover:bg-gray-200 transition-colors"
+                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={() => onSort('brand_name')}
               >
                 <div className="flex items-center space-x-1">
                   <span>Marca</span>
                   {getSortIcon('brand_name')}
                 </div>
+              </th>
+              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
+                RefId / ID_ANY
               </th>
               <th 
                 className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell cursor-pointer hover:bg-gray-200 transition-colors"
@@ -153,15 +164,6 @@ export function ProductTable({
               </th>
               <th 
                 className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-16 cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={() => onSort('sku_count')}
-              >
-                <div className="flex items-center justify-center space-x-1">
-                  <span>SKUs</span>
-                  {getSortIcon('sku_count')}
-                </div>
-              </th>
-              <th 
-                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-16 cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={() => onSort('image_count')}
               >
                 <div className="flex items-center justify-center space-x-1">
@@ -169,18 +171,18 @@ export function ProductTable({
                   {getSortIcon('image_count')}
                 </div>
               </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Ferramentas
+              <th className="px-3 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
+                Otimização
               </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
-                Ações
-              </th>
+        <th className="px-3 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
+          Ações
+        </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {products.map((product) => (
               <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-4 whitespace-nowrap">
+                <td className="px-3 py-4 whitespace-nowrap">
                   <input
                     type="checkbox"
                     checked={selectedProducts.includes(product.id)}
@@ -188,21 +190,22 @@ export function ProductTable({
                     className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap">
+                <td className="px-3 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                      {product.first_image_url ? (
-                        <Image
-                          src={getProductImageUrl(product)}
+                      {product.main_image ? (
+                        <img
+                          src={product.main_image.startsWith('http') ? product.main_image : `https://projetoinfluencer.${product.main_image}`}
                           alt={product.name}
-                          width={40}
-                          height={40}
                           className="w-full h-full object-cover rounded-lg"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
                           }}
                         />
-                      ) : null}
+                      ) : (
+                        <Package className="h-5 w-5 text-gray-400" />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center space-x-2">
@@ -222,6 +225,11 @@ export function ProductTable({
                           )}
                         </div>
                       </div>
+                      {product.ref_id && (
+                        <div className="text-xs text-blue-600 font-mono truncate" title={`RefId: ${product.ref_id}`}>
+                          {product.ref_id}
+                        </div>
+                      )}
                       {product.title && (
                         <div className="text-xs text-gray-500 truncate" title={product.title}>
                           {truncateText(product.title, 50)}
@@ -230,13 +238,20 @@ export function ProductTable({
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-center">
-                  <div className="flex items-center justify-center">
+                <td className="px-3 py-4 whitespace-nowrap text-center">
+                  <div className="flex items-center justify-center space-x-2">
+                    {/* SKUs */}
+                    <span className="inline-flex items-center justify-center w-8 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200">
+                      {product.sku_count || 0}
+                    </span>
+                    {/* Separador */}
+                    <span className="text-gray-400 text-xs">/</span>
+                    {/* Estoque */}
                     <StockTooltip 
                       productId={product.id} 
                       totalStock={product.total_stock || 0}
                     >
-                      <span className={`inline-flex items-center justify-center w-12 h-8 rounded-full text-sm font-semibold border cursor-help ${
+                      <span className={`inline-flex items-center justify-center w-8 h-6 rounded-full text-xs font-semibold border cursor-help ${
                         (product.total_stock || 0) > 0 
                           ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' 
                           : 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200'
@@ -246,137 +261,150 @@ export function ProductTable({
                     </StockTooltip>
                   </div>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <div className="flex items-center">
-                    <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200 font-medium">
-                      {product.ref_id || 'N/A'}
-                      {product.anymarket_id && (
-                        <span className="text-gray-500 mx-1">-</span>
-                      )}
-                      {product.anymarket_id && (
-                        <span className="text-purple-700">{product.anymarket_id}</span>
-                      )}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
+                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div className="flex items-center">
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
                       {product.brand_name || 'N/A'}
                     </span>
                   </div>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
+                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
+                  <div className="flex items-center">
+                    <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200 font-medium">
+                      {product.ref_id || 'N/A'}
+                      {anymarketMappings[product.ref_id || ''] && (
+                        <span className="text-gray-500 mx-1">-</span>
+                      )}
+                      {anymarketMappings[product.ref_id || ''] && (
+                        <span className="text-purple-700">{anymarketMappings[product.ref_id || '']}</span>
+                      )}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
                   <div className="flex items-center">
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
                       {product.category_name || 'N/A'}
                     </span>
                   </div>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-center">
-                  <div className="flex items-center justify-center">
-                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 text-sm font-semibold border border-emerald-200">
-                      {product.sku_count || 0}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-center">
+                <td className="px-3 py-4 whitespace-nowrap text-center">
                   <div className="flex items-center justify-center">
                     <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-sm font-semibold border border-indigo-200">
                       {product.image_count || 0}
                     </span>
                   </div>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap">
-                  <div className="flex items-center space-x-2">
+                <td className="px-3 py-4 whitespace-nowrap">
+                  <div className="flex items-center justify-center space-x-2">
                     <button
-                      onClick={() => onAnalyzeImages(product)}
-                      className={`p-2 rounded-lg transition-all duration-200 border border-transparent ${
+                      onClick={() => {
+                        // Debug removido
+                        // if (product.id === 203723663) {
+                        //   console.log('🔍 [DEBUG] Botão câmera clicado - Produto 203723663');
+                        //   console.log('🔍 [DEBUG] productsWithAnalysis:', productsWithAnalysis);
+                        //   console.log('🔍 [DEBUG] Produto 203723663 tem análise?', productsWithAnalysis.includes(203723663));
+                        // }
+                        onAnalyzeImages(product);
+                      }}
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
                         productsWithAnalysis.includes(product.id)
-                          ? 'text-green-800 bg-green-400 border-green-500 hover:bg-green-500'
-                          : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-200'
+                          ? 'border-blue-400 bg-blue-200 hover:bg-blue-300 !important'
+                          : 'border-gray-300 hover:bg-gray-50'
                       }`}
                       style={productsWithAnalysis.includes(product.id) ? {
-                        backgroundColor: '#4ade80',
-                        color: '#166534',
-                        borderColor: '#22c55e'
+                        backgroundColor: '#93c5fd',
+                        borderColor: '#60a5fa'
                       } : {}}
-                      title="Análise de Imagem"
+                      title={`Análise de Imagem${productsWithAnalysis.includes(product.id) ? ' (Concluída)' : ''}`}
                     >
-                      <Camera className="h-4 w-4" />
+                      <Camera 
+                        className={`h-4 w-4 group-hover:text-gray-800 ${
+                          productsWithAnalysis.includes(product.id)
+                            ? 'text-blue-800'
+                            : 'text-gray-600'
+                        }`}
+                        style={productsWithAnalysis.includes(product.id) ? {
+                          color: '#1e40af'
+                        } : {}}
+                      />
                     </button>
                     <button
                       onClick={() => {
-                        console.log(`🔍 Produto ${product.id} (${product.name}) - Tem marketplace:`, productsWithMarketplace.includes(product.id));
+                        // console.log(`🔍 Produto ${product.id} (${product.name}) - Tem marketplace:`, productsWithMarketplace.includes(product.id));
                         onGenerateMarketplaceDescription(product);
                       }}
-                      className={`p-2 rounded-lg transition-all duration-200 border border-transparent ${
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
                         productsWithMarketplace.includes(product.id)
-                          ? 'text-yellow-800 bg-yellow-400 border-yellow-500 hover:bg-yellow-500'
-                          : 'text-gray-500 hover:text-orange-600 hover:bg-orange-50 hover:border-orange-200'
+                          ? 'border-yellow-400 bg-yellow-500 hover:bg-yellow-600'
+                          : 'border-gray-300 hover:bg-gray-50'
                       }`}
-                      style={productsWithMarketplace.includes(product.id) ? {
-                        backgroundColor: '#fbbf24',
-                        color: '#92400e',
-                        borderColor: '#f59e0b'
-                      } : {}}
-                      title="Gerar Descrição para Marketplace"
+                      title={`Gerar Descrição para Marketplace${productsWithMarketplace.includes(product.id) ? ' (Gerada)' : ''}`}
                     >
-                      <span className="h-4 w-4 flex items-center justify-center font-bold text-sm">M</span>
+                      <span className={`h-4 w-4 flex items-center justify-center font-bold text-sm ${
+                        productsWithMarketplace.includes(product.id)
+                          ? 'text-gray-800'
+                          : 'text-gray-600 group-hover:text-gray-800'
+                      }`}>M</span>
                     </button>
                     <button
                       onClick={() => {
-                        console.log(`🔍 Produto ${product.id} (${product.name}) - Tem sync Anymarket:`, productsWithAnymarketSync.includes(product.id));
-                        console.log(`📋 Lista de produtos com sync:`, productsWithAnymarketSync);
+                        // console.log(`🔍 Produto ${product.id} (${product.name}) - Tem características:`, productsWithCharacteristics.includes(product.id));
+                        onGenerateCharacteristics(product);
+                      }}
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
+                        productsWithCharacteristics.includes(product.id)
+                          ? 'border-green-400 bg-green-500 hover:bg-green-600'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                      title={`Gerar Características${productsWithCharacteristics.includes(product.id) ? ' (Geradas)' : ''}`}
+                    >
+                      <List 
+                        className={`h-4 w-4 group-hover:text-gray-800 ${
+                          productsWithCharacteristics.includes(product.id)
+                            ? 'text-gray-800'
+                            : 'text-gray-600'
+                        }`}
+                      />
+                    </button>
+                    <button
+                      onClick={() => {
+                        // console.log(`🔍 Produto ${product.id} (${product.name}) - Tem sync Anymarket:`, productsWithAnymarketSync.includes(product.id));
+                        // console.log(`📋 Lista de produtos com sync:`, productsWithAnymarketSync);
                         onSyncAnymarketing(product);
                       }}
-                      className={`p-2 rounded-lg transition-all duration-200 border border-transparent ${
-                        productsWithAnymarketSync.includes(product.id)
-                          ? 'text-blue-800 bg-blue-400 border-blue-500 hover:bg-blue-500'
-                          : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200'
-                      }`}
-                      style={productsWithAnymarketSync.includes(product.id) ? {
-                        backgroundColor: '#60a5fa',
-                        color: '#1e40af',
-                        borderColor: '#3b82f6'
-                      } : {}}
-                      title={productsWithAnymarketSync.includes(product.id) ? "Sincronizado com Anymarket" : "Sincronizar com Anymarket"}
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative ${productsWithAnymarketSync.includes(product.id) ? 'border-orange-400 bg-orange-300 hover:bg-orange-400' : 'border-gray-300 hover:bg-gray-50'}`}
+                      title={`Sincronizar com Anymarket${productsWithAnymarketSync.includes(product.id) ? ' (Sincronizado)' : ''}`}
                     >
-                      <RefreshCw className="h-4 w-4" />
+                      <RotateCcw className={`h-4 w-4 ${productsWithAnymarketSync.includes(product.id) ? 'text-orange-800 group-hover:text-orange-900' : 'text-gray-600 group-hover:text-gray-800'}`} />
                     </button>
                     <button
                       onClick={() => onCropImages(product)}
-                      className={`p-2 rounded-lg transition-all duration-200 border border-transparent ${
-                        productsWithCroppedImages.includes(product.id)
-                          ? 'text-purple-800 bg-purple-400 border-purple-500 hover:bg-purple-500'
-                          : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50 hover:border-purple-200'
-                      }`}
-                      style={productsWithCroppedImages.includes(product.id) ? {
-                        backgroundColor: '#c084fc',
-                        color: '#6b21a8',
-                        borderColor: '#a855f7'
-                      } : {}}
-                      title={productsWithCroppedImages.includes(product.id) ? "Imagens já cropadas" : "Cropar imagens da Anymarketing"}
+                      className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50 transition-colors group relative"
+                      title={`Cropar Imagens${productsWithCroppedImages.includes(product.id) ? ' (Concluído)' : ''}`}
                     >
-                      <Crop className="h-4 w-4" />
+                      <Crop className="h-4 w-4 text-gray-600 group-hover:text-gray-800" />
+                      {productsWithCroppedImages.includes(product.id) && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border border-white z-0"></div>
+                      )}
                     </button>
                   </div>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap">
-                  <div className="flex items-center space-x-2">
+                <td className="px-3 py-4 whitespace-nowrap">
+                  <div className="flex items-center justify-center space-x-2">
                     <button 
                       onClick={() => onViewProduct(product)}
-                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200"
-                      title="Ver detalhes"
+                      className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50 transition-colors group"
+                      title="Ver detalhes do produto"
                     >
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4 text-gray-600 group-hover:text-gray-800" />
                     </button>
                     <button
                       onClick={() => onDeleteProduct(product)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 border border-transparent hover:border-red-200"
-                      title="Excluir produto"
+                      className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50 transition-colors group"
+                      title="Excluir produto permanentemente"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 text-gray-600 group-hover:text-gray-800" />
                     </button>
                   </div>
                 </td>

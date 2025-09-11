@@ -33,18 +33,26 @@ export async function GET(
     const tableStructure = await executeQuery(describeQuery, []);
     console.log('📋 Estrutura da tabela images:', tableStructure);
 
-    // Buscar imagens do produto
+    // Buscar imagens do produto (mesmo formato do modal de análise)
     const query = `
       SELECT 
-        i.*,
-        CONCAT('https://projetoinfluencer.', i.file_location) as file_url
-      FROM images i
-      JOIN skus s ON i.sku_id = s.id
+        i.id, 
+        i.file_location, 
+        i.text as alt_text, 
+        i.is_main as is_primary, 
+        i.sku_id, 
+        i.name, 
+        i.label,
+        CONCAT('https://projetoinfluencer.', i.file_location) as url
+      FROM images_vtex i
+      INNER JOIN skus_vtex s ON i.sku_id = s.id
       WHERE s.product_id = ?
+      ORDER BY i.is_main DESC, i.position ASC, i.id ASC
     `;
 
     const images = await executeQuery(query, [productId]);
     console.log('🖼️ Imagens encontradas para produto', productId, ':', images.length);
+    console.log('🖼️ Dados das imagens:', images);
 
     return NextResponse.json({
       success: true,
