@@ -17,16 +17,15 @@ export function useProducts(options: UseProductsOptions = {}) {
       search: '',
       brand_id: [],
       category_id: [],
-      has_image_analysis: '',
-      has_marketplace_description: '',
-      has_anymarket_ref_id: '',
-      has_anymarket_sync_log: '',
+      has_image_analysis: undefined,
+      has_marketplace_description: undefined,
+      has_anymarket_ref_id: undefined,
+      has_anymarket_sync_log: undefined,
       is_active: '',
       is_visible: '',
-      has_images: '',
-      stock_status: '',
+      has_images: undefined,
       stock_operator: '',
-      stock_value: ''
+      stock_value: undefined
     },
     initialSort = { field: 'created_at', direction: 'desc' }
   } = options;

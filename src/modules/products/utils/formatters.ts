@@ -55,17 +55,17 @@ export function formatProductStatus(product: Product): {
  * Gerar URL da imagem do produto
  */
 export function getProductImageUrl(product: Product, size: 'small' | 'medium' | 'large' = 'medium'): string {
-  if (!product.first_image_url) {
+  if (!product.main_image) {
     return '/placeholder-product.png';
   }
 
   // Se já tem protocolo, retorna como está
-  if (product.first_image_url.startsWith('http')) {
-    return product.first_image_url;
+  if (product.main_image.startsWith('http')) {
+    return product.main_image;
   }
 
   // Adiciona protocolo se necessário
-  return `https://projetoinfluencer.${product.first_image_url}`;
+  return `https://projetoinfluencer.${product.main_image}`;
 }
 
 /**

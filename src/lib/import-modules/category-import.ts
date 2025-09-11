@@ -212,7 +212,7 @@ export class CategoryImportModule {
           category.LinkId,               // Link ID
           category.HasChildren,          // Tem filhos
         ]);
-        categoryDbId = insertResult.insertId!;
+        categoryDbId = (insertResult as any).insertId!;
         console.log(`✅ Categoria inserida com sucesso: ${category.Name} (ID: ${categoryDbId})`);
       }
 

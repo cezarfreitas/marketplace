@@ -11,6 +11,7 @@ import { executeQuery } from '../database';
  * Interface para resultado de importação rápida em lote
  */
 export interface FastBatchImportResult {
+  refId: string;
   success: boolean;
   message: string;
   data?: {
@@ -32,6 +33,9 @@ export interface FastBatchImportResult {
  */
 export interface FastBatchImportConfig {
   batchSize: number;
+  importImages?: boolean;
+  importStock?: boolean;
+  importAttributes?: boolean;
 }
 
 /**
@@ -109,8 +113,7 @@ export class FastBatchImportModule {
           batchResults.push({
             refId,
             success: false,
-            message: error.message,
-            data: null
+            message: error.message
           });
         }
       }
@@ -163,6 +166,7 @@ export class FastBatchImportModule {
 
       if (!productResult?.success) {
         return {
+          refId,
           success: false,
           message: `Falha na importação do produto ${refId}`,
           data: {
@@ -176,6 +180,7 @@ export class FastBatchImportModule {
       const product = productResult.data?.product;
       if (!product) {
         return {
+          refId,
           success: false,
           message: `Produto ${refId} não encontrado na VTEX`,
           data: {
@@ -358,6 +363,7 @@ export class FastBatchImportModule {
       const hasErrors = errors.length > 0;
       
       return {
+        refId,
         success: !hasErrors,
         message: hasErrors 
           ? `Produto ${refId} importado com ${errors.length} avisos`
@@ -379,6 +385,7 @@ export class FastBatchImportModule {
     } catch (error: any) {
       const totalTime = Date.now() - startTime;
       return {
+        refId,
         success: false,
         message: `Erro crítico ao importar produto ${refId}: ${error.message}`,
         data: {

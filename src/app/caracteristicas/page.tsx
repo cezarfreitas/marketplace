@@ -201,7 +201,7 @@ export default function CaracteristicasPage() {
       ? caracteristica.categorias.split(',').map(vtexId => {
           const categoria = categorias.find(c => c.vtex_id === parseInt(vtexId.trim()));
           return categoria ? categoria.id : null;
-        }).filter(id => id !== null)
+        }).filter((id): id is number => id !== null)
       : [];
     
     setFormData({

@@ -106,7 +106,7 @@ export interface UpdateProductRequest extends Partial<CreateProductRequest> {
 }
 
 export interface ProductSortOptions {
-  field: 'name' | 'created_at' | 'updated_at' | 'vtex_id' | 'brand_name' | 'category_name';
+  field: 'name' | 'created_at' | 'updated_at' | 'vtex_id' | 'brand_name' | 'category_name' | 'image_count';
   direction: 'asc' | 'desc';
 }
 

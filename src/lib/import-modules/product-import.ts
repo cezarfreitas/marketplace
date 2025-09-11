@@ -222,7 +222,7 @@ export class ProductImportModule {
           product.AdWordsRemarketingCode, // Código AdWords
           product.LomadeeCampaignCode    // Código Lomadee
         ]);
-        productId = insertResult.insertId!;
+        productId = (insertResult as any).insertId!;
         console.log(`✅ Produto inserido com sucesso: ${product.Name} (ID: ${productId})`);
       }
 

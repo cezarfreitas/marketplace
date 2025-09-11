@@ -151,7 +151,7 @@ export class BrandImportModule {
           brand.metaTagDescription,      // Meta descrição
           brand.imageUrl                 // URL da imagem
         ]);
-        brandDbId = insertResult.insertId!;
+        brandDbId = (insertResult as any).insertId!;
         console.log(`✅ Marca inserida com sucesso: ${brand.name} (ID: ${brandDbId})`);
       }
 
