@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
     const poolInfo = {
       totalConnections: pool.config.connectionLimit,
       queueLimit: pool.config.queueLimit,
-      acquireTimeout: pool.config.acquireTimeout,
-      timeout: pool.config.timeout
+      acquireTimeout: (pool.config as any).acquireTimeout || 'N/A',
+      timeout: (pool.config as any).timeout || 'N/A'
     };
 
     // Testar conexão
