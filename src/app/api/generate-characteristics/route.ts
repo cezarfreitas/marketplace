@@ -415,7 +415,7 @@ IMPORTANTE:
     }
     
     // Filtrar e validar respostas antes de salvar
-    const respostasValidas = respostas.filter(resposta => {
+    const respostasValidas = respostas.filter((resposta: any) => {
       const respostaLimpa = resposta.resposta?.trim().toLowerCase();
       const isValida = respostaLimpa && 
                       respostaLimpa !== 'n/a' && 
