@@ -6,16 +6,16 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const vtexId = params.id;
+    const productId = params.id;
 
-    if (!vtexId || isNaN(Number(vtexId))) {
+    if (!productId || isNaN(Number(productId))) {
       return NextResponse.json({
         success: false,
-        message: 'VTEX ID do produto inválido'
+        message: 'ID do produto inválido'
       }, { status: 400 });
     }
 
-    console.log(`🔍 Buscando SKUs para produto VTEX ID: ${vtexId}`);
+    console.log(`🔍 Buscando SKUs para produto ID: ${productId}`);
 
     const query = `
       SELECT 
@@ -35,25 +35,25 @@ export async function GET(
         s.date_updated,
         p.name as product_name,
         p.ref_id as product_ref_id,
-        p.vtex_id as product_vtex_id,
+        p.id as product_vtex_id,
         m.seller_sku
       FROM skus_vtex s
       INNER JOIN products_vtex p ON s.product_id = p.id
       LEFT JOIN meli m ON p.id = m.product_id
-      WHERE p.vtex_id = ?
+      WHERE p.id = ?
       ORDER BY s.position ASC, s.name_complete ASC
     `;
 
-    const skus = await executeQuery(query, [vtexId]);
+    const skus = await executeQuery(query, [productId]);
 
-    console.log(`✅ Encontrados ${skus.length} SKUs para produto VTEX ID ${vtexId}`);
+    console.log(`✅ Encontrados ${skus.length} SKUs para produto ID ${productId}`);
 
     return NextResponse.json({
       success: true,
       message: `${skus.length} SKUs encontrados para o produto`,
       data: {
         skus,
-        vtexId: Number(vtexId),
+        productId: Number(productId),
         totalSkus: skus.length,
         activeSkus: skus.filter((sku: any) => sku.is_active).length
       }

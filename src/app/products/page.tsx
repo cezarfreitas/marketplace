@@ -1469,10 +1469,10 @@ export default function ProductsPage() {
       alert('Selecione pelo menos um produto para visualizar os SKUs');
       return;
     }
-    // Buscar o vtex_id do primeiro produto selecionado
+    // Buscar o id do primeiro produto selecionado
     const firstProduct = products.find(p => p.id === selectedProducts[0]);
     if (firstProduct) {
-      setSelectedProductId(firstProduct.vtex_id);
+      setSelectedProductId(firstProduct.id);
       setShowSkusModal(true);
     }
   };
@@ -4135,7 +4135,7 @@ export default function ProductsPage() {
           onClose={() => {
             setShowSkusModal(false);
           }}
-          productIds={products.filter(p => selectedProducts.includes(p.id)).map(p => p.vtex_id)}
+          productIds={products.filter(p => selectedProducts.includes(p.id)).map(p => p.id).filter(id => id != null && id != undefined)}
         />
       )}
       {/* Sistema de Notificações */}

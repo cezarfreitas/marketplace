@@ -37,8 +37,17 @@ export function SimpleSkusModal({ isOpen, onClose, productIds }: SimpleSkusModal
   const fetchAllSkus = async () => {
     setLoading(true);
     
+    // Filtrar apenas IDs válidos
+    const validProductIds = productIds.filter(id => id != null && id != undefined && !isNaN(Number(id)));
+    
+    if (validProductIds.length === 0) {
+      setProductSkus([]);
+      setLoading(false);
+      return;
+    }
+    
     // Inicializar array com loading para cada produto
-    const initialData = productIds.map(productId => ({
+    const initialData = validProductIds.map(productId => ({
       productId,
       skus: [],
       loading: true,
@@ -47,7 +56,7 @@ export function SimpleSkusModal({ isOpen, onClose, productIds }: SimpleSkusModal
     setProductSkus(initialData);
 
     // Buscar SKUs para cada produto usando ID interno
-    const promises = productIds.map(async (productId) => {
+    const promises = validProductIds.map(async (productId) => {
       try {
         const response = await fetch(`/api/products/${productId}/skus`, {
           method: 'GET',
@@ -101,7 +110,7 @@ export function SimpleSkusModal({ isOpen, onClose, productIds }: SimpleSkusModal
               SKUs dos Produtos Selecionados
             </h2>
             <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-              {productIds.length}
+              {productIds.filter(id => id != null && id != undefined && !isNaN(Number(id))).length}
             </span>
           </div>
           <button
@@ -114,7 +123,15 @@ export function SimpleSkusModal({ isOpen, onClose, productIds }: SimpleSkusModal
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-4">
-          {loading ? (
+          {productIds.filter(id => id != null && id != undefined && !isNaN(Number(id))).length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 text-sm">Nenhum produto válido selecionado</p>
+                <p className="text-gray-500 text-xs mt-1">Verifique se os produtos selecionados possuem VTEX ID válido</p>
+              </div>
+            </div>
+          ) : loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-center">
                 <Loader2 className="h-6 w-6 animate-spin text-blue-600 mx-auto mb-2" />
