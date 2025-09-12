@@ -415,12 +415,6 @@ export function ProductTable({
                             : 'text-gray-600 group-hover:text-gray-800'
                         }`}
                       />
-                      {/* Debug: mostrar se produto está na lista */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <div className="absolute -top-6 left-0 text-xs bg-black text-white px-1 rounded opacity-75">
-                          {productsWithCroppedImages.includes(product.id) ? 'ROXO' : 'CINZA'}
-                        </div>
-                      )}
                     </button>
                   </div>
                 </td>
