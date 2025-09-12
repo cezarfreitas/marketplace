@@ -18,9 +18,26 @@ export async function GET() {
       total = 0; // Valor padrão se houver erro no banco
     }
 
+    // Query para buscar total de estoque
+    const totalStockQuery = `
+      SELECT COALESCE(SUM(st.total_quantity), 0) as totalStock
+      FROM skus_vtex s
+      LEFT JOIN stock_vtex st ON s.id = st.sku_id
+    `;
+    
+    let totalStock = 0;
+    try {
+      const stockResult = await executeQuery(totalStockQuery);
+      totalStock = parseInt(stockResult[0]?.totalStock) || 0;
+      console.log('✅ Total de estoque obtido do banco:', totalStock);
+    } catch (dbError) {
+      console.log('⚠️ Erro ao consultar estoque, usando valor padrão:', dbError);
+      totalStock = 0; // Valor padrão se houver erro no banco
+    }
+
     const stats = {
       total,
-      totalStock: 15420 // Total de estoque (mantido mockado por enquanto)
+      totalStock
     };
 
     console.log('✅ Estatísticas retornadas:', stats);
