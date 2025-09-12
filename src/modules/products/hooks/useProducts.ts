@@ -15,8 +15,8 @@ export function useProducts(options: UseProductsOptions = {}) {
     initialLimit = 20,
     initialFilters = {
       search: '',
-      brand_id: [],
-      category_id: [],
+      brand_id: [] as string[],
+      category_id: [] as string[],
       has_image_analysis: undefined,
       has_marketplace_description: undefined,
       has_anymarket_ref_id: undefined,

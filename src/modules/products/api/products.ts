@@ -25,9 +25,10 @@ export class ProductsAPI {
         if (Array.isArray(value) && value.length > 0) {
           // Para arrays, adicionar cada valor como parâmetro separado
           value.forEach(v => queryParams.append(key, v));
-        } else if (value !== '') {
-          // Para valores únicos
-          queryParams.append(key, value);
+        } else if (value !== '' && value !== undefined && value !== null) {
+          // Para valores únicos, converter boolean para string
+          const stringValue = typeof value === 'boolean' ? value.toString() : value;
+          queryParams.append(key, stringValue);
         }
       });
     }

@@ -12,6 +12,8 @@ import {
 } from '@/modules/products';
 import { CropImagesModal } from '@/components/CropImagesModal';
 import { SimpleSkusModal } from '@/components/SimpleSkusModal';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 
 // Função auxiliar para formatar data
 const formatDate = (dateString: string | null | undefined): string => {
@@ -54,6 +56,51 @@ export default function ProductsPage() {
   
   // Estados para Características
   const [generatingCharacteristics, setGeneratingCharacteristics] = useState(false);
+  
+  // Estados para filtros
+  const [brands, setBrands] = useState<Array<{id: string, name: string}>>([]);
+  const [categories, setCategories] = useState<Array<{id: string, name: string}>>([]);
+  const [loadingBrands, setLoadingBrands] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+
+  // Função para buscar marcas
+  const fetchBrands = useCallback(async () => {
+    try {
+      setLoadingBrands(true);
+      const response = await fetch('/api/filters/brands');
+      const data = await response.json();
+      if (data.success) {
+        setBrands(data.data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar marcas:', error);
+    } finally {
+      setLoadingBrands(false);
+    }
+  }, []);
+
+  // Função para buscar categorias
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoadingCategories(true);
+      const response = await fetch('/api/filters/categories');
+      const data = await response.json();
+      if (data.success) {
+        setCategories(data.data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar categorias:', error);
+    } finally {
+      setLoadingCategories(false);
+    }
+  }, []);
+
+  // Carregar marcas e categorias quando o componente montar
+  useEffect(() => {
+    fetchBrands();
+    fetchCategories();
+  }, [fetchBrands, fetchCategories]);
+
   const [existingCharacteristics, setExistingCharacteristics] = useState<any[]>([]);
   const [loadingCharacteristics, setLoadingCharacteristics] = useState(false);
   
@@ -72,6 +119,7 @@ export default function ProductsPage() {
     message: string;
     duration?: number;
   }>>([]);
+
 
   // Funções para gerenciar notificações
   const addNotification = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string, duration = 5000) => {
@@ -2293,6 +2341,207 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+
+      {/* Campo de Busca e Controles */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Filtros e Busca</h3>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => clearFilters()}
+              className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+            >
+              Limpar Todos
+            </button>
+          </div>
+        </div>
+
+        {/* Campo de Busca */}
+        <div className="mb-4">
+          <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
+            Buscar Produtos
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              id="search"
+              placeholder="Digite o nome do produto, ref_id, marca ou categoria..."
+              value={filters.search || ''}
+              onChange={(e) => {
+                updateFilters({ search: e.target.value });
+              }}
+              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        
+        {/* Filtros */}
+        <div className="bg-gray-50 p-4 rounded-lg mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Filtros</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {/* Marca */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Marca
+              </label>
+              <Combobox
+                options={brands.map(brand => ({
+                  value: brand.id,
+                  label: brand.name
+                }))}
+                value={Array.isArray(filters.brand_id) ? filters.brand_id : []}
+                onValueChange={(selectedValues) => {
+                  updateFilters({ brand_id: selectedValues });
+                }}
+                placeholder={loadingBrands ? "Carregando..." : "Selecionar marcas"}
+                searchPlaceholder="Buscar marcas..."
+                emptyText="Nenhuma marca encontrada."
+                className="w-full"
+              />
+            </div>
+            
+            {/* Categoria */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Categoria
+              </label>
+              <Combobox
+                options={categories.map(category => ({
+                  value: category.id,
+                  label: category.name
+                }))}
+                value={Array.isArray(filters.category_id) ? filters.category_id : []}
+                onValueChange={(selectedValues) => {
+                  updateFilters({ category_id: selectedValues });
+                }}
+                placeholder={loadingCategories ? "Carregando..." : "Selecionar categorias"}
+                searchPlaceholder="Buscar categorias..."
+                emptyText="Nenhuma categoria encontrada."
+                className="w-full"
+              />
+            </div>
+            {/* Análise de Imagens */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Análise de Imagens
+              </label>
+              <Select
+                value={filters.has_image_analysis === true ? 'true' : filters.has_image_analysis === false ? 'false' : 'all'}
+                onValueChange={(value) => {
+                  if (value === 'all') {
+                    updateFilters({ has_image_analysis: undefined });
+                  } else if (value === 'true') {
+                    updateFilters({ has_image_analysis: true });
+                  } else {
+                    updateFilters({ has_image_analysis: false });
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar análise" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as análises</SelectItem>
+                  <SelectItem value="true">🖼️ Com Análise</SelectItem>
+                  <SelectItem value="false">🚫 Sem Análise</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Marketplace */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Marketplace
+              </label>
+              <Select
+                value={filters.has_marketplace_description === true ? 'true' : filters.has_marketplace_description === false ? 'false' : 'all'}
+                onValueChange={(value) => {
+                  if (value === 'all') {
+                    updateFilters({ has_marketplace_description: undefined });
+                  } else if (value === 'true') {
+                    updateFilters({ has_marketplace_description: true });
+                  } else {
+                    updateFilters({ has_marketplace_description: false });
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="true">📝 Com Descrição</SelectItem>
+                  <SelectItem value="false">❌ Sem Descrição</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Anymarket */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Anymarket
+              </label>
+              <Select
+                value={filters.has_anymarket_ref_id === true ? 'true' : filters.has_anymarket_ref_id === false ? 'false' : 'all'}
+                onValueChange={(value) => {
+                  if (value === 'all') {
+                    updateFilters({ has_anymarket_ref_id: undefined });
+                  } else if (value === 'true') {
+                    updateFilters({ has_anymarket_ref_id: true });
+                  } else {
+                    updateFilters({ has_anymarket_ref_id: false });
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="true">🔄 Com Referência</SelectItem>
+                  <SelectItem value="false">❌ Sem Referência</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Sincronização */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Sincronização
+              </label>
+              <Select
+                value={filters.has_anymarket_sync_log === true ? 'true' : filters.has_anymarket_sync_log === false ? 'false' : 'all'}
+                onValueChange={(value) => {
+                  if (value === 'all') {
+                    updateFilters({ has_anymarket_sync_log: undefined });
+                  } else if (value === 'true') {
+                    updateFilters({ has_anymarket_sync_log: true });
+                  } else {
+                    updateFilters({ has_anymarket_sync_log: false });
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="true">⚡ Com Log</SelectItem>
+                  <SelectItem value="false">❌ Sem Log</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+
+
+      </div>
 
       {/* Tabela de Produtos */}
       <div className={isExporting || batchAnalysisProgress.isRunning || batchMarketplaceProgress.isRunning || batchAnymarketProgress.isRunning || batchStockProgress.isRunning || batchCharacteristicsProgress.isRunning ? 'pointer-events-none opacity-75' : ''}>

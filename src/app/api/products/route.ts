@@ -70,7 +70,64 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filtros de imagens e estoque removidos para simplificar
+    // Filtro para análise de imagens
+    const has_image_analysis = searchParams.get('has_image_analysis');
+    if (has_image_analysis) {
+      if (has_image_analysis === 'true') {
+        conditions.push(`EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)`);
+      } else if (has_image_analysis === 'false') {
+        conditions.push(`NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)`);
+      }
+    }
+
+    // Filtro para descrição do marketplace
+    const has_marketplace_description = searchParams.get('has_marketplace_description');
+    if (has_marketplace_description) {
+      if (has_marketplace_description === 'true') {
+        conditions.push(`EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)`);
+      } else if (has_marketplace_description === 'false') {
+        conditions.push(`NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)`);
+      }
+    }
+
+    // Filtro para referência Anymarket
+    const has_anymarket_ref_id = searchParams.get('has_anymarket_ref_id');
+    if (has_anymarket_ref_id) {
+      if (has_anymarket_ref_id === 'true') {
+        conditions.push(`EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)`);
+      } else if (has_anymarket_ref_id === 'false') {
+        conditions.push(`NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)`);
+      }
+    }
+
+    // Filtro para sincronização Anymarket
+    const has_anymarket_sync_log = searchParams.get('has_anymarket_sync_log');
+    if (has_anymarket_sync_log) {
+      if (has_anymarket_sync_log === 'true') {
+        conditions.push(`EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id)`);
+      } else if (has_anymarket_sync_log === 'false') {
+        conditions.push(`NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id)`);
+      }
+    }
+
+    // Filtro para status de otimização
+    const optimization_status = searchParams.get('optimization_status');
+    if (optimization_status === 'partial') {
+      // Produtos que têm algumas otimizações, mas não todas
+      conditions.push(`(
+        (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
+         NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)) OR
+        (EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND 
+         NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)) OR
+        (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
+         EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+         NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)) OR
+        (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
+         EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+         EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
+         NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id))
+      )`);
+    }
 
     if (conditions.length > 0) {
       whereClause = `WHERE ${conditions.join(' AND ')}`;

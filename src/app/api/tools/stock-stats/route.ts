@@ -11,10 +11,10 @@ export async function GET() {
 
     console.log('🔄 Buscando estatísticas de estoque...');
 
-    // Query para contar total de SKUs
+    // Query para contar total de SKUs usando a nova tabela
     const skusQuery = `
       SELECT COUNT(*) as total_skus
-      FROM skus
+      FROM skus_vtex
     `;
 
     // Query para somar total de estoque
