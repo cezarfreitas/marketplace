@@ -401,18 +401,18 @@ export function ProductTable({
                         });
                         onCropImages(product);
                       }}
-                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative ${
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
                         productsWithCroppedImages.includes(product.id)
-                          ? 'border-purple-400 bg-purple-300 hover:bg-purple-400'
+                          ? 'border-purple-400 bg-purple-500 hover:bg-purple-600'
                           : 'border-gray-300 hover:bg-gray-50'
                       }`}
                       title={`Cropar Imagens${productsWithCroppedImages.includes(product.id) ? ' (Concluído)' : ''}`}
                     >
                       <Crop 
-                        className={`h-4 w-4 group-hover:text-gray-800 ${
+                        className={`h-4 w-4 ${
                           productsWithCroppedImages.includes(product.id)
-                            ? 'text-purple-800'
-                            : 'text-gray-600'
+                            ? 'text-purple-100 group-hover:text-purple-50'
+                            : 'text-gray-600 group-hover:text-gray-800'
                         }`}
                       />
                       {/* Debug: mostrar se produto está na lista */}
