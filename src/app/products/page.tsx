@@ -334,7 +334,9 @@ export default function ProductsPage() {
         if (data.success && data.logs) {
           const productIds = Array.from(new Set(data.logs.map((log: any) => log.product_id))) as number[];
           console.log('✅ Produtos com crop processado:', productIds);
+          console.log('🔄 Estado anterior productsWithCroppedImages:', productsWithCroppedImages);
           setProductsWithCroppedImages(productIds);
+          console.log('🔄 Estado atualizado para:', productIds);
         } else {
           console.log('⚠️ Nenhum log encontrado ou dados inválidos');
           setProductsWithCroppedImages([]);
@@ -366,6 +368,11 @@ export default function ProductsPage() {
     
     fetchAllData();
   }, []);
+
+  // Debug: monitorar mudanças no estado productsWithCroppedImages
+  useEffect(() => {
+    console.log('🔍 [DEBUG] productsWithCroppedImages mudou:', productsWithCroppedImages);
+  }, [productsWithCroppedImages]);
 
   // Debug: verificar productsWithAnalysis quando muda (apenas em desenvolvimento) - removido
   // useEffect(() => {
