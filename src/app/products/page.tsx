@@ -1473,19 +1473,8 @@ export default function ProductsPage() {
       return prev;
     });
 
-    // Registrar log de conclusão do processo de crop
-    try {
-      await fetch('/api/crop-logs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: productId,
-          status: 'completed'
-        })
-      });
-    } catch (logError) {
-      console.warn('⚠️ Erro ao registrar log de conclusão do crop:', logError);
-    }
+    // Nota: O log de conclusão é gerenciado pelo CropImagesModal
+    // Não precisamos fazer uma chamada adicional aqui
   };
 
   const handleViewSkus = () => {
