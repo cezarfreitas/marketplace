@@ -54,6 +54,7 @@ export interface ProductFilters {
   has_anymarket_ref_id?: boolean;
   has_anymarket_sync_log?: boolean;
   has_images?: boolean;
+  has_crop_processed?: boolean;
   stock_operator?: string;
   stock_value?: number;
 }

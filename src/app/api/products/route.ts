@@ -112,6 +112,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Filtro para crop de imagens
+    const has_crop_processed = searchParams.get('has_crop_processed');
+    if (has_crop_processed) {
+      if (has_crop_processed === 'true') {
+        conditions.push(`EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')`);
+      } else if (has_crop_processed === 'false') {
+        conditions.push(`NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')`);
+      }
+    }
+
     // Filtro para estoque
     if (stock_operator && stock_value !== null && stock_value !== '') {
       const stockNum = parseFloat(stock_value);

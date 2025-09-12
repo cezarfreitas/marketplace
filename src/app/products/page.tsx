@@ -2635,6 +2635,34 @@ export default function ProductsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Crop de Imagens */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Crop de Imagens
+              </label>
+              <Select
+                value={filters.has_crop_processed === true ? 'true' : filters.has_crop_processed === false ? 'false' : 'all'}
+                onValueChange={(value) => {
+                  if (value === 'all') {
+                    updateFilters({ has_crop_processed: undefined });
+                  } else if (value === 'true') {
+                    updateFilters({ has_crop_processed: true });
+                  } else {
+                    updateFilters({ has_crop_processed: false });
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar crop" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os crops</SelectItem>
+                  <SelectItem value="true">✂️ Com Crop</SelectItem>
+                  <SelectItem value="false">🚫 Sem Crop</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
             {/* Marketplace */}
             <div>
