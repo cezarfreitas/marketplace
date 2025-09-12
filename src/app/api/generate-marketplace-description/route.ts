@@ -98,7 +98,7 @@ ${characteristics.map((char: any) =>
 
 Responda cada pergunta baseado nas informações fornecidas.`;
 
-    console.log('🌐 Chamando API da OpenAI para características...');
+    console.log('🌐 Chamando API da OpenAI para características (modo rápido)...');
     const startTime = Date.now();
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -108,14 +108,15 @@ Responda cada pergunta baseado nas informações fornecidas.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o-mini', // OTIMIZADO: Usar modelo mais rápido
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 1000,
-        temperature: 0.3,
-        response_format: { type: 'json_object' }
+        max_tokens: 800, // OTIMIZADO: Reduzido de 1000 para 800
+        temperature: 0.2, // OTIMIZADO: Reduzido de 0.3 para 0.2 para resposta mais rápida
+        response_format: { type: 'json_object' },
+        stream: false // OTIMIZADO: Garantir que não seja streaming
       }),
     });
 
@@ -231,14 +232,14 @@ async function generateUniqueTitleWithAI(
   skus: any[], 
   specifications: any[], 
   agent: any,
-  maxAttempts: number = 3
+  maxAttempts: number = 2 // OTIMIZADO: Reduzido de 3 para 2 tentativas
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   let attempts = 0;
   let lastGeneratedTitle = '';
   
   while (attempts < maxAttempts) {
     attempts++;
-    console.log(`🔄 Tentativa ${attempts} de ${maxAttempts} para gerar título único...`);
+    console.log(`🔄 Tentativa ${attempts} de ${maxAttempts} para gerar título único (modo rápido)...`);
     
     try {
       // Gerar novo título via IA
@@ -270,14 +271,42 @@ async function generateUniqueTitleWithAI(
         console.log(`⚠️ Título truncado inteligentemente para ${finalTitle.length} caracteres na tentativa ${attempts}:`, finalTitle);
       }
       
-      // Verificar se o título é único
-      const exists = await checkTitleExists(finalTitle, productId);
-      if (!exists) {
-        console.log(`✅ Título único encontrado na tentativa ${attempts}:`, finalTitle);
+      // OTIMIZADO: Verificar unicidade apenas na primeira tentativa para economizar tempo
+      if (attempts === 1) {
+        const exists = await checkTitleExists(finalTitle, productId);
+        if (!exists) {
+          console.log(`✅ Título único encontrado na primeira tentativa:`, finalTitle);
+          return {
+            success: true,
+            data: {
+              title: finalTitle,
+              description: openaiResponse.data?.description,
+              clothing_type: openaiResponse.data?.clothing_type,
+              sleeve_type: openaiResponse.data?.sleeve_type,
+              gender: openaiResponse.data?.gender,
+              color: openaiResponse.data?.color,
+              modelo: openaiResponse.data?.modelo,
+              tokensUsed: openaiResponse.data?.tokensUsed,
+              tokensPrompt: openaiResponse.data?.tokensPrompt,
+              tokensCompletion: openaiResponse.data?.tokensCompletion,
+              cost: openaiResponse.data?.cost,
+              requestId: openaiResponse.data?.requestId,
+              responseTime: openaiResponse.data?.responseTime
+            }
+          };
+        }
+      } else {
+        // Na segunda tentativa, usar diretamente com sufixo único para economizar tempo
+        const uniqueSuffix = ` ${Date.now().toString().slice(-4)}`;
+        const finalTitleWithSuffix = finalTitle.length + uniqueSuffix.length <= 60 
+          ? finalTitle + uniqueSuffix
+          : truncateTitleIntelligently(finalTitle, 60 - uniqueSuffix.length) + uniqueSuffix;
+        
+        console.log(`✅ Título com sufixo único gerado na tentativa ${attempts}:`, finalTitleWithSuffix);
         return {
           success: true,
           data: {
-            title: finalTitle,
+            title: finalTitleWithSuffix,
             description: openaiResponse.data?.description,
             clothing_type: openaiResponse.data?.clothing_type,
             sleeve_type: openaiResponse.data?.sleeve_type,
@@ -564,10 +593,12 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 6. Gerar título único e descrição em uma única chamada
-    console.log('🤖 Gerando título único e descrição com IA...');
+    // 6. Gerar título único e descrição em uma única chamada (OTIMIZADO)
+    console.log('🤖 Gerando título único e descrição com IA (modo rápido)...');
+    const startTime = Date.now();
     const openaiResponse = await generateUniqueTitleWithAI(product, imageAnalysis, numericProductId, skus, specifications, agent);
-    console.log('🤖 Resposta da OpenAI:', openaiResponse.success ? 'Sucesso' : 'Erro');
+    const generationTime = Date.now() - startTime;
+    console.log(`🤖 Resposta da OpenAI (${generationTime}ms):`, openaiResponse.success ? 'Sucesso' : 'Erro');
     
     if (!openaiResponse.success) {
       console.log('❌ Erro na OpenAI:', openaiResponse.error);
@@ -695,6 +726,10 @@ async function generateMeliDescriptionWithOpenAI(
     }
 
     console.log('✅ Chave da OpenAI encontrada, continuando...');
+    
+    // OTIMIZADO: Usar modelo mais rápido para geração de descrições
+    const modelToUse = agent.model === 'gpt-4o' ? 'gpt-4o-mini' : (agent.model || 'gpt-4o-mini');
+    console.log(`🚀 Usando modelo otimizado: ${modelToUse} (modo rápido)`);
 
     // Construir prompt para o Marketplace usando configurações do agente
     let systemPrompt = agent.system_prompt || `Você é um especialista em e-commerce e marketing digital, focado especificamente no Marketplace. Sua tarefa é criar títulos e descrições otimizadas para produtos de moda e vestuário que maximizem a visibilidade e conversão no Marketplace.
@@ -996,7 +1031,7 @@ LEMBRE-SE: A descrição deve usar APENAS o novo título otimizado, NUNCA o nome
 
 Retorne APENAS o JSON com as informações solicitadas.`;
 
-    console.log('🌐 Chamando API da OpenAI...');
+    console.log('🌐 Chamando API da OpenAI (modo rápido)...');
     const startTime = Date.now();
     let response;
     try {
@@ -1007,14 +1042,15 @@ Retorne APENAS o JSON com as informações solicitadas.`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: agent.model || 'gpt-4o-mini',
+          model: modelToUse, // OTIMIZADO: Usar modelo mais rápido
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          max_tokens: parseInt(agent.max_tokens) || 2000, // Reduzido de 3000 para 2000
-          temperature: parseFloat(agent.temperature) || 0.5, // Reduzido de 0.7 para 0.5
-          response_format: { type: 'json_object' }
+          max_tokens: Math.min(parseInt(agent.max_tokens) || 2000, 2000), // OTIMIZADO: Limitar a 2000 tokens
+          temperature: Math.min(parseFloat(agent.temperature) || 0.5, 0.5), // OTIMIZADO: Reduzir temperatura para resposta mais rápida
+          response_format: { type: 'json_object' },
+          stream: false // OTIMIZADO: Garantir que não seja streaming
         }),
       });
 
