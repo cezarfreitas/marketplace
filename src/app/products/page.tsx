@@ -1339,26 +1339,28 @@ export default function ProductsPage() {
   };
 
   const handleCropImages = async (product: Product) => {
-    // console.log('🖼️ Iniciando busca de imagens para produto:', product.name);
+    console.log('🖼️ Iniciando busca de imagens para produto:', product.name);
     
     // Verificar se tem anymarket_id direto ou através do mapeamento - CACHE FIX
     const anymarketId = product.anymarket_id || anymarketMappings[product.ref_id || ''];
     
-    // Debug temporário - removido por segurança
-    // console.log('🔍 Debug - Product:', {
-    //   id: product.id,
-    //   name: product.name,
-    //   ref_id: product.ref_id,
-    //   anymarket_id: product.anymarket_id,
-    //   anymarketMappings: anymarketMappings,
-    //   mappedId: anymarketMappings[product.ref_id || ''],
-    //   finalAnymarketId: anymarketId
-    // });
+    console.log('🔍 Debug - Product:', {
+      id: product.id,
+      name: product.name,
+      ref_id: product.ref_id,
+      anymarket_id: product.anymarket_id,
+      anymarketMappings: anymarketMappings,
+      mappedId: anymarketMappings[product.ref_id || ''],
+      finalAnymarketId: anymarketId
+    });
     
     if (!anymarketId) {
+      console.log('❌ Produto sem anymarket_id:', product);
       alert('Este produto não possui ID_ANY vinculado ao Anymarket');
       return;
     }
+    
+    console.log('✅ anymarket_id encontrado:', anymarketId);
 
     // Registrar log de início do processo de crop
     try {
@@ -1399,23 +1401,24 @@ export default function ProductsPage() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Erro na API do Anymarket:', response.status, errorText);
-        alert(`Erro ao buscar imagens: ${response.status} - ${response.statusText}`);
-        return;
+        console.warn('⚠️ Continuando sem imagens do Anymarket, abrindo modal com imagens da VTEX');
+        // Não retornar, continuar com lista vazia de imagens originais
+        var originalImages = [];
+      } else {
+        const imagesData = await response.json();
+        // console.log('📸 Dados das imagens recebidos:', imagesData);
+
+        // Filtrar apenas imagens com originalImage
+        var originalImages = imagesData
+          .filter((img: any) => img.originalImage)
+          .map((img: any, index: number) => ({
+            id: img.id,
+            variation: img.variation || 'default',
+            originalImage: img.originalImage,
+            isMain: img.isMain || img.main || false,
+            index: img.index || index + 1
+          }));
       }
-
-      const imagesData = await response.json();
-      // console.log('📸 Dados das imagens recebidos:', imagesData);
-
-      // Filtrar apenas imagens com originalImage
-      const originalImages = imagesData
-        .filter((img: any) => img.originalImage)
-        .map((img: any, index: number) => ({
-          id: img.id || `img_${index}`,
-          variation: img.variation || 'Sem variação',
-          originalImage: img.originalImage,
-          isMain: img.isMain || img.main || false,
-          index: img.index || index + 1
-        }));
 
       // Abrir modal sempre, mesmo sem imagens
       setCropModalData({
@@ -1426,6 +1429,10 @@ export default function ProductsPage() {
         },
         originalImages
       });
+      console.log('🎯 Abrindo modal de crop com dados:', {
+        product: { id: product.id, name: product.name, anymarket_id: anymarketId },
+        originalImages: originalImages.length
+      });
       setShowCropModal(true);
       
       if (originalImages.length === 0) {
@@ -1434,7 +1441,22 @@ export default function ProductsPage() {
 
     } catch (error: any) {
       console.error('❌ Erro ao buscar imagens:', error);
-      alert(`Erro ao buscar imagens: ${error.message}`);
+      console.warn('⚠️ Continuando com modal mesmo com erro, usando imagens da VTEX');
+      
+      // Abrir modal mesmo com erro, com lista vazia de imagens originais
+      setCropModalData({
+        product: {
+          id: product.id,
+          name: product.name,
+          anymarket_id: anymarketId
+        },
+        originalImages: []
+      });
+      console.log('🎯 Abrindo modal de crop com erro, dados:', {
+        product: { id: product.id, name: product.name, anymarket_id: anymarketId },
+        originalImages: 0
+      });
+      setShowCropModal(true);
     }
   };
 
