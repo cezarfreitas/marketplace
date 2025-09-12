@@ -547,8 +547,8 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
           });
         }
 
-        // Notificar que o processamento foi concluído com sucesso
-        if (onProcessingComplete && product && successCount > 0) {
+        // Notificar que o processamento foi concluído
+        if (onProcessingComplete && product) {
           onProcessingComplete(product.id);
         }
 
@@ -564,6 +564,11 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
             errorMessage: result.message
           });
         }
+
+        // Notificar que o processamento foi concluído (mesmo com erro)
+        if (onProcessingComplete && product) {
+          onProcessingComplete(product.id);
+        }
       }
 
     } catch (error: any) {
@@ -578,6 +583,11 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
         await updateProcessingLog(logId, 'failed', {
           errorMessage: error.message
         });
+      }
+
+      // Notificar que o processamento foi concluído (mesmo com erro)
+      if (onProcessingComplete && product) {
+        onProcessingComplete(product.id);
       }
     } finally {
       setIsProcessing(false);
