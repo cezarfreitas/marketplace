@@ -55,6 +55,7 @@ export interface ProductFilters {
   has_anymarket_sync_log?: boolean;
   has_images?: boolean;
   has_crop_processed?: boolean;
+  optimization_status?: string;
   stock_operator?: string;
   stock_value?: number;
 }

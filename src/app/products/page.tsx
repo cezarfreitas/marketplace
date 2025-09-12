@@ -2663,6 +2663,36 @@ export default function ProductsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Status de Otimizações */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Status de Otimizações
+              </label>
+              <Select
+                value={filters.optimization_status || 'all'}
+                onValueChange={(value) => {
+                  if (value === 'all') {
+                    updateFilters({ optimization_status: undefined });
+                  } else {
+                    updateFilters({ optimization_status: value });
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="none">🚫 Sem Otimizações</SelectItem>
+                  <SelectItem value="partial">⚠️ Otimização Parcial</SelectItem>
+                  <SelectItem value="complete">✅ Totalmente Otimizado</SelectItem>
+                  <SelectItem value="analysis_only">🖼️ Só Análise</SelectItem>
+                  <SelectItem value="marketplace_only">📝 Só Marketplace</SelectItem>
+                  <SelectItem value="anymarket_only">🔄 Só Anymarket</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
             {/* Marketplace */}
             <div>

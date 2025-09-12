@@ -25,6 +25,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       is_visible: '',
       has_images: undefined,
       has_crop_processed: undefined,
+      optimization_status: undefined,
       stock_operator: '',
       stock_value: undefined
     },

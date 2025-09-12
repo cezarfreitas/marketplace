@@ -139,21 +139,83 @@ export async function GET(request: NextRequest) {
 
     // Filtro para status de otimização
     const optimization_status = searchParams.get('optimization_status');
-    if (optimization_status === 'partial') {
-      // Produtos que têm algumas otimizações, mas não todas
-      conditions.push(`(
-        (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
-         NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)) OR
-        (EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND 
-         NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)) OR
-        (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
-         EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
-         NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)) OR
-        (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
-         EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
-         EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
-         NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id))
-      )`);
+    if (optimization_status) {
+      switch (optimization_status) {
+        case 'none':
+          // Produtos sem nenhuma otimização
+          conditions.push(`(
+            NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
+            NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
+            NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id) AND
+            NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
+          )`);
+          break;
+          
+        case 'partial':
+          // Produtos que têm algumas otimizações, mas não todas
+          conditions.push(`(
+            (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
+             NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)) OR
+            (EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND 
+             NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)) OR
+            (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
+             EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+             NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)) OR
+            (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
+             EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+             EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
+             NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id)) OR
+            (EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed') AND
+             NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
+             NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id))
+          )`);
+          break;
+          
+        case 'complete':
+          // Produtos totalmente otimizados (todas as otimizações)
+          conditions.push(`(
+            EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
+            EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
+            EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id) AND
+            EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
+          )`);
+          break;
+          
+        case 'analysis_only':
+          // Produtos que têm apenas análise de imagens
+          conditions.push(`(
+            EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
+            NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
+            NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id) AND
+            NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
+          )`);
+          break;
+          
+        case 'marketplace_only':
+          // Produtos que têm apenas descrição do marketplace
+          conditions.push(`(
+            NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
+            EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
+            NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id) AND
+            NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
+          )`);
+          break;
+          
+        case 'anymarket_only':
+          // Produtos que têm apenas integração com Anymarket
+          conditions.push(`(
+            NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
+            NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            (EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) OR
+             EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id)) AND
+            NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
+          )`);
+          break;
+      }
     }
 
     if (conditions.length > 0) {
