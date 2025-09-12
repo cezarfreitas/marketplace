@@ -90,8 +90,13 @@ export async function DELETE(
     const product = existingProduct[0] as any;
     console.log(`📊 Produto encontrado: ${product.name}`);
 
-    // Deletar todos os dados vinculados
+    // Deletar todos os dados vinculados em cascata
     try {
+      console.log('🔄 Iniciando exclusão em cascata para produto ID:', productId);
+      
+      // Iniciar transação para garantir consistência
+      await executeQuery('START TRANSACTION');
+
       // 1. Deletar logs de análise de imagens
       console.log('🗑️ Deletando logs de análise de imagens...');
       await executeQuery(
@@ -99,42 +104,114 @@ export async function DELETE(
         [productId]
       );
 
-      // 2. Deletar dados do Marketplace
+      // 2. Deletar análise de imagens
+      console.log('🗑️ Deletando análise de imagens...');
+      await executeQuery(
+        'DELETE FROM analise_imagens WHERE id_produto = ?',
+        [productId]
+      );
+
+      // 3. Deletar dados do Marketplace
       console.log('🗑️ Deletando dados do Marketplace...');
+      await executeQuery(
+        'DELETE FROM marketplace WHERE product_id = ?',
+        [productId]
+      );
+
+      // 4. Deletar dados do Meli (se existir)
+      console.log('🗑️ Deletando dados do Meli...');
       await executeQuery(
         'DELETE FROM meli WHERE product_id = ?',
         [productId]
       );
 
-      // 3. Buscar SKUs do produto
+      // 5. Deletar logs de sincronização Anymarket
+      console.log('🗑️ Deletando logs de sincronização Anymarket...');
+      await executeQuery(
+        'DELETE FROM anymarket_sync_logs WHERE product_id = ?',
+        [productId]
+      );
+
+      // 6. Deletar dados do Anymarket
+      console.log('🗑️ Deletando dados do Anymarket...');
+      await executeQuery(
+        'DELETE FROM anymarket WHERE ref_vtex = (SELECT ref_id FROM products_vtex WHERE id = ?)',
+        [productId]
+      );
+
+      // 7. Deletar logs de crop de imagens
+      console.log('🗑️ Deletando logs de crop de imagens...');
+      await executeQuery(
+        'DELETE FROM crop_processing_logs WHERE product_id = ?',
+        [productId]
+      );
+
+      // 8. Deletar respostas de características
+      console.log('🗑️ Deletando respostas de características...');
+      await executeQuery(
+        'DELETE FROM characteristics_responses WHERE product_id = ?',
+        [productId]
+      );
+
+      // 9. Buscar SKUs do produto
       const skus = await executeQuery(
         'SELECT id FROM skus_vtex WHERE product_id = ?',
         [productId]
       );
 
-      // 4. Para cada SKU, deletar imagens
+      // 10. Para cada SKU, deletar dados relacionados
       for (const sku of skus) {
-        console.log(`🗑️ Deletando imagens do SKU ${sku.id}...`);
+        console.log(`🗑️ Deletando dados do SKU ${sku.id}...`);
+        
+        // Deletar estoque do SKU
+        await executeQuery(
+          'DELETE FROM stock_vtex WHERE sku_id = ?',
+          [sku.id]
+        );
+
+        // Deletar imagens do SKU
         await executeQuery(
           'DELETE FROM images_vtex WHERE sku_id = ?',
           [sku.id]
         );
+
+        // Deletar atributos do SKU (se existir tabela)
+        await executeQuery(
+          'DELETE FROM sku_attributes WHERE sku_id = ?',
+          [sku.id]
+        );
       }
 
-      // 5. Deletar SKUs
+      // 11. Deletar SKUs
       console.log('🗑️ Deletando SKUs...');
       await executeQuery(
         'DELETE FROM skus_vtex WHERE product_id = ?',
         [productId]
       );
 
-      // 6. Deletar o produto
+      // 12. Deletar atributos do produto (se existir tabela)
+      console.log('🗑️ Deletando atributos do produto...');
+      await executeQuery(
+        'DELETE FROM product_attributes WHERE product_id = ?',
+        [productId]
+      );
+
+      // 13. Deletar imagens do produto (se existir tabela)
+      console.log('🗑️ Deletando imagens do produto...');
+      await executeQuery(
+        'DELETE FROM product_images WHERE product_id = ?',
+        [productId]
+      );
+
+      // 14. Deletar o produto
       console.log('🗑️ Deletando produto...');
       await executeQuery(
         'DELETE FROM products_vtex WHERE id = ?',
         [productId]
       );
 
+      // Confirmar transação
+      await executeQuery('COMMIT');
       console.log(`✅ Produto "${product.name}" e todos os dados vinculados deletados com sucesso`);
 
       return NextResponse.json({
@@ -144,6 +221,15 @@ export async function DELETE(
 
     } catch (deleteError: any) {
       console.error('❌ Erro durante a deleção:', deleteError);
+      
+      // Reverter transação em caso de erro
+      try {
+        await executeQuery('ROLLBACK');
+        console.log('🔄 Transação revertida devido ao erro');
+      } catch (rollbackError) {
+        console.error('❌ Erro ao reverter transação:', rollbackError);
+      }
+      
       throw deleteError;
     }
 
