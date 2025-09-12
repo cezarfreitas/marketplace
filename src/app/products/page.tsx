@@ -1495,8 +1495,8 @@ export default function ProductsPage() {
     completedSteps: {
       analysis: 0,
       marketplace: 0,
+      characteristics: 0,
       anymarket: 0,
-      stock: 0,
       crop: 0
     }
   });
