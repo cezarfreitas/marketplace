@@ -160,7 +160,7 @@ export function ProductTable({
                 </div>
               </th>
               <th 
-                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell cursor-pointer hover:bg-gray-200 transition-colors"
+                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={() => onSort('category_name')}
               >
                 <div className="flex items-center space-x-1">
@@ -281,7 +281,7 @@ export function ProductTable({
                     </span>
                   </div>
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
+                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div className="flex items-center">
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
                       {product.category_name || 'N/A'}
