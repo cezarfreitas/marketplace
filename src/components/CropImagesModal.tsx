@@ -549,7 +549,13 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
 
         // Notificar que o processamento foi concluído
         if (onProcessingComplete && product) {
+          console.log('🎯 Chamando onProcessingComplete com productId:', product.id);
           onProcessingComplete(product.id);
+        } else {
+          console.log('⚠️ onProcessingComplete não disponível ou product não definido:', {
+            onProcessingComplete: !!onProcessingComplete,
+            product: product
+          });
         }
 
       } else {
@@ -567,7 +573,13 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
 
         // Notificar que o processamento foi concluído (mesmo com erro)
         if (onProcessingComplete && product) {
+          console.log('🎯 Chamando onProcessingComplete (erro VTEX) com productId:', product.id);
           onProcessingComplete(product.id);
+        } else {
+          console.log('⚠️ onProcessingComplete não disponível (erro VTEX):', {
+            onProcessingComplete: !!onProcessingComplete,
+            product: product
+          });
         }
       }
 
@@ -587,7 +599,13 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
 
       // Notificar que o processamento foi concluído (mesmo com erro)
       if (onProcessingComplete && product) {
+        console.log('🎯 Chamando onProcessingComplete (erro conexão) com productId:', product.id);
         onProcessingComplete(product.id);
+      } else {
+        console.log('⚠️ onProcessingComplete não disponível (erro conexão):', {
+          onProcessingComplete: !!onProcessingComplete,
+          product: product
+        });
       }
     } finally {
       setIsProcessing(false);

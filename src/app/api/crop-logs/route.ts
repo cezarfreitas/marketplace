@@ -4,17 +4,72 @@ import { executeQuery, executeModificationQuery } from '@/lib/database';
 // GET - Buscar logs de processamento
 export async function GET(request: NextRequest) {
   try {
-    // Como as tabelas crop_processing_logs e processed_products não existem,
-    // vamos retornar uma lista vazia
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
+
+    let query = `
+      SELECT 
+        id, product_id, anymarket_id, product_name, status, 
+        total_images, processed_images, failed_images,
+        pixian_success_count, pixian_error_count,
+        anymarket_success_count, anymarket_error_count,
+        processing_time_seconds, error_message, details,
+        started_at, completed_at, created_at, updated_at
+      FROM crop_processing_logs
+    `;
+    
+    const queryParams = [];
+    
+    if (status) {
+      query += ' WHERE status = ?';
+      queryParams.push(status);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    if (limit > 0) {
+      query += ' LIMIT ?';
+      queryParams.push(limit);
+    }
+    
+    if (offset > 0) {
+      query += ' OFFSET ?';
+      queryParams.push(offset);
+    }
+
+    const logs = await executeQuery(query, queryParams);
+
+    // Buscar total de registros para paginação
+    let countQuery = 'SELECT COUNT(*) as total FROM crop_processing_logs';
+    const countParams = [];
+    
+    if (status) {
+      countQuery += ' WHERE status = ?';
+      countParams.push(status);
+    }
+    
+    const countResult = await executeQuery(countQuery, countParams);
+    const total = (countResult as any)[0]?.total || 0;
+
+    console.log('📊 Logs de crop encontrados:', {
+      total,
+      returned: Array.isArray(logs) ? logs.length : 0,
+      status,
+      limit,
+      offset
+    });
+
     return NextResponse.json({
       success: true,
       data: {
-        logs: [],
+        logs: logs || [],
         pagination: {
-          total: 0,
-          limit: 50,
-          offset: 0,
-          hasMore: false
+          total,
+          limit,
+          offset,
+          hasMore: offset + (Array.isArray(logs) ? logs.length : 0) < total
         }
       }
     });

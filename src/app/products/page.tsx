@@ -324,15 +324,19 @@ export default function ProductsPage() {
   // Função para buscar produtos com crop processado
   const fetchProductsWithCroppedImages = async () => {
     try {
+      console.log('🔍 Buscando produtos com crop processado...');
       const response = await fetch('/api/crop-logs?status=completed&limit=1000');
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📊 Dados recebidos da API crop-logs:', data);
         
         if (data.success && data.logs) {
           const productIds = Array.from(new Set(data.logs.map((log: any) => log.product_id))) as number[];
+          console.log('✅ Produtos com crop processado:', productIds);
           setProductsWithCroppedImages(productIds);
         } else {
+          console.log('⚠️ Nenhum log encontrado ou dados inválidos');
           setProductsWithCroppedImages([]);
         }
       } else {
@@ -1464,12 +1468,17 @@ export default function ProductsPage() {
 
   const handleCropProcessingComplete = async (productId: number) => {
     console.log('✅ Processamento de crop concluído para produto ID:', productId);
+    console.log('🔍 Estado atual productsWithCroppedImages:', productsWithCroppedImages);
     
     // Atualizar estado visual
     setProductsWithCroppedImages(prev => {
+      console.log('🔄 Estado anterior:', prev);
       if (!prev.includes(productId)) {
-        return [...prev, productId];
+        const newState = [...prev, productId];
+        console.log('✅ Adicionando produto ao estado:', newState);
+        return newState;
       }
+      console.log('⚠️ Produto já está no estado');
       return prev;
     });
 
