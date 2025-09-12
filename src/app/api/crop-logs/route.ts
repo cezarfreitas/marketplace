@@ -6,41 +6,17 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Iniciando busca de logs de crop...');
     
-    // Teste simples primeiro
-    console.log('🧪 Testando conexão com banco...');
-    const testQuery = 'SELECT COUNT(*) as total FROM crop_processing_logs';
-    const testResult = await executeQuery(testQuery, []);
-    console.log('✅ Teste de conexão bem-sucedido:', testResult);
+    // Retornar dados mockados primeiro para testar
+    console.log('🧪 Retornando dados mockados para teste...');
     
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
-
-    console.log('📋 Parâmetros da busca:', { status, limit, offset });
-
-    // Query simplificada primeiro
-    let query = 'SELECT id, product_id, status FROM crop_processing_logs';
-    const queryParams = [];
-    
-    if (status) {
-      query += ' WHERE status = ?';
-      queryParams.push(status);
-    }
-    
-    query += ' ORDER BY created_at DESC LIMIT 10';
-
-    console.log('📝 Query SQL simplificada:', query);
-    console.log('📝 Parâmetros:', queryParams);
-
-    const logs = await executeQuery(query, queryParams);
-    console.log('📊 Logs retornados:', logs);
-
     return NextResponse.json({
       success: true,
-      logs: logs || [],
+      logs: [
+        { id: 1, product_id: 18062, status: 'completed' },
+        { id: 2, product_id: 18063, status: 'completed' }
+      ],
       pagination: {
-        total: Array.isArray(logs) ? logs.length : 0,
+        total: 2,
         limit: 10,
         offset: 0,
         hasMore: false
