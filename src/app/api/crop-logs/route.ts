@@ -4,10 +4,14 @@ import { executeQuery, executeModificationQuery } from '@/lib/database';
 // GET - Buscar logs de processamento
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 Iniciando busca de logs de crop...');
+    
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
+
+    console.log('📋 Parâmetros da busca:', { status, limit, offset });
 
     let query = `
       SELECT 
@@ -39,7 +43,11 @@ export async function GET(request: NextRequest) {
       queryParams.push(offset);
     }
 
+    console.log('📝 Query SQL:', query);
+    console.log('📝 Parâmetros:', queryParams);
+
     const logs = await executeQuery(query, queryParams);
+    console.log('📊 Logs retornados:', logs);
 
     // Buscar total de registros para paginação
     let countQuery = 'SELECT COUNT(*) as total FROM crop_processing_logs';
@@ -63,19 +71,18 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: {
-        logs: logs || [],
-        pagination: {
-          total,
-          limit,
-          offset,
-          hasMore: offset + (Array.isArray(logs) ? logs.length : 0) < total
-        }
+      logs: logs || [],
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + (Array.isArray(logs) ? logs.length : 0) < total
       }
     });
 
   } catch (error: any) {
     console.error('❌ Erro ao buscar logs de processamento:', error);
+    console.error('❌ Stack trace:', error.stack);
     return NextResponse.json({
       success: false,
       message: 'Erro ao buscar logs de processamento',
