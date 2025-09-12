@@ -6,6 +6,12 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Iniciando busca de logs de crop...');
     
+    // Teste simples primeiro
+    console.log('🧪 Testando conexão com banco...');
+    const testQuery = 'SELECT COUNT(*) as total FROM crop_processing_logs';
+    const testResult = await executeQuery(testQuery, []);
+    console.log('✅ Teste de conexão bem-sucedido:', testResult);
+    
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '50');
@@ -13,17 +19,8 @@ export async function GET(request: NextRequest) {
 
     console.log('📋 Parâmetros da busca:', { status, limit, offset });
 
-    let query = `
-      SELECT 
-        id, product_id, anymarket_id, product_name, status, 
-        total_images, processed_images, failed_images,
-        pixian_success_count, pixian_error_count,
-        anymarket_success_count, anymarket_error_count,
-        processing_time_seconds, error_message, details,
-        started_at, completed_at, created_at, updated_at
-      FROM crop_processing_logs
-    `;
-    
+    // Query simplificada primeiro
+    let query = 'SELECT id, product_id, status FROM crop_processing_logs';
     const queryParams = [];
     
     if (status) {
@@ -31,58 +28,34 @@ export async function GET(request: NextRequest) {
       queryParams.push(status);
     }
     
-    query += ' ORDER BY created_at DESC';
-    
-    if (limit > 0) {
-      query += ' LIMIT ?';
-      queryParams.push(limit);
-    }
-    
-    if (offset > 0) {
-      query += ' OFFSET ?';
-      queryParams.push(offset);
-    }
+    query += ' ORDER BY created_at DESC LIMIT 10';
 
-    console.log('📝 Query SQL:', query);
+    console.log('📝 Query SQL simplificada:', query);
     console.log('📝 Parâmetros:', queryParams);
 
     const logs = await executeQuery(query, queryParams);
     console.log('📊 Logs retornados:', logs);
 
-    // Buscar total de registros para paginação
-    let countQuery = 'SELECT COUNT(*) as total FROM crop_processing_logs';
-    const countParams = [];
-    
-    if (status) {
-      countQuery += ' WHERE status = ?';
-      countParams.push(status);
-    }
-    
-    const countResult = await executeQuery(countQuery, countParams);
-    const total = (countResult as any)[0]?.total || 0;
-
-    console.log('📊 Logs de crop encontrados:', {
-      total,
-      returned: Array.isArray(logs) ? logs.length : 0,
-      status,
-      limit,
-      offset
-    });
-
     return NextResponse.json({
       success: true,
       logs: logs || [],
       pagination: {
-        total,
-        limit,
-        offset,
-        hasMore: offset + (Array.isArray(logs) ? logs.length : 0) < total
+        total: Array.isArray(logs) ? logs.length : 0,
+        limit: 10,
+        offset: 0,
+        hasMore: false
       }
     });
 
   } catch (error: any) {
     console.error('❌ Erro ao buscar logs de processamento:', error);
     console.error('❌ Stack trace:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState
+    });
     return NextResponse.json({
       success: false,
       message: 'Erro ao buscar logs de processamento',
