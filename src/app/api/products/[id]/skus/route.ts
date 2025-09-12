@@ -18,7 +18,7 @@ export async function GET(
     console.log(`🔍 Buscando SKUs para produto ID: ${productId}`);
 
     // Verificar se o produto existe primeiro
-    const productCheck = await executeQuery('SELECT id, name FROM products_vtex WHERE id = ?', [productId]);
+    const productCheck = await executeQuery('SELECT id, name, ref_id FROM products_vtex WHERE id = ?', [productId]);
     console.log(`📋 Produto encontrado:`, productCheck);
 
     if (productCheck.length === 0) {
@@ -28,14 +28,14 @@ export async function GET(
       }, { status: 404 });
     }
 
-    // Query simplificada para debug
+    // Query corrigida com as colunas corretas da tabela
     const query = `
       SELECT 
         s.id,
-        s.vtex_id,
-        s.name_complete as sku_name,
+        s.name as sku_name,
         s.product_id,
         s.is_active,
+        s.ref_id,
         p.name as product_name
       FROM skus_vtex s
       INNER JOIN products_vtex p ON s.product_id = p.id
@@ -51,12 +51,32 @@ export async function GET(
     console.log(`✅ Encontrados ${skus.length} SKUs para produto ID ${productId}`);
     console.log(`📋 Primeiros 3 SKUs:`, skus.slice(0, 3));
 
+    // Extrair ref_id do nome do SKU
+    const skusWithRefId = skus.map((sku: any) => {
+      let extractedRefId = sku.ref_id;
+      
+      // Se ref_id está vazio ou null, extrair do nome do SKU
+      if (!extractedRefId || extractedRefId === 'null') {
+        // Padrão: "Nome do Produto - TAMANHO" -> extrair "TAMANHO"
+        const match = sku.sku_name?.match(/\s-\s([^-]+)$/);
+        if (match && match[1]) {
+          extractedRefId = match[1].trim();
+        }
+      }
+      
+      return {
+        ...sku,
+        ref_id: extractedRefId || sku.ref_id
+      };
+    });
+
     return NextResponse.json({
       success: true,
       message: `${skus.length} SKUs encontrados para o produto`,
       data: {
-        skus,
+        skus: skusWithRefId,
         productId: Number(productId),
+        productRefId: productCheck[0]?.ref_id || null,
         totalSkus: skus.length,
         activeSkus: skus.filter((sku: any) => sku.is_active).length
       }
