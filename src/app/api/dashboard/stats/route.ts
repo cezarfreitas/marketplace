@@ -35,9 +35,31 @@ export async function GET() {
       totalStock = 0; // Valor padrão se houver erro no banco
     }
 
+    // Query para buscar produtos totalmente otimizados
+    const optimizedQuery = `
+      SELECT COUNT(*) as totalOptimized
+      FROM products_vtex p
+      WHERE EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)
+        AND EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)
+        AND EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)
+        AND EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id)
+        AND EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
+    `;
+    
+    let totalOptimized = 0;
+    try {
+      const optimizedResult = await executeQuery(optimizedQuery);
+      totalOptimized = parseInt(optimizedResult[0]?.totalOptimized) || 0;
+      console.log('✅ Total de produtos otimizados obtido do banco:', totalOptimized);
+    } catch (dbError) {
+      console.log('⚠️ Erro ao consultar produtos otimizados, usando valor padrão:', dbError);
+      totalOptimized = 0; // Valor padrão se houver erro no banco
+    }
+
     const stats = {
       total,
-      totalStock
+      totalStock,
+      totalOptimized
     };
 
     console.log('✅ Estatísticas retornadas:', stats);

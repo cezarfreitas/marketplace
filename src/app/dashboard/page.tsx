@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Warehouse } from 'lucide-react';
+import { Package, Warehouse, CheckCircle } from 'lucide-react';
 import Layout from '@/components/Layout';
 
 export default function DashboardPage() {
   const [totalProducts, setTotalProducts] = useState<number>(0);
   const [totalStock, setTotalStock] = useState<number>(0);
+  const [totalOptimized, setTotalOptimized] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,6 +19,7 @@ export default function DashboardPage() {
       if (data.success) {
         setTotalProducts(data.data.total || 0);
         setTotalStock(data.data.totalStock || 0);
+        setTotalOptimized(data.data.totalOptimized || 0);
       } else {
         throw new Error(data.message || 'Erro ao buscar estatísticas');
       }
@@ -52,7 +54,7 @@ export default function DashboardPage() {
         )}
 
         {/* Cards em grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl">
           {/* Card de Total de Produtos */}
           <div>
             <div className="bg-orange-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-orange-200 p-6">
@@ -110,6 +112,37 @@ export default function DashboardPage() {
               <div className="text-center mt-4">
                 <p className="text-xs text-teal-100">
                   Quantidade total em estoque
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Produtos Otimizados */}
+          <div>
+            <div className="bg-green-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-green-200 p-6">
+              {/* Cabeçalho */}
+              <div className="flex items-center mb-4">
+                <div className="w-8 h-8 bg-green-400 rounded-lg flex items-center justify-center mr-3">
+                  <CheckCircle className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-sm font-medium text-green-100">Otimizados</p>
+              </div>
+              
+              {/* Conteúdo centralizado */}
+              <div className="text-center">
+                <div className="font-bold text-white text-4xl mb-2">
+                  {loading ? (
+                    <div className="animate-pulse bg-green-300 rounded mx-auto h-10 w-24"></div>
+                  ) : (
+                    <span>{totalOptimized.toLocaleString()}</span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Rodapé */}
+              <div className="text-center mt-4">
+                <p className="text-xs text-green-100">
+                  Produtos totalmente otimizados
                 </p>
               </div>
             </div>
