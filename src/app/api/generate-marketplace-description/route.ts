@@ -778,29 +778,33 @@ TÍTULO PRÉ-DEFINIDO:
 
     systemPrompt += `
 
-CRIATIVIDADE E OTIMIZAÇÃO DE TÍTULOS:
-- Crie títulos ÚNICOS e ATRATIVOS que se destaquem da concorrência
-- Use palavras-chave de ALTO IMPACTO que geram mais cliques
-- Evite títulos genéricos como "Camiseta Básica" ou "Produto de Qualidade"
-- Inclua BENEFÍCIOS e CARACTERÍSTICAS únicas do produto
+ESTRUTURA OBRIGATÓRIA DO TÍTULO (MÁXIMO 60 CARACTERES):
+- CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
+- SEMPRE incluir: Categoria, Marca, Gênero (Masculino/Feminino/Unissex), Cor
+- SEMPRE incluir palavras-chave SEO para melhorar busca
 - Use ADJETIVOS PODEROSOS: "Premium", "Exclusivo", "Tendência", "Moderno", "Estiloso"
 - Inclua PALAVRAS DE AÇÃO: "Descubra", "Experimente", "Conquiste", "Transforme"
 - Mencione OCASIÕES DE USO: "Para o Dia a Dia", "Ideal para Trabalho", "Perfeito para Festas"
 - Use TENDÊNCIAS DE MODA: "Estilo Urbano", "Look Casual", "Visual Moderno", "Fashion"
 - Inclua SENTIMENTOS: "Confortável", "Elegante", "Descolado", "Sofisticado"
-- Evite repetir o nome da marca no início (coloque no final se necessário)
 - Use EMOÇÕES: "Que Vai Te Surpreender", "Que Você Vai Amar", "Que Faz Sucesso"
 
-EXEMPLOS DE TÍTULOS CRIATIVOS:
+EXEMPLOS DE ESTRUTURA CORRETA (SEM HÍFENS):
+✅ "Camiseta Nike Masculino Azul Premium Estilo Urbano"
+✅ "Moletom Adidas Feminino Preto Confortável Casual"
+✅ "Calça Puma Unissex Cinza Moderna Esportiva"
+✅ "Blusa Hering Feminino Branco Básica Versátil"
+
+EXEMPLOS DE TÍTULOS CRIATIVOS (SEM HÍFENS):
 ❌ Ruim: "Camiseta Stance Verde Militar"
-✅ Bom: "Camiseta Stance Verde Militar - Estilo Urbano"
-✅ Melhor: "Descubra a Camiseta Stance Verde Militar - Look Moderno"
-✅ Excelente: "Camiseta Stance Verde Militar - Estilo Urbano que Faz Sucesso"
+✅ Bom: "Camiseta Stance Verde Militar Estilo Urbano"
+✅ Melhor: "Camiseta Stance Verde Militar Masculino Look Moderno"
+✅ Excelente: "Camiseta Stance Verde Militar Masculino Estilo Urbano"
 
 ❌ Ruim: "Moletom Básico Cinza"
-✅ Bom: "Moletom Premium Cinza - Conforto Garantido"
-✅ Melhor: "Moletom Cinza Premium - Ideal para o Dia a Dia"
-✅ Excelente: "Moletom Cinza Premium - Conforto que Você Vai Amar"
+✅ Bom: "Moletom Premium Cinza Conforto Garantido"
+✅ Melhor: "Moletom Cinza Premium Ideal para o Dia a Dia"
+✅ Excelente: "Moletom Cinza Premium Feminino Confortável"
 
 ESTRUTURA DA DESCRIÇÃO (MÍNIMO 300 PALAVRAS):
 - Parágrafo introdutório sobre o produto (40-60 palavras)
@@ -865,16 +869,28 @@ ${imageAnalysis ? `
 ${imageAnalysis.contextual_analysis}
 ` : 'Nenhuma análise de imagem disponível'}
 
-INSTRUÇÕES CRÍTICAS: 
-- Crie um NOVO TÍTULO otimizado (não use o nome original do produto)
-- OBRIGATÓRIO: O título DEVE sempre incluir: CATEGORIA + MARCA + GÊNERO + COR
+INSTRUÇÕES CRÍTICAS PARA O TÍTULO: 
+- Crie um NOVO TÍTULO seguindo a ESTRUTURA OBRIGATÓRIA
+- OBRIGATÓRIO: CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
 - OBRIGATÓRIO: O título DEVE sempre incluir o gênero: "Masculino", "Feminino" ou "Unissex"
 - OBRIGATÓRIO: O título DEVE sempre incluir a marca do produto
 - OBRIGATÓRIO: O título DEVE sempre incluir a categoria do produto
 - OBRIGATÓRIO: O título DEVE sempre incluir a cor detectada
+- OBRIGATÓRIO: O título DEVE incluir palavras-chave SEO para melhorar busca
+- MÁXIMO 60 CARACTERES no título
 - Na descrição, use EXCLUSIVAMENTE o NOVO TÍTULO que você criou, NUNCA o nome original
 - O novo título deve ser mais atrativo e otimizado para SEO
 - TODA a descrição deve referenciar o produto pelo novo título otimizado
+
+ESTRUTURA EXEMPLO (SEM HÍFENS):
+"Camiseta Nike Masculino Azul Premium Estilo Urbano"
+"Moletom Adidas Feminino Preto Confortável Casual"
+"Calça Puma Unissex Cinza Moderna Esportiva"
+
+REGRAS IMPORTANTES:
+- NUNCA use hífens (-) no título
+- Use apenas espaços para separar as palavras
+- Mantenha a estrutura: CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
 
 USO DOS DADOS TÉCNICOS:
 - Use as ESPECIFICAÇÕES TÉCNICAS para criar seções detalhadas sobre materiais, composição e características

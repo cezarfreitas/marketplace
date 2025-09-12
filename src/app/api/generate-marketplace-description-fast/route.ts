@@ -204,8 +204,20 @@ async function generateFastDescription(
     // Prompt otimizado e mais curto para resposta mais rápida
     const systemPrompt = `Você é um especialista em e-commerce. Crie títulos e descrições otimizadas para marketplace de forma RÁPIDA e EFICIENTE.
 
+ESTRUTURA OBRIGATÓRIA DO TÍTULO (MÁXIMO 60 CARACTERES):
+- CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
+- SEMPRE incluir: Categoria, Marca, Gênero (Masculino/Feminino/Unissex), Cor
+- SEMPRE incluir palavras-chave SEO para melhorar busca
+- NUNCA use hífens (-) no título
+- Use apenas espaços para separar as palavras
+
+EXEMPLOS CORRETOS (SEM HÍFENS):
+✅ "Camiseta Nike Masculino Azul Premium Estilo Urbano"
+✅ "Moletom Adidas Feminino Preto Confortável Casual"
+✅ "Calça Puma Unissex Cinza Moderna Esportiva"
+
 REGRAS:
-- Título: máximo 60 caracteres, incluir marca, categoria, gênero e cor
+- Título: máximo 60 caracteres, estrutura obrigatória
 - Descrição: 200-300 palavras, estruturada e persuasiva
 - Use HTML básico: <b>, <br>, <li>
 - Seja criativo mas conciso
@@ -213,7 +225,7 @@ REGRAS:
 
 FORMATO JSON:
 {
-  "title": "título otimizado",
+  "title": "título otimizado sem hífens",
   "description": "descrição estruturada",
   "clothing_type": "tipo de roupa",
   "sleeve_type": "tipo de manga",
@@ -229,6 +241,13 @@ MARCA: ${product.brand_name || 'N/A'}
 CATEGORIA: ${product.category_name || 'N/A'}
 REF_ID: ${product.ref_id || 'N/A'}
 DESCRIÇÃO ATUAL: ${product.description || 'N/A'}
+
+INSTRUÇÕES CRÍTICAS PARA O TÍTULO:
+- OBRIGATÓRIO: CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
+- NUNCA use hífens (-) no título
+- Use apenas espaços para separar as palavras
+- MÁXIMO 60 CARACTERES
+- Inclua palavras-chave SEO para melhorar busca
 
 Gere título e descrição otimizados de forma RÁPIDA e EFICIENTE.`;
 
