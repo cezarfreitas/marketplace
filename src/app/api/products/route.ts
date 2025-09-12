@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
     const category_id = searchParams.getAll('category_id');
     const is_active = searchParams.get('is_active');
     const is_visible = searchParams.get('is_visible');
+    const stock_operator = searchParams.get('stock_operator');
+    const stock_value = searchParams.get('stock_value');
 
     if (brand_id && brand_id.length > 0) {
       // Filtrar valores vazios
@@ -110,6 +112,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Filtro para estoque
+    if (stock_operator && stock_value !== null && stock_value !== '') {
+      const stockNum = parseFloat(stock_value);
+      if (!isNaN(stockNum)) {
+        const stockCondition = `
+          (SELECT COALESCE(SUM(st.total_quantity), 0) 
+           FROM skus_vtex s 
+           LEFT JOIN stock_vtex st ON s.id = st.sku_id 
+           WHERE s.product_id = p.id) ${stock_operator} ?
+        `;
+        conditions.push(stockCondition);
+        searchParams_array.push(stockNum);
+      }
+    }
+
     // Filtro para status de otimização
     const optimization_status = searchParams.get('optimization_status');
     if (optimization_status === 'partial') {
@@ -134,26 +151,56 @@ export async function GET(request: NextRequest) {
     }
 
     // Validar campos de ordenação
-    const allowedSortFields = ['name', 'created_at', 'updated_at', 'vtex_id', 'brand_name', 'category_name'];
+    const allowedSortFields = ['name', 'created_at', 'updated_at', 'vtex_id', 'brand_name', 'category_name', 'total_stock'];
     const validSortField = allowedSortFields.includes(sort) ? sort : 'created_at';
     const validOrder = order === 'asc' ? 'ASC' : 'DESC';
 
     // Query básica para produtos
-    const productsQuery = `
-      SELECT 
-        p.*,
-        b.name as brand_name,
-        c.name as category_name,
-        c.vtex_id as category_vtex_id,
-        0 as sku_count,
-        0 as total_stock
-      FROM products_vtex p
-      LEFT JOIN brands_vtex b ON p.brand_id = b.vtex_id
-      LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
-      ${whereClause}
-      ORDER BY p.${validSortField} ${validOrder}
-      LIMIT ${limit} OFFSET ${offset}
-    `;
+    let productsQuery = '';
+    
+    if (validSortField === 'total_stock') {
+      // Query especial para ordenação por estoque
+      productsQuery = `
+        SELECT 
+          p.*,
+          b.name as brand_name,
+          c.name as category_name,
+          c.vtex_id as category_vtex_id,
+          0 as sku_count,
+          COALESCE(stock.total_stock, 0) as total_stock
+        FROM products_vtex p
+        LEFT JOIN brands_vtex b ON p.brand_id = b.vtex_id
+        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
+        LEFT JOIN (
+          SELECT 
+            s.product_id,
+            SUM(COALESCE(st.total_quantity, 0)) as total_stock
+          FROM skus_vtex s
+          LEFT JOIN stock_vtex st ON s.id = st.sku_id
+          GROUP BY s.product_id
+        ) stock ON p.id = stock.product_id
+        ${whereClause}
+        ORDER BY COALESCE(stock.total_stock, 0) ${validOrder}
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    } else {
+      // Query padrão para outras ordenações
+      productsQuery = `
+        SELECT 
+          p.*,
+          b.name as brand_name,
+          c.name as category_name,
+          c.vtex_id as category_vtex_id,
+          0 as sku_count,
+          0 as total_stock
+        FROM products_vtex p
+        LEFT JOIN brands_vtex b ON p.brand_id = b.vtex_id
+        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
+        ${whereClause}
+        ORDER BY p.${validSortField} ${validOrder}
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    }
 
     console.log('📝 Executando query de produtos...');
     console.log('🔍 Query:', productsQuery.substring(0, 200) + '...');
@@ -185,16 +232,17 @@ export async function GET(request: NextRequest) {
         const imageCountResult = await executeQuery(imageCountQuery, [product.id]);
         product.image_count = imageCountResult[0]?.image_count || 0;
 
-        // Contar estoque (usando os IDs dos SKUs do produto)
-        const stockCountQuery = `
-          SELECT COALESCE(SUM(total_quantity), 0) as total_stock
-          FROM stock_vtex
-          WHERE vtex_sku_id IN (
-            SELECT id FROM skus_vtex WHERE product_id = ?
-          )
-        `;
-        const stockCountResult = await executeQuery(stockCountQuery, [product.id]);
-        product.total_stock = stockCountResult[0]?.total_stock || 0;
+        // Contar estoque (usando os IDs dos SKUs do produto) - apenas se não foi calculado na query principal
+        if (validSortField !== 'total_stock') {
+          const stockCountQuery = `
+            SELECT COALESCE(SUM(st.total_quantity), 0) as total_stock
+            FROM skus_vtex s
+            LEFT JOIN stock_vtex st ON s.id = st.sku_id
+            WHERE s.product_id = ?
+          `;
+          const stockCountResult = await executeQuery(stockCountQuery, [product.id]);
+          product.total_stock = stockCountResult[0]?.total_stock || 0;
+        }
 
         // Buscar imagem principal do produto
         const imageQuery = `

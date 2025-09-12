@@ -321,6 +321,30 @@ export default function ProductsPage() {
   } = useProducts();
 
   // Buscar produtos com análise, descrição do Marketplace e sincronização Anymarket quando a página carregar
+  // Função para buscar produtos com crop processado
+  const fetchProductsWithCroppedImages = async () => {
+    try {
+      const response = await fetch('/api/crop-logs?status=completed&limit=1000');
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.logs) {
+          const productIds = Array.from(new Set(data.logs.map((log: any) => log.product_id))) as number[];
+          setProductsWithCroppedImages(productIds);
+        } else {
+          setProductsWithCroppedImages([]);
+        }
+      } else {
+        console.error('Erro ao buscar produtos com crop:', response.status, response.statusText);
+        setProductsWithCroppedImages([]);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos com crop:', error);
+      setProductsWithCroppedImages([]);
+    }
+  };
+
   useEffect(() => {
     const fetchAllData = async () => {
       try {
@@ -328,7 +352,8 @@ export default function ProductsPage() {
           fetchProductsWithAnalysis(),
           fetchProductsWithMarketplace(),
           fetchProductsWithCharacteristics(),
-          fetchProductsWithAnymarketSync()
+          fetchProductsWithAnymarketSync(),
+          fetchProductsWithCroppedImages()
         ]);
       } catch (error) {
         // console.error('Erro ao carregar dados iniciais:', error);
@@ -1335,6 +1360,22 @@ export default function ProductsPage() {
       return;
     }
 
+    // Registrar log de início do processo de crop
+    try {
+      await fetch('/api/crop-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          anymarketId: anymarketId,
+          productName: product.name,
+          status: 'processing'
+        })
+      });
+    } catch (logError) {
+      console.warn('⚠️ Erro ao registrar log de crop:', logError);
+    }
+
     try {
       // console.log(`🔍 Buscando imagens do produto ${anymarketId} no Anymarket...`);
       
@@ -1397,14 +1438,30 @@ export default function ProductsPage() {
     }
   };
 
-  const handleCropProcessingComplete = (productId: number) => {
+  const handleCropProcessingComplete = async (productId: number) => {
     console.log('✅ Processamento de crop concluído para produto ID:', productId);
+    
+    // Atualizar estado visual
     setProductsWithCroppedImages(prev => {
       if (!prev.includes(productId)) {
         return [...prev, productId];
       }
       return prev;
     });
+
+    // Registrar log de conclusão do processo de crop
+    try {
+      await fetch('/api/crop-logs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: productId,
+          status: 'completed'
+        })
+      });
+    } catch (logError) {
+      console.warn('⚠️ Erro ao registrar log de conclusão do crop:', logError);
+    }
   };
 
   const handleViewSkus = () => {
@@ -1592,7 +1649,7 @@ export default function ProductsPage() {
       return;
     }
 
-    if (!confirm(`Deseja processar TODOS os passos para ${productsToProcess.length} produtos selecionados?\n\n📸 Análise de Imagens\n📝 Marketplace\n🔄 Anymarket\n📦 Estoque\n✂️ Crop de Imagens`)) {
+    if (!confirm(`Deseja processar TODOS os passos para ${productsToProcess.length} produtos selecionados?\n\n📸 Análise de Imagens\n📝 Marketplace\n📋 Características\n🔄 Sincronização Anymarket\n✂️ Crop de Imagens`)) {
       return;
     }
 
@@ -1605,8 +1662,8 @@ export default function ProductsPage() {
       completedSteps: {
         analysis: 0,
         marketplace: 0,
+        characteristics: 0,
         anymarket: 0,
-        stock: 0,
         crop: 0
       }
     });
@@ -1616,8 +1673,8 @@ export default function ProductsPage() {
     const stepResults = {
       analysis: { success: 0, errors: 0 },
       marketplace: { success: 0, errors: 0 },
+      characteristics: { success: 0, errors: 0 },
       anymarket: { success: 0, errors: 0 },
-      stock: { success: 0, errors: 0 },
       crop: { success: 0, errors: 0 }
     };
 
@@ -1732,13 +1789,66 @@ export default function ProductsPage() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      // 3. ANYMARKET (sincronização individual)
-      console.log('🔄 === ETAPA 3: ANYMARKET ===');
-      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Anymarket' }));
+      // 3. CARACTERÍSTICAS
+      console.log('📋 === ETAPA 3: CARACTERÍSTICAS ===');
+      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Características' }));
       
       for (let i = 0; i < productsToProcess.length; i++) {
         const product = productsToProcess[i];
         const stepIndex = i * 5 + 3;
+        
+        setBatchAllProgress(prev => ({
+          ...prev,
+          current: stepIndex,
+          currentProduct: product.name
+        }));
+
+        try {
+          console.log(`📋 Gerando características para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+          
+          const response = await fetch('/api/generate-characteristics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: product.id
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setProductsWithCharacteristics(prev => {
+                if (!prev.includes(product.id)) {
+                  return [...prev, product.id];
+                }
+                return prev;
+              });
+              stepResults.characteristics.success++;
+              totalSuccess++;
+            } else {
+              stepResults.characteristics.errors++;
+              totalErrors++;
+            }
+          } else {
+            stepResults.characteristics.errors++;
+            totalErrors++;
+          }
+        } catch (error) {
+          console.error(`❌ Erro nas características de ${product.name}:`, error);
+          stepResults.characteristics.errors++;
+          totalErrors++;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // 4. ANYMARKET (sincronização individual)
+      console.log('🔄 === ETAPA 4: ANYMARKET ===');
+      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Anymarket' }));
+      
+      for (let i = 0; i < productsToProcess.length; i++) {
+        const product = productsToProcess[i];
+        const stepIndex = i * 5 + 4;
         
         setBatchAllProgress(prev => ({
           ...prev,
@@ -1785,13 +1895,13 @@ export default function ProductsPage() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      // 4. ATUALIZAÇÃO DE ESTOQUE
-      console.log('📦 === ETAPA 4: ATUALIZAÇÃO DE ESTOQUE ===');
-      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Atualização de Estoque' }));
+      // 5. CROP DE IMAGENS
+      console.log('✂️ === ETAPA 5: CROP DE IMAGENS ===');
+      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Crop de Imagens' }));
       
       for (let i = 0; i < productsToProcess.length; i++) {
         const product = productsToProcess[i];
-        const stepIndex = i * 5 + 4;
+        const stepIndex = i * 5 + 5;
         
         setBatchAllProgress(prev => ({
           ...prev,
@@ -1800,26 +1910,70 @@ export default function ProductsPage() {
         }));
 
         try {
-          console.log(`📦 Atualizando estoque para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
+          console.log(`✂️ Fazendo crop de imagens para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
           
-          const response = await fetch(`/api/products/${product.id}/stock`, {
-            method: 'PUT',
+          // Registrar log de início do processo de crop
+          try {
+            await fetch('/api/crop-logs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                productId: product.id,
+                anymarketId: product.anymarket_id || anymarketMappings[product.ref_id || ''],
+                productName: product.name,
+                status: 'processing'
+              })
+            });
+          } catch (logError) {
+            console.warn('⚠️ Erro ao registrar log de crop:', logError);
+          }
+
+          const response = await fetch('/api/anymarket/crop-images', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              stock: product.total_stock || 0
+              productId: product.id,
+              anymarketId: product.anymarket_id || anymarketMappings[product.ref_id || '']
             })
           });
 
           if (response.ok) {
-            stepResults.stock.success++;
-            totalSuccess++;
+            const result = await response.json();
+            if (result.success) {
+              setProductsWithCroppedImages(prev => {
+                if (!prev.includes(product.id)) {
+                  return [...prev, product.id];
+                }
+                return prev;
+              });
+              
+              // Registrar log de conclusão do processo de crop
+              try {
+                await fetch('/api/crop-logs', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    productId: product.id,
+                    status: 'completed'
+                  })
+                });
+              } catch (logError) {
+                console.warn('⚠️ Erro ao registrar log de conclusão do crop:', logError);
+              }
+              
+              stepResults.crop.success++;
+              totalSuccess++;
+            } else {
+              stepResults.crop.errors++;
+              totalErrors++;
+            }
           } else {
-            stepResults.stock.errors++;
+            stepResults.crop.errors++;
             totalErrors++;
           }
         } catch (error) {
-          console.error(`❌ Erro na atualização de estoque de ${product.name}:`, error);
-          stepResults.stock.errors++;
+          console.error(`❌ Erro no crop de imagens de ${product.name}:`, error);
+          stepResults.crop.errors++;
           totalErrors++;
         }
 
@@ -1892,8 +2046,8 @@ export default function ProductsPage() {
         completedSteps: {
           analysis: 0,
           marketplace: 0,
+          characteristics: 0,
           anymarket: 0,
-          stock: 0,
           crop: 0
         }
       });
@@ -1912,13 +2066,13 @@ export default function ProductsPage() {
       resultMessage += `✅ Sucessos: ${stepResults.marketplace.success}\n`;
       resultMessage += `❌ Erros: ${stepResults.marketplace.errors}\n\n`;
       
+      resultMessage += `📋 CARACTERÍSTICAS:\n`;
+      resultMessage += `✅ Sucessos: ${stepResults.characteristics.success}\n`;
+      resultMessage += `❌ Erros: ${stepResults.characteristics.errors}\n\n`;
+      
       resultMessage += `🔄 ANYMARKET:\n`;
       resultMessage += `✅ Sucessos: ${stepResults.anymarket.success}\n`;
       resultMessage += `❌ Erros: ${stepResults.anymarket.errors}\n\n`;
-      
-      resultMessage += `📦 ESTOQUE:\n`;
-      resultMessage += `✅ Sucessos: ${stepResults.stock.success}\n`;
-      resultMessage += `❌ Erros: ${stepResults.stock.errors}\n\n`;
       
       resultMessage += `✂️ CROP DE IMAGENS:\n`;
       resultMessage += `✅ Sucessos: ${stepResults.crop.success}\n`;
@@ -2535,6 +2689,47 @@ export default function ProductsPage() {
                   <SelectItem value="false">❌ Sem Log</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Filtro de Estoque */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Estoque
+              </label>
+              <div className="flex space-x-2">
+                <Select
+                  value={filters.stock_operator || ''}
+                  onValueChange={(value) => {
+                    updateFilters({ 
+                      stock_operator: value || undefined,
+                      stock_value: value ? filters.stock_value : undefined
+                    });
+                  }}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue placeholder="Op" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value=">">&gt;</SelectItem>
+                    <SelectItem value=">=">&gt;=</SelectItem>
+                    <SelectItem value="=">=</SelectItem>
+                    <SelectItem value="<">&lt;</SelectItem>
+                    <SelectItem value="<=">&lt;=</SelectItem>
+                    <SelectItem value="!=">!=</SelectItem>
+                  </SelectContent>
+                </Select>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={filters.stock_value || ''}
+                  onChange={(e) => {
+                    const value = e.target.value ? parseInt(e.target.value) : undefined;
+                    updateFilters({ stock_value: value });
+                  }}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
             </div>
           </div>
         </div>

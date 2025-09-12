@@ -136,9 +136,18 @@ export function ProductTable({
                   {getSortIcon('name')}
                 </div>
               </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-24">
+              <th className="px-3 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-16">
                 <div className="flex items-center justify-center space-x-1">
-                  <span>SKUs / Estoque</span>
+                  <span>SKUs</span>
+                </div>
+              </th>
+              <th 
+                className="px-3 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-16 cursor-pointer hover:bg-gray-200 transition-colors"
+                onClick={() => onSort('total_stock')}
+              >
+                <div className="flex items-center justify-center space-x-1">
+                  <span>Estoque</span>
+                  {getSortIcon('total_stock')}
                 </div>
               </th>
               <th 
@@ -150,17 +159,17 @@ export function ProductTable({
                   {getSortIcon('brand_name')}
                 </div>
               </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
-                RefId / ID_ANY
-              </th>
               <th 
-                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell cursor-pointer hover:bg-gray-200 transition-colors"
+                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={() => onSort('category_name')}
               >
                 <div className="flex items-center space-x-1">
                   <span>Categoria</span>
                   {getSortIcon('category_name')}
                 </div>
+              </th>
+              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">
+                RefId / ID_ANY
               </th>
               <th 
                 className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-16 cursor-pointer hover:bg-gray-200 transition-colors"
@@ -227,6 +236,10 @@ export function ProductTable({
                       </div>
                       {product.ref_id && (
                         <div className="text-xs text-blue-600 font-mono truncate" title={`RefId: ${product.ref_id}`}>
+                          {anymarketMappings && anymarketMappings[product.ref_id || ''] && (
+                            <span className="text-purple-600">{anymarketMappings[product.ref_id || '']}</span>
+                          )}
+                          {anymarketMappings && anymarketMappings[product.ref_id || ''] && <span className="text-gray-400"> | </span>}
                           {product.ref_id}
                         </div>
                       )}
@@ -239,14 +252,14 @@ export function ProductTable({
                   </div>
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-center">
-                  <div className="flex items-center justify-center space-x-2">
-                    {/* SKUs */}
+                  <div className="flex items-center justify-center">
                     <span className="inline-flex items-center justify-center w-8 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200">
                       {product.sku_count || 0}
                     </span>
-                    {/* Separador */}
-                    <span className="text-gray-400 text-xs">/</span>
-                    {/* Estoque */}
+                  </div>
+                </td>
+                <td className="px-3 py-4 whitespace-nowrap text-center">
+                  <div className="flex items-center justify-center">
                     <StockTooltip 
                       productId={product.id} 
                       totalStock={product.total_stock || 0}
@@ -270,6 +283,13 @@ export function ProductTable({
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
                   <div className="flex items-center">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                      {product.category_name || 'N/A'}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
+                  <div className="flex items-center">
                     <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200 font-medium">
                       {product.ref_id || 'N/A'}
                       {anymarketMappings[product.ref_id || ''] && (
@@ -278,13 +298,6 @@ export function ProductTable({
                       {anymarketMappings[product.ref_id || ''] && (
                         <span className="text-purple-700">{anymarketMappings[product.ref_id || '']}</span>
                       )}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
-                  <div className="flex items-center">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                      {product.category_name || 'N/A'}
                     </span>
                   </div>
                 </td>
@@ -380,13 +393,20 @@ export function ProductTable({
                     </button>
                     <button
                       onClick={() => onCropImages(product)}
-                      className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-50 transition-colors group relative"
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative ${
+                        productsWithCroppedImages.includes(product.id)
+                          ? 'border-purple-400 bg-purple-300 hover:bg-purple-400'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
                       title={`Cropar Imagens${productsWithCroppedImages.includes(product.id) ? ' (Concluído)' : ''}`}
                     >
-                      <Crop className="h-4 w-4 text-gray-600 group-hover:text-gray-800" />
-                      {productsWithCroppedImages.includes(product.id) && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border border-white z-0"></div>
-                      )}
+                      <Crop 
+                        className={`h-4 w-4 group-hover:text-gray-800 ${
+                          productsWithCroppedImages.includes(product.id)
+                            ? 'text-purple-800'
+                            : 'text-gray-600'
+                        }`}
+                      />
                     </button>
                   </div>
                 </td>

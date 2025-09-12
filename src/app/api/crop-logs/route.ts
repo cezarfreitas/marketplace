@@ -49,9 +49,24 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Como a tabela crop_processing_logs não existe,
-    // vamos apenas retornar sucesso sem salvar
-    console.log('📝 Log de processamento (simulado):', {
+    // Salvar log na tabela crop_processing_logs
+    const logResult = await executeQuery(`
+      INSERT INTO crop_processing_logs (
+        product_id, anymarket_id, product_name, status, total_images, details, started_at
+      ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `, [
+      productId,
+      anymarketId,
+      productName,
+      status,
+      totalImages || 0,
+      details ? JSON.stringify(details) : null
+    ]);
+
+    const logId = (logResult as any).insertId;
+
+    console.log('📝 Log de processamento salvo:', {
+      logId,
       productId,
       anymarketId,
       productName,
@@ -63,8 +78,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        logId: Date.now(), // ID simulado
-        message: 'Log de processamento registrado (simulado)'
+        logId: logId,
+        message: 'Log de processamento registrado com sucesso'
       }
     });
 
@@ -103,26 +118,78 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Como a tabela crop_processing_logs não existe,
-    // vamos apenas logar a atualização
-    console.log('📝 Atualização de log (simulada):', {
+    // Atualizar log na tabela crop_processing_logs
+    const updateFields = [];
+    const updateValues = [];
+
+    if (status) {
+      updateFields.push('status = ?');
+      updateValues.push(status);
+    }
+    if (processedImages !== undefined) {
+      updateFields.push('processed_images = ?');
+      updateValues.push(processedImages);
+    }
+    if (failedImages !== undefined) {
+      updateFields.push('failed_images = ?');
+      updateValues.push(failedImages);
+    }
+    if (pixianSuccessCount !== undefined) {
+      updateFields.push('pixian_success_count = ?');
+      updateValues.push(pixianSuccessCount);
+    }
+    if (pixianErrorCount !== undefined) {
+      updateFields.push('pixian_error_count = ?');
+      updateValues.push(pixianErrorCount);
+    }
+    if (anymarketSuccessCount !== undefined) {
+      updateFields.push('anymarket_success_count = ?');
+      updateValues.push(anymarketSuccessCount);
+    }
+    if (anymarketErrorCount !== undefined) {
+      updateFields.push('anymarket_error_count = ?');
+      updateValues.push(anymarketErrorCount);
+    }
+    if (processingTimeSeconds !== undefined) {
+      updateFields.push('processing_time_seconds = ?');
+      updateValues.push(processingTimeSeconds);
+    }
+    if (errorMessage) {
+      updateFields.push('error_message = ?');
+      updateValues.push(errorMessage);
+    }
+    if (details) {
+      updateFields.push('details = ?');
+      updateValues.push(JSON.stringify(details));
+    }
+
+    // Adicionar completed_at se status for completed ou failed
+    if (status === 'completed' || status === 'failed') {
+      updateFields.push('completed_at = CURRENT_TIMESTAMP');
+    }
+
+    updateValues.push(logId);
+
+    const updateQuery = `
+      UPDATE crop_processing_logs 
+      SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+
+    await executeQuery(updateQuery, updateValues);
+
+    console.log('📝 Log de processamento atualizado:', {
       logId,
       status,
       processedImages,
       failedImages,
-      pixianSuccessCount,
-      pixianErrorCount,
-      anymarketSuccessCount,
-      anymarketErrorCount,
-      processingTimeSeconds,
-      errorMessage,
-      details
+      updateFields
     });
 
     return NextResponse.json({
       success: true,
       data: {
-        message: 'Log atualizado com sucesso (simulado)'
+        message: 'Log atualizado com sucesso'
       }
     });
 
