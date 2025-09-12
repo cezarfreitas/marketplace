@@ -360,7 +360,7 @@ async function saveMarketplaceDescription(data: any) {
     return {
       success: true,
       data: {
-        id: result.insertId,
+        id: (result as any).insertId || 0,
         product_id: data.productId,
         title: data.title,
         description: data.description
