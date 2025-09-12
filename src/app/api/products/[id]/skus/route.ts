@@ -20,19 +20,18 @@ export async function GET(
     const query = `
       SELECT 
         s.id,
+        s.vtex_id,
         s.name_complete as sku_name,
-        s.ref_id as sku_ref_id,
-        s.product_ref_id as product_ref_id,
+        s.product_ref_id,
         s.manufacturer_code as ean,
         s.is_active,
         s.product_id,
-        s.vtex_id as sku_vtex_id,
-        s.height,
-        s.width,
-        s.length,
-        s.weight_kg,
-        s.position,
-        s.date_updated,
+        s.sku_name,
+        s.brand_name,
+        s.image_url,
+        s.detail_url,
+        s.created_at,
+        s.updated_at,
         p.name as product_name,
         p.ref_id as product_ref_id,
         p.id as product_vtex_id,
@@ -40,8 +39,8 @@ export async function GET(
       FROM skus_vtex s
       INNER JOIN products_vtex p ON s.product_id = p.id
       LEFT JOIN meli m ON p.id = m.product_id
-      WHERE p.id = ?
-      ORDER BY s.position ASC, s.name_complete ASC
+      WHERE s.product_id = ?
+      ORDER BY s.name_complete ASC, s.id ASC
     `;
 
     const skus = await executeQuery(query, [productId]);
