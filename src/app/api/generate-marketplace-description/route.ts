@@ -24,81 +24,160 @@ function calculateOpenAICost(tokens: number, model: string): number {
   return inputCost + outputCost;
 }
 
-// Função para gerar respostas das características usando agente específico
-async function generateCharacteristicsResponses(
+
+// Função para gerar metadados do produto (clothing_type, sleeve_type, gender, color, modelo)
+async function generateProductMetadata(
   product: any,
   imageAnalysis: any,
-  marketplaceDescription: any,
+  skus: any[],
+  specifications: any[],
+  agent: any,
+  title: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    console.log('📊 Gerando metadados do produto...');
+    
+    const systemPrompt = `Você é um especialista em classificação de produtos de moda. Sua tarefa é analisar o produto e gerar metadados específicos baseados no título, análise da fotografia e dados do produto.
+
+REGRAS IMPORTANTES:
+1. Analise o título fornecido
+2. Use a análise da fotografia para confirmar características visuais
+3. Use dados reais do produto VTEX
+4. Seja específico e preciso nas classificações
+5. Use apenas valores válidos para cada campo
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "clothing_type": "Tipo de roupa (ex: Camiseta, Camiseta Polo, Moletom, Calça, Short, Blusa, Vestido, Saia, Jaqueta, Casaco)",
+  "sleeve_type": "Tipo de manga (Curta, Longa, 3/4, Sem Mangas, Tomara que caia)",
+  "gender": "Gênero (Masculino, Feminino, Meninos, Meninas, Bebês, Sem gênero, Sem gênero infantil)",
+  "color": "Cor principal do produto (ex: Azul, Vermelho, Preto, Branco, Verde, Amarelo, Rosa, Cinza, Marrom, Roxo)",
+  "modelo": "5 variações do nome do produto separadas por vírgula (ex: Camiseta Básica, Camiseta Casual, Camisa Dia a Dia, Camisa Lisa, Camisa para Trabalhar)"
+}`;
+
+    const userPrompt = `Analise este produto e gere os metadados baseados no título e análise da fotografia:
+
+=== TÍTULO DO PRODUTO ===
+${title}
+
+=== ANÁLISE DA FOTOGRAFIA ===
+${imageAnalysis ? imageAnalysis.contextual_analysis : 'Nenhuma análise de imagem disponível'}
+
+=== DADOS DO PRODUTO VTEX ===
+Nome Original: ${product.name}
+Marca: ${product.brand_name || 'N/A'}
+Categoria: ${product.category_name || 'N/A'}
+
+=== ESPECIFICAÇÕES TÉCNICAS ===
+${specifications.length > 0 ? specifications.map((spec, index) => `
+${index + 1}. ${spec.field_name}: ${spec.field_value_ids || 'N/A'} ${spec.field_group_name ? `(Grupo: ${spec.field_group_name})` : ''}
+`).join('') : 'Nenhuma especificação encontrada'}
+
+Gere os metadados baseados nas informações fornecidas. Seja específico e use apenas valores válidos para cada campo.`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: agent.model || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        max_tokens: 300,
+        temperature: parseFloat(agent.temperature) || 0.2,
+        response_format: { type: 'json_object' },
+        stream: false
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('❌ Erro na API OpenAI para metadados:', response.status, errorData);
+      throw new Error(`Erro na API OpenAI: ${response.status}`);
+    }
+
+    const responseData = await response.json();
+    const content = responseData.choices[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('Resposta vazia da OpenAI');
+    }
+
+    const parsedContent = JSON.parse(content);
+    console.log('📊 Metadados gerados:', JSON.stringify(parsedContent, null, 2));
+    
+    return {
+      success: true,
+      data: {
+        clothing_type: parsedContent.clothing_type || 'Produto de Vestuário',
+        sleeve_type: parsedContent.sleeve_type || 'Curta',
+        gender: parsedContent.gender || 'Sem gênero',
+        color: parsedContent.color || 'Multicolorido',
+        modelo: parsedContent.modelo || 'Produto Básico, Produto Casual, Produto Simples, Produto Essencial, Produto Versátil',
+        tokensUsed: responseData.usage?.total_tokens || 0,
+        tokensPrompt: responseData.usage?.prompt_tokens || 0,
+        tokensCompletion: responseData.usage?.completion_tokens || 0,
+        cost: calculateOpenAICost(responseData.usage?.total_tokens || 0, agent.model || 'gpt-4o-mini'),
+        requestId: responseData.id || '',
+        responseTime: Date.now()
+      }
+    };
+
+  } catch (error: any) {
+    console.error('❌ Erro ao gerar metadados do produto:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Função para gerar parágrafo baseado no título e análise de fotografia
+async function generateParagraphFromTitleAndImage(
+  product: any,
+  imageAnalysis: any,
+  title: string,
   productId: number,
   openaiApiKey: string
-): Promise<{ success: boolean; data?: any[]; error?: string }> {
+): Promise<{ success: boolean; data?: string; error?: string }> {
   try {
-    console.log('🤖 Iniciando geração de respostas das características...');
+    console.log('📝 Gerando parágrafo baseado no título e análise de fotografia...');
     
-    // Buscar características ativas
-    const characteristicsQuery = `
-      SELECT id, caracteristica, pergunta_ia, valores_possiveis
-      FROM caracteristicas 
-      WHERE is_active = 1
-      ORDER BY caracteristica
-    `;
-    
-    const characteristicsResult = await executeQuery(characteristicsQuery, []);
-    const characteristics = characteristicsResult || [];
-    
-    if (!characteristics || characteristics.length === 0) {
-      console.log('⚠️ Nenhuma característica ativa encontrada');
-      return { success: true, data: [] };
-    }
-    
-    console.log(`📊 Encontradas ${characteristics.length} características ativas`);
-    console.log('📋 Características encontradas:', characteristics.map((c: any) => `${c.id}: ${c.caracteristica}`).join(', '));
-    
-    // Buscar agente de características
-    console.log('🔍 Buscando agente de características...');
-    const agentQuery = `
-      SELECT id, name, system_prompt, model, max_tokens, temperature
-      FROM agents 
-      WHERE name = 'Agente Características' AND is_active = 1
-      LIMIT 1
-    `;
-    
-    const agentResult = await executeQuery(agentQuery, []);
-    const agent = agentResult && agentResult.length > 0 ? agentResult[0] : null;
-    
-    if (!agent) {
-      console.log('❌ Agente de características não encontrado');
-      return { success: false, error: 'Agente de características não encontrado' };
-    }
-    
-    console.log(`🤖 Usando agente: ${agent.name} (ID: ${agent.id})`);
-    
-    // Construir prompt para o agente
-    const systemPrompt = agent.system_prompt;
+    const systemPrompt = `Você é um especialista em marketing para e-commerce. Sua tarefa é criar APENAS um parágrafo descritivo baseado no título do produto e na análise da fotografia.
 
-    const userPrompt = `Analise este produto e responda as perguntas das características:
+REGRAS IMPORTANTES:
+1. Crie APENAS UM parágrafo de 3-4 frases
+2. Baseie-se no título fornecido e na análise da fotografia
+3. Use linguagem persuasiva mas honesta
+4. Foque nos benefícios e características visuais
+5. Inclua uma referência ao futebol ou esporte
+6. Use no máximo 100 palavras
+7. Seja específico sobre o que se vê na foto
+8. Não invente informações que não estão no título ou análise
 
-=== INFORMAÇÕES DO PRODUTO ===
-Nome: ${product.name}
-Ref ID: ${product.ref_id || 'N/A'}
-Categoria: ${product.category || 'N/A'}
+FORMATO DE RESPOSTA:
+Retorne APENAS o parágrafo, sem formatação adicional, sem aspas, sem explicações.`;
 
-=== ANÁLISE DE IMAGEM ===
-${imageAnalysis ? imageAnalysis.contextualizacao : 'Não disponível'}
+    const userPrompt = `Crie um parágrafo descritivo para este produto:
 
-=== DESCRIÇÃO GERADA ===
-Título: ${marketplaceDescription.title}
-Descrição: ${marketplaceDescription.description}
+=== TÍTULO DO PRODUTO ===
+${title}
 
-=== PERGUNTAS DAS CARACTERÍSTICAS ===
-${characteristics.map((char: any) => 
-  `${char.id}. ${char.caracteristica}: ${char.pergunta_ia}
-   Valores possíveis: ${char.valores_possiveis || 'N/A'}`
-).join('\n\n')}
+=== ANÁLISE DA FOTOGRAFIA ===
+${imageAnalysis ? imageAnalysis.contextual_analysis : 'Nenhuma análise de imagem disponível'}
 
-Responda cada pergunta baseado nas informações fornecidas.`;
+=== INFORMAÇÕES BÁSICAS ===
+Produto: ${product.name}
+Marca: ${product.brand_name || 'N/A'}
+Categoria: ${product.category_name || 'N/A'}
 
-    console.log('🌐 Chamando API da OpenAI para características (modo rápido)...');
+Crie um parágrafo que descreva o produto baseado no título e no que se vê na fotografia. Inclua uma referência ao futebol ou esporte.`;
+
+    console.log('🌐 Chamando API da OpenAI para gerar parágrafo...');
     const startTime = Date.now();
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -108,21 +187,20 @@ Responda cada pergunta baseado nas informações fornecidas.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', // OTIMIZADO: Usar modelo mais rápido
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 800, // OTIMIZADO: Reduzido de 1000 para 800
-        temperature: 0.2, // OTIMIZADO: Reduzido de 0.3 para 0.2 para resposta mais rápida
-        response_format: { type: 'json_object' },
-        stream: false // OTIMIZADO: Garantir que não seja streaming
+        max_tokens: 150,
+        temperature: 0.3,
+        stream: false
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('❌ Erro na API OpenAI para características:', response.status, errorData);
+      console.error('❌ Erro na API OpenAI:', response.status, errorData);
       throw new Error(`Erro na API OpenAI: ${response.status}`);
     }
 
@@ -130,7 +208,7 @@ Responda cada pergunta baseado nas informações fornecidas.`;
     const endTime = Date.now();
     const responseTime = endTime - startTime;
 
-    console.log('✅ Resposta das características recebida');
+    console.log('✅ Parágrafo gerado');
     console.log(`⏱️ Tempo de resposta: ${responseTime}ms`);
 
     const content = responseData.choices[0]?.message?.content;
@@ -138,51 +216,36 @@ Responda cada pergunta baseado nas informações fornecidas.`;
       throw new Error('Resposta vazia da OpenAI');
     }
 
-    console.log('📄 Conteúdo bruto da resposta:', content);
-    
-    const parsedContent = JSON.parse(content);
-    console.log('📋 Conteúdo parseado:', JSON.stringify(parsedContent, null, 2));
-    
-    const respostas = parsedContent.respostas || [];
+    const paragraph = content.trim();
+    console.log('📝 Parágrafo gerado:', paragraph);
 
-    console.log(`📊 Respostas geradas: ${respostas.length}`);
-    console.log('📋 Respostas detalhadas:', JSON.stringify(respostas, null, 2));
-
-    // Salvar respostas no banco
-    for (const resposta of respostas) {
-      console.log(`💾 Salvando resposta para característica ${resposta.caracteristica}:`, resposta.resposta);
-      const insertQuery = `
-        INSERT INTO respostas_caracteristicas 
-        (produto_id, caracteristica, resposta, tokens_usados, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NOW(), NOW())
-        ON DUPLICATE KEY UPDATE
-        resposta = VALUES(resposta),
-        tokens_usados = VALUES(tokens_usados),
-        updated_at = NOW()
-      `;
-      
-      try {
-        await executeQuery(insertQuery, [
-          productId,
-          resposta.caracteristica,
-          resposta.resposta,
-          responseData.usage?.total_tokens || 0
-        ]);
-        console.log(`✅ Resposta salva para característica ${resposta.caracteristica}`);
-      } catch (insertError) {
-        console.error(`❌ Erro ao salvar resposta para característica ${resposta.caracteristica}:`, insertError);
-      }
+    // Salvar parágrafo no banco (usando a tabela marketplace)
+    const insertQuery = `
+      UPDATE marketplace 
+      SET description = ?, 
+          openai_tokens_used = openai_tokens_used + ?,
+          updated_at = NOW()
+      WHERE product_id = ?
+    `;
+    
+    try {
+      await executeQuery(insertQuery, [
+        paragraph,
+        responseData.usage?.total_tokens || 0,
+        productId
+      ]);
+      console.log('✅ Parágrafo salvo no banco');
+    } catch (insertError) {
+      console.error('❌ Erro ao salvar parágrafo:', insertError);
     }
-
-    console.log('✅ Respostas das características salvas no banco');
     
     return {
       success: true,
-      data: respostas
+      data: paragraph
     };
 
   } catch (error: any) {
-    console.error('❌ Erro ao gerar respostas das características:', error);
+    console.error('❌ Erro ao gerar parágrafo:', error);
     return {
       success: false,
       error: error.message
@@ -208,19 +271,38 @@ function truncateTitleIntelligently(title: string, maxLength: number = 60): stri
   return truncated;
 }
 
-// Função para verificar se título já existe no banco
+// Função para verificar se título já existe no banco (MELHORADA)
 async function checkTitleExists(title: string, productId: number): Promise<boolean> {
   try {
-    const checkQuery = `
+    console.log(`🔍 Verificando se título existe: "${title}"`);
+    
+    // Verificar na tabela marketplace
+    const marketplaceQuery = `
       SELECT COUNT(*) as count 
       FROM marketplace 
       WHERE title = ? AND product_id != ?
     `;
-    const result = await executeQuery(checkQuery, [title, productId]);
-    return (result[0] as any).count > 0;
+    const marketplaceResult = await executeQuery(marketplaceQuery, [title, productId]);
+    const marketplaceCount = (marketplaceResult[0] as any).count;
+    
+    // Verificar também na tabela products_vtex (títulos originais)
+    const productsQuery = `
+      SELECT COUNT(*) as count 
+      FROM products_vtex 
+      WHERE title = ? AND id != ?
+    `;
+    const productsResult = await executeQuery(productsQuery, [title, productId]);
+    const productsCount = (productsResult[0] as any).count;
+    
+    const totalCount = marketplaceCount + productsCount;
+    const exists = totalCount > 0;
+    
+    console.log(`📊 Resultado da verificação: Marketplace=${marketplaceCount}, Products=${productsCount}, Total=${totalCount}, Existe=${exists}`);
+    
+    return exists;
   } catch (error) {
     console.log('⚠️ Erro ao verificar duplicata de título:', error);
-    return false;
+    return false; // Em caso de erro, assumir que não existe para não bloquear
   }
 }
 
@@ -258,7 +340,7 @@ async function generateUniqueTitleWithAI(
         continue;
       }
       
-      const generatedTitle = openaiResponse.data?.title;
+      const generatedTitle = (openaiResponse.data as any)?.title;
       if (!generatedTitle) {
         console.log(`❌ Título não gerado na tentativa ${attempts}`);
         continue;
@@ -280,18 +362,18 @@ async function generateUniqueTitleWithAI(
             success: true,
             data: {
               title: finalTitle,
-              description: openaiResponse.data?.description,
-              clothing_type: openaiResponse.data?.clothing_type,
-              sleeve_type: openaiResponse.data?.sleeve_type,
-              gender: openaiResponse.data?.gender,
-              color: openaiResponse.data?.color,
-              modelo: openaiResponse.data?.modelo,
-              tokensUsed: openaiResponse.data?.tokensUsed,
-              tokensPrompt: openaiResponse.data?.tokensPrompt,
-              tokensCompletion: openaiResponse.data?.tokensCompletion,
-              cost: openaiResponse.data?.cost,
-              requestId: openaiResponse.data?.requestId,
-              responseTime: openaiResponse.data?.responseTime
+              description: (openaiResponse.data as any)?.description,
+              clothing_type: (openaiResponse.data as any)?.clothing_type,
+              sleeve_type: (openaiResponse.data as any)?.sleeve_type,
+              gender: (openaiResponse.data as any)?.gender,
+              color: (openaiResponse.data as any)?.color,
+              modelo: (openaiResponse.data as any)?.modelo,
+              tokensUsed: (openaiResponse.data as any)?.tokensUsed,
+              tokensPrompt: (openaiResponse.data as any)?.tokensPrompt,
+              tokensCompletion: (openaiResponse.data as any)?.tokensCompletion,
+              cost: (openaiResponse.data as any)?.cost,
+              requestId: (openaiResponse.data as any)?.requestId,
+              responseTime: (openaiResponse.data as any)?.responseTime
             }
           };
         }
@@ -307,18 +389,18 @@ async function generateUniqueTitleWithAI(
           success: true,
           data: {
             title: finalTitleWithSuffix,
-            description: openaiResponse.data?.description,
-            clothing_type: openaiResponse.data?.clothing_type,
-            sleeve_type: openaiResponse.data?.sleeve_type,
-            gender: openaiResponse.data?.gender,
-            color: openaiResponse.data?.color,
-            modelo: openaiResponse.data?.modelo,
-            tokensUsed: openaiResponse.data?.tokensUsed,
-            tokensPrompt: openaiResponse.data?.tokensPrompt,
-            tokensCompletion: openaiResponse.data?.tokensCompletion,
-            cost: openaiResponse.data?.cost,
-            requestId: openaiResponse.data?.requestId,
-            responseTime: openaiResponse.data?.responseTime
+            description: (openaiResponse.data as any)?.description,
+            clothing_type: (openaiResponse.data as any)?.clothing_type,
+            sleeve_type: (openaiResponse.data as any)?.sleeve_type,
+            gender: (openaiResponse.data as any)?.gender,
+            color: (openaiResponse.data as any)?.color,
+            modelo: (openaiResponse.data as any)?.modelo,
+            tokensUsed: (openaiResponse.data as any)?.tokensUsed,
+            tokensPrompt: (openaiResponse.data as any)?.tokensPrompt,
+            tokensCompletion: (openaiResponse.data as any)?.tokensCompletion,
+            cost: (openaiResponse.data as any)?.cost,
+            requestId: (openaiResponse.data as any)?.requestId,
+            responseTime: (openaiResponse.data as any)?.responseTime
           }
         };
       }
@@ -360,8 +442,580 @@ async function generateUniqueTitleWithAI(
   };
 }
 
+// Matriz de variação para títulos otimizados (Manual Prático)
+const TITLE_MATRIX = {
+  // Grupo 1 — Cor
+  colors: {
+    basic: ['Vermelha', 'Azul', 'Preta', 'Branca', 'Cinza', 'Verde', 'Amarela'],
+    fashion: ['Bordô', 'Marinho', 'Bege', 'Off White', 'Vinho', 'Cáqui', 'Roxa', 'Rosa', 'Laranja'],
+    compound: ['Azul Marinho', 'Preto Fosco', 'Cinza Mescla', 'Verde Militar', 'Branco Gelo', 'Vermelho Escuro']
+  },
+  
+  // Grupo 2 — Público
+  audience: {
+    gender: ['Masculina', 'Feminina', 'Unissex'],
+    age: ['Juvenil', 'Infantil', 'Adulto']
+  },
+  
+  // Grupo 3 — Estilo / Modelo
+  style: {
+    fit: ['Slim Fit', 'Regular Fit'],
+    lifestyle: ['Casual', 'Streetwear', 'Urbana', 'Fashion', 'Lifestyle', 'Elegante', 'Esportiva', 'Social', 'Básica', 'Clássica', 'Moderno', 'Exclusivo']
+  },
+  
+  // Grupo 4 — Atributos de Produto
+  attributes: {
+    material: ['Algodão', 'Premium', 'Original', 'Exclusiva'],
+    comfort: ['Conforto', 'Confortável', 'Leve', 'Macia'],
+    quality: ['Atemporal', 'Versátil', 'Autêntica', 'Sofisticada', 'Durável', 'Resistente', 'Clássica'],
+    fit: ['Ajuste Perfeito', 'Estilo Único', 'Qualidade Superior']
+  }
+};
+
+// Função para gerar título único com matriz de variação (MELHORADA)
+async function generateUniqueTitleWithMatrix(
+  product: any, 
+  imageAnalysis: any, 
+  productId: number, 
+  skus: any[], 
+  specifications: any[], 
+  agent: any,
+  maxAttempts: number = 10
+): Promise<{ success: boolean; title?: string; error?: string }> {
+  
+  console.log('🎯 Gerando título único com matriz de variação...');
+  
+  // Extrair informações do produto
+  const productName = product.name || '';
+  const brandName = product.brand_name || '';
+  const categoryName = product.category_name || '';
+  
+  // Detectar categoria base do produto
+  const baseCategory = detectProductCategory(productName, categoryName);
+  
+  // Detectar cor da análise de imagem ou especificações (PRIORIDADE: IMAGEM > ESPECIFICAÇÕES > NOME)
+  const detectedColor = detectColorFromAnalysis(imageAnalysis, specifications, productName);
+  
+  // Detectar público-alvo
+  const targetAudience = detectTargetAudience(productName, specifications);
+  
+  console.log(`📋 Dados detectados: Categoria="${baseCategory}", Marca="${brandName}", Cor="${detectedColor}", Público="${targetAudience}"`);
+  
+  // Primeiro, tentar com a matriz de variação
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      console.log(`🔄 Tentativa ${attempt + 1}/${maxAttempts} de geração de título...`);
+      
+      // Gerar combinação única usando a matriz
+      const title = generateTitleFromMatrix(baseCategory, brandName, detectedColor, targetAudience, attempt);
+      
+      console.log(`📝 Título gerado: "${title}"`);
+      
+      // VALIDAÇÃO: Verificar se o título está alinhado com a análise de imagem
+      const validation = validateTitleAgainstImageAnalysis(title, imageAnalysis, productName);
+      if (!validation.isValid) {
+        console.log('❌ Título não está alinhado com a análise de imagem:', validation.issues);
+        continue; // Tentar novamente
+      }
+      
+      // Verificar se o título já existe
+      const exists = await checkTitleExists(title, productId);
+      if (!exists) {
+        console.log('✅ Título único e válido gerado com sucesso!');
+        return { success: true, title };
+      } else {
+        console.log('⚠️ Título já existe, tentando novamente...');
+      }
+    } catch (error) {
+      console.error(`❌ Erro na tentativa ${attempt + 1}:`, error);
+    }
+  }
+  
+  // Se a matriz não funcionou, tentar com variações mais agressivas
+  console.log('🔄 Tentando variações mais agressivas...');
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const aggressiveTitle = generateAggressiveVariation(baseCategory, brandName, detectedColor, targetAudience, attempt);
+      console.log(`📝 Título agressivo gerado: "${aggressiveTitle}"`);
+      
+      // VALIDAÇÃO: Verificar se o título está alinhado com a análise de imagem
+      const validation = validateTitleAgainstImageAnalysis(aggressiveTitle, imageAnalysis, productName);
+      if (!validation.isValid) {
+        console.log('❌ Título agressivo não está alinhado com a análise de imagem:', validation.issues);
+        continue; // Tentar novamente
+      }
+      
+      const exists = await checkTitleExists(aggressiveTitle, productId);
+      if (!exists) {
+        console.log('✅ Título único e válido gerado com variação agressiva!');
+        return { success: true, title: aggressiveTitle };
+      }
+    } catch (error) {
+      console.error(`❌ Erro na variação agressiva ${attempt + 1}:`, error);
+    }
+  }
+  
+  // Último recurso: fallback com timestamp
+  console.log('⚠️ Usando fallback com timestamp...');
+  const timestamp = Date.now().toString().slice(-6);
+  const fallbackTitle = `${baseCategory} ${brandName} ${detectedColor} ${targetAudience} ${timestamp}`;
+  const finalTitle = fallbackTitle.length <= 60 ? fallbackTitle : truncateTitleIntelligently(fallbackTitle, 60);
+  
+  console.log(`📝 Título final (fallback): "${finalTitle}"`);
+  return { success: true, title: finalTitle };
+}
+
+// Função para gerar variações mais agressivas quando a matriz não funciona
+function generateAggressiveVariation(
+  baseCategory: string, 
+  brandName: string, 
+  color: string, 
+  audience: string, 
+  attempt: number
+): string {
+  const aggressiveVariations = [
+    'Exclusivo', 'Premium', 'Limited', 'Special', 'Unique', 'Rare', 'Elite',
+    'Pro', 'Max', 'Ultra', 'Super', 'Mega', 'Turbo', 'Hyper'
+  ];
+  
+  const randomVariation = aggressiveVariations[attempt % aggressiveVariations.length];
+  const timestamp = Date.now().toString().slice(-4);
+  
+  // Tentar diferentes estruturas
+  const structures = [
+    `${baseCategory} ${brandName} ${color} ${audience} ${randomVariation}`,
+    `${baseCategory} ${brandName} ${randomVariation} ${color} ${audience}`,
+    `${baseCategory} ${brandName} ${color} ${audience} ${randomVariation} ${timestamp}`,
+    `${baseCategory} ${brandName} ${color} ${audience} ${timestamp}`
+  ];
+  
+  const selectedStructure = structures[attempt % structures.length];
+  return selectedStructure.length <= 60 ? selectedStructure : truncateTitleIntelligently(selectedStructure, 60);
+}
+
+// Função para detectar categoria base do produto
+function detectProductCategory(productName: string, categoryName: string): string {
+  const name = (productName + ' ' + categoryName).toLowerCase();
+  
+  if (name.includes('camisa') || name.includes('polo')) return 'Camisa Polo';
+  if (name.includes('camiseta') || name.includes('t-shirt')) return 'Camiseta';
+  if (name.includes('moletom') || name.includes('hoodie')) return 'Moletom';
+  if (name.includes('calça') || name.includes('pants')) return 'Calça';
+  if (name.includes('short') || name.includes('bermuda')) return 'Short';
+  if (name.includes('blusa') || name.includes('blouse')) return 'Blusa';
+  if (name.includes('vestido') || name.includes('dress')) return 'Vestido';
+  if (name.includes('saia') || name.includes('skirt')) return 'Saia';
+  if (name.includes('jaqueta') || name.includes('jacket')) return 'Jaqueta';
+  if (name.includes('casaco') || name.includes('coat')) return 'Casaco';
+  
+  return 'Produto';
+}
+
+// Função para detectar cor com validação contra análise de imagem
+function detectColorFromAnalysis(imageAnalysis: any, specifications: any[], productName: string): string {
+  console.log('🎨 Detectando cor do produto...');
+  
+  // Tentar extrair cor da análise de imagem (PRIORIDADE MÁXIMA)
+  if (imageAnalysis?.contextual_analysis) {
+    const analysis = imageAnalysis.contextual_analysis.toLowerCase();
+    console.log('🖼️ Analisando imagem:', analysis.substring(0, 100) + '...');
+    
+    for (const colorGroup of Object.values(TITLE_MATRIX.colors)) {
+      for (const color of colorGroup) {
+        if (analysis.includes(color.toLowerCase())) {
+          console.log(`✅ Cor detectada na imagem: ${color}`);
+          return color;
+        }
+      }
+    }
+  }
+  
+  // Tentar extrair cor das especificações
+  if (specifications && specifications.length > 0) {
+    console.log('📋 Verificando especificações...');
+    for (const spec of specifications) {
+      if (spec.field_name?.toLowerCase().includes('cor') || spec.field_name?.toLowerCase().includes('color')) {
+        const colorValue = spec.field_value_ids?.toLowerCase();
+        if (colorValue) {
+          for (const colorGroup of Object.values(TITLE_MATRIX.colors)) {
+            for (const color of colorGroup) {
+              if (colorValue.includes(color.toLowerCase())) {
+                console.log(`✅ Cor detectada nas especificações: ${color}`);
+                return color;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Tentar extrair cor do nome do produto
+  const name = productName.toLowerCase();
+  console.log('📝 Verificando nome do produto:', name);
+  for (const colorGroup of Object.values(TITLE_MATRIX.colors)) {
+    for (const color of colorGroup) {
+      if (name.includes(color.toLowerCase())) {
+        console.log(`✅ Cor detectada no nome: ${color}`);
+        return color;
+      }
+    }
+  }
+  
+  // Cor padrão se não conseguir detectar
+  console.log('⚠️ Cor não detectada, usando padrão: Multicolor');
+  return 'Multicolor';
+}
+
+// Função para validar se o título está alinhado com a análise de imagem
+function validateTitleAgainstImageAnalysis(title: string, imageAnalysis: any, productName: string): { isValid: boolean; issues: string[] } {
+  console.log('🔍 Validando título contra análise de imagem...');
+  console.log('📝 Título a validar:', title);
+  
+  const issues: string[] = [];
+  const titleLower = title.toLowerCase();
+  
+  if (!imageAnalysis?.contextual_analysis) {
+    console.log('⚠️ Nenhuma análise de imagem disponível para validação');
+    return { isValid: true, issues: [] }; // Se não há análise, não pode validar
+  }
+  
+  const analysis = imageAnalysis.contextual_analysis.toLowerCase();
+  console.log('🖼️ Análise de imagem:', analysis.substring(0, 200) + '...');
+  
+  // 1. Validar cor
+  const detectedColor = detectColorFromAnalysis(imageAnalysis, [], productName);
+  if (detectedColor !== 'Multicolor') {
+    const titleHasColor = Object.values(TITLE_MATRIX.colors).flat().some(color => 
+      titleLower.includes(color.toLowerCase())
+    );
+    
+    if (!titleHasColor) {
+      issues.push(`Título não contém cor detectada na imagem: ${detectedColor}`);
+    } else {
+      // Verificar se a cor no título corresponde à cor detectada
+      const titleColor = Object.values(TITLE_MATRIX.colors).flat().find(color => 
+        titleLower.includes(color.toLowerCase())
+      );
+      
+      if (titleColor && titleColor.toLowerCase() !== detectedColor.toLowerCase()) {
+        issues.push(`Cor no título (${titleColor}) não corresponde à cor detectada na imagem (${detectedColor})`);
+      }
+    }
+  }
+  
+  // 2. Validar categoria/tipo de produto
+  const detectedCategory = detectProductCategoryFromAnalysis(analysis);
+  if (detectedCategory) {
+    const titleHasCategory = titleLower.includes(detectedCategory.toLowerCase());
+    if (!titleHasCategory) {
+      issues.push(`Título não contém categoria detectada na imagem: ${detectedCategory}`);
+    }
+  }
+  
+  // 3. Validar gênero se detectado
+  const detectedGender = detectGenderFromAnalysis(analysis);
+  if (detectedGender) {
+    const titleHasGender = titleLower.includes(detectedGender.toLowerCase());
+    if (!titleHasGender) {
+      issues.push(`Título não contém gênero detectado na imagem: ${detectedGender}`);
+    }
+  }
+  
+  const isValid = issues.length === 0;
+  console.log(`📊 Validação: ${isValid ? '✅ VÁLIDO' : '❌ INVÁLIDO'}`);
+  if (issues.length > 0) {
+    console.log('⚠️ Problemas encontrados:', issues);
+  }
+  
+  return { isValid, issues };
+}
+
+// Função para detectar categoria do produto na análise de imagem
+function detectProductCategoryFromAnalysis(analysis: string): string | null {
+  if (analysis.includes('camisa') || analysis.includes('polo') || analysis.includes('shirt')) {
+    return 'Camisa Polo';
+  }
+  if (analysis.includes('camiseta') || analysis.includes('t-shirt') || analysis.includes('tshirt')) {
+    return 'Camiseta';
+  }
+  if (analysis.includes('moletom') || analysis.includes('hoodie') || analysis.includes('sweatshirt')) {
+    return 'Moletom';
+  }
+  if (analysis.includes('calça') || analysis.includes('pants') || analysis.includes('jeans')) {
+    return 'Calça';
+  }
+  if (analysis.includes('short') || analysis.includes('bermuda') || analysis.includes('shorts')) {
+    return 'Short';
+  }
+  if (analysis.includes('blusa') || analysis.includes('blouse') || analysis.includes('top')) {
+    return 'Blusa';
+  }
+  if (analysis.includes('vestido') || analysis.includes('dress')) {
+    return 'Vestido';
+  }
+  if (analysis.includes('jaqueta') || analysis.includes('jacket') || analysis.includes('blazer')) {
+    return 'Jaqueta';
+  }
+  return null;
+}
+
+// Função para detectar gênero na análise de imagem
+function detectGenderFromAnalysis(analysis: string): string | null {
+  if (analysis.includes('masculino') || analysis.includes('masculina') || analysis.includes('male') || analysis.includes('men')) {
+    return 'Masculina';
+  }
+  if (analysis.includes('feminino') || analysis.includes('feminina') || analysis.includes('female') || analysis.includes('women')) {
+    return 'Feminina';
+  }
+  if (analysis.includes('unissex') || analysis.includes('unisex') || analysis.includes('unisex')) {
+    return 'Unissex';
+  }
+  return null;
+}
+
+// Função para detectar público-alvo
+function detectTargetAudience(productName: string, specifications: any[]): string {
+  const name = productName.toLowerCase();
+  
+  // Verificar especificações primeiro
+  if (specifications && specifications.length > 0) {
+    for (const spec of specifications) {
+      if (spec.field_name?.toLowerCase().includes('gênero') || spec.field_name?.toLowerCase().includes('gender')) {
+        const value = spec.field_value_ids?.toLowerCase();
+        if (value?.includes('masculino') || value?.includes('male')) return 'Masculina';
+        if (value?.includes('feminino') || value?.includes('female')) return 'Feminina';
+        if (value?.includes('unissex') || value?.includes('unisex')) return 'Unissex';
+      }
+    }
+  }
+  
+  // Verificar no nome do produto
+  if (name.includes('masculino') || name.includes('masculina') || name.includes('male')) return 'Masculina';
+  if (name.includes('feminino') || name.includes('feminina') || name.includes('female')) return 'Feminina';
+  if (name.includes('unissex') || name.includes('unisex')) return 'Unissex';
+  if (name.includes('infantil') || name.includes('kids')) return 'Infantil';
+  if (name.includes('juvenil') || name.includes('teen')) return 'Juvenil';
+  
+  return 'Unissex'; // Padrão
+}
+
+// Função para gerar título usando a matriz
+function generateTitleFromMatrix(
+  baseCategory: string, 
+  brandName: string, 
+  color: string, 
+  audience: string, 
+  attempt: number
+): string {
+  // Estrutura fixa: [Categoria] [Marca] [Cor] [Público] [Estilo] [Atributo]
+  
+  // Selecionar estilo baseado na tentativa para criar variação
+  const styleOptions = [
+    ...TITLE_MATRIX.style.fit,
+    ...TITLE_MATRIX.style.lifestyle
+  ];
+  const selectedStyle = styleOptions[attempt % styleOptions.length];
+  
+  // Selecionar atributo baseado na tentativa
+  const attributeOptions = [
+    ...TITLE_MATRIX.attributes.material,
+    ...TITLE_MATRIX.attributes.comfort,
+    ...TITLE_MATRIX.attributes.quality,
+    ...TITLE_MATRIX.attributes.fit
+  ];
+  const selectedAttribute = attributeOptions[attempt % attributeOptions.length];
+  
+  // Construir título
+  const title = `${baseCategory} ${brandName} ${color} ${audience} ${selectedStyle} ${selectedAttribute}`;
+  
+  // Verificar se está dentro do limite de 60 caracteres
+  if (title.length <= 60) {
+    return title;
+  }
+  
+  // Se exceder, tentar versão mais curta
+  const shortTitle = `${baseCategory} ${brandName} ${color} ${audience} ${selectedAttribute}`;
+  return shortTitle.length <= 60 ? shortTitle : truncateTitleIntelligently(shortTitle, 60);
+}
+
+// Função para gerar múltiplas variações de títulos (para demonstração)
+function generateMultipleTitleVariations(
+  baseCategory: string, 
+  brandName: string, 
+  color: string, 
+  audience: string, 
+  maxVariations: number = 10
+): string[] {
+  const variations: string[] = [];
+  
+  const styleOptions = [
+    ...TITLE_MATRIX.style.fit,
+    ...TITLE_MATRIX.style.lifestyle
+  ];
+  
+  const attributeOptions = [
+    ...TITLE_MATRIX.attributes.material,
+    ...TITLE_MATRIX.attributes.comfort,
+    ...TITLE_MATRIX.attributes.quality,
+    ...TITLE_MATRIX.attributes.fit
+  ];
+  
+  for (let i = 0; i < maxVariations && i < styleOptions.length * attributeOptions.length; i++) {
+    const styleIndex = i % styleOptions.length;
+    const attributeIndex = Math.floor(i / styleOptions.length) % attributeOptions.length;
+    
+    const selectedStyle = styleOptions[styleIndex];
+    const selectedAttribute = attributeOptions[attributeIndex];
+    
+    const title = `${baseCategory} ${brandName} ${color} ${audience} ${selectedStyle} ${selectedAttribute}`;
+    
+    if (title.length <= 60) {
+      variations.push(title);
+    } else {
+      // Versão mais curta
+      const shortTitle = `${baseCategory} ${brandName} ${color} ${audience} ${selectedAttribute}`;
+      if (shortTitle.length <= 60) {
+        variations.push(shortTitle);
+      }
+    }
+  }
+  
+  return variations;
+}
+
+// Função para gerar título único com variações criativas (MANTIDA PARA COMPATIBILIDADE)
+async function generateUniqueTitleWithVariations(
+  product: any, 
+  imageAnalysis: any, 
+  productId: number, 
+  skus: any[], 
+  specifications: any[], 
+  agent: any,
+  maxAttempts: number = 10
+): Promise<{ success: boolean; title?: string; error?: string }> {
+  
+  console.log('🎯 Gerando título único com variações criativas...');
+  
+  // Variações criativas para substituir números sequenciais
+  const creativeVariations = [
+    'Premium', 'Exclusivo', 'Tendência', 'Moderno', 'Estiloso', 'Elegante',
+    'Confortável', 'Versátil', 'Clássico', 'Contemporâneo', 'Sofisticado',
+    'Descolado', 'Fashion', 'Urbano', 'Casual', 'Esportivo', 'Minimalista',
+    'Vintage', 'Retrô', 'Chic', 'Glamour', 'Boho', 'Street', 'Athletic',
+    'Business', 'Relaxed', 'Trendy', 'Cool', 'Fresh', 'Dynamic', 'Bold'
+  ];
+
+  const styleVariations = [
+    'Estilo Urbano', 'Look Casual', 'Visual Moderno', 'Fashion Statement',
+    'Para o Dia a Dia', 'Ideal para Trabalho', 'Perfeito para Festas',
+    'Que Faz Sucesso', 'Que Vai Te Surpreender', 'Que Você Vai Amar',
+    'Conforto Garantido', 'Qualidade Premium', 'Design Exclusivo'
+  ];
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      console.log(`🔄 Tentativa ${attempt + 1}/${maxAttempts} de geração de título...`);
+      
+      // Escolher variação criativa baseada na tentativa
+      let variationPrompt = '';
+      if (attempt === 0) {
+        variationPrompt = 'Crie um título original e único.';
+      } else if (attempt === 1) {
+        const randomVariation = creativeVariations[Math.floor(Math.random() * creativeVariations.length)];
+        variationPrompt = `Crie um título único usando a palavra "${randomVariation}" ou similar.`;
+      } else {
+        const randomStyle = styleVariations[Math.floor(Math.random() * styleVariations.length)];
+        variationPrompt = `Crie um título único com foco em "${randomStyle}".`;
+      }
+
+      const systemPrompt = `Você é um especialista em marketing e SEO para e-commerce. 
+Crie APENAS um título de produto otimizado para marketplace seguindo estas regras:
+
+ESTRUTURA OBRIGATÓRIA (MÁXIMO 60 CARACTERES):
+- CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
+- SEMPRE incluir: Categoria, Marca, Gênero (Masculino/Feminino/Unissex), Cor
+- SEMPRE incluir palavras-chave SEO para melhorar busca
+- Use ADJETIVOS PODEROSOS: "Premium", "Exclusivo", "Tendência", "Moderno", "Estiloso"
+- Inclua PALAVRAS DE AÇÃO: "Descubra", "Experimente", "Conquiste", "Transforme"
+- Mencione OCASIÕES DE USO: "Para o Dia a Dia", "Ideal para Trabalho", "Perfeito para Festas"
+- Use TENDÊNCIAS DE MODA: "Estilo Urbano", "Look Casual", "Visual Moderno", "Fashion"
+- Inclua SENTIMENTOS: "Confortável", "Elegante", "Descolado", "Sofisticado"
+
+REGRAS IMPORTANTES:
+- NUNCA use hífens (-) no título
+- Use apenas espaços para separar as palavras
+- Mantenha a estrutura: CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
+- ${variationPrompt}
+- O título deve ser ÚNICO e ATRATIVO
+- Evite palavras genéricas como "Básico" ou "Simples"
+
+EXEMPLOS DE ESTRUTURA CORRETA:
+✅ "Camiseta Nike Masculino Azul Premium Estilo Urbano"
+✅ "Moletom Adidas Feminino Preto Confortável Casual"
+✅ "Calça Puma Unissex Cinza Moderna Esportiva"
+
+Responda APENAS com o título, sem explicações ou formatação adicional.`;
+
+      const userPrompt = `Crie um título único para este produto:
+
+=== DADOS BÁSICOS ===
+PRODUTO ORIGINAL: ${product.name}
+MARCA: ${product.brand_name || 'N/A'}
+CATEGORIA: ${product.category_name || 'N/A'}
+GÊNERO: ${product.gender || 'Unissex'}
+
+=== ANÁLISE DE IMAGEM ===
+${imageAnalysis ? imageAnalysis.contextual_analysis : 'Nenhuma análise disponível'}
+
+=== ESPECIFICAÇÕES ===
+${specifications.length > 0 ? specifications.map(spec => `${spec.field_name}: ${spec.field_value_ids}`).join('\n') : 'Nenhuma especificação'}
+
+Crie um título ÚNICO, ATRATIVO e OTIMIZADO para SEO.`;
+
+      const response = await agent.generateContent([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]);
+
+      if (response && response.text) {
+        let generatedTitle = response.text.trim();
+        
+        // Limpar o título de possíveis formatações extras
+        generatedTitle = generatedTitle.replace(/^["']|["']$/g, '').trim();
+        
+        // Verificar se o título está dentro do limite
+        if (generatedTitle.length > 60) {
+          generatedTitle = truncateTitleIntelligently(generatedTitle, 60);
+        }
+        
+        console.log(`📝 Título gerado: "${generatedTitle}"`);
+        
+        // Verificar se o título já existe
+        const exists = await checkTitleExists(generatedTitle, productId);
+        if (!exists) {
+          console.log('✅ Título único gerado com sucesso!');
+          return { success: true, title: generatedTitle };
+        } else {
+          console.log('⚠️ Título já existe, tentando novamente...');
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Erro na tentativa ${attempt + 1}:`, error);
+    }
+  }
+  
+  // Se todas as tentativas falharam, usar fallback com timestamp
+  console.log('⚠️ Todas as tentativas falharam, usando fallback...');
+  const fallbackTitle = `${product.name} ${Date.now().toString().slice(-4)}`;
+  return { 
+    success: true, 
+    title: fallbackTitle.length <= 60 ? fallbackTitle : truncateTitleIntelligently(fallbackTitle, 60)
+  };
+}
+
 // Função para gerar título único (versão simplificada para compatibilidade)
-async function generateUniqueTitle(baseTitle: string, productId: number, maxAttempts: number = 5): Promise<string> {
+async function generateUniqueTitle(baseTitle: string, productId: number, maxAttempts: number = 10): Promise<string> {
   let title = baseTitle;
   let attempts = 0;
   
@@ -593,42 +1247,71 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 6. Gerar título único e descrição em uma única chamada (OTIMIZADO)
-    console.log('🤖 Gerando título único e descrição com IA (modo rápido)...');
-    const startTime = Date.now();
-    const openaiResponse = await generateUniqueTitleWithAI(product, imageAnalysis, numericProductId, skus, specifications, agent);
-    const generationTime = Date.now() - startTime;
-    console.log(`🤖 Resposta da OpenAI (${generationTime}ms):`, openaiResponse.success ? 'Sucesso' : 'Erro');
-    
-    if (!openaiResponse.success) {
-      console.log('❌ Erro na OpenAI:', openaiResponse.error);
+    // 6. Verificar se já existe título gerado
+    console.log('🔍 Verificando se já existe título gerado...');
+    let existingTitle = null;
+    try {
+      const titleQuery = `SELECT title FROM titles WHERE product_id = ? AND status = 'validated'`;
+      const titleResult = await executeQuery(titleQuery, [numericProductId]);
+      if (titleResult && titleResult.length > 0) {
+        existingTitle = titleResult[0].title;
+        console.log('✅ Título existente encontrado:', existingTitle);
+      } else {
+        console.log('❌ Nenhum título encontrado. Execute a geração de título primeiro.');
+        return NextResponse.json({
+          success: false,
+          message: 'Nenhum título encontrado. Execute a geração de título primeiro.'
+        }, { status: 400 });
+      }
+    } catch (error) {
+      console.log('⚠️ Erro ao verificar título existente:', error);
       return NextResponse.json({
         success: false,
-        message: openaiResponse.error || 'Erro ao gerar descrição com IA'
+        message: 'Erro ao verificar título existente'
       }, { status: 500 });
     }
 
-    const { title: uniqueTitle, description, clothing_type, sleeve_type, gender, color, modelo, tokensUsed } = openaiResponse.data || {};
-    console.log('📝 Dados gerados:', { title: uniqueTitle, description: description?.substring(0, 50) + '...' });
+    // 7. Gerar metadados do produto (clothing_type, sleeve_type, gender, color, modelo)
+    console.log('📝 ETAPA 2: Gerando metadados do produto...');
+    const metadataStartTime = Date.now();
+    const metadataResponse = await generateProductMetadata(product, imageAnalysis, skus, specifications, agent, existingTitle);
+    const metadataGenerationTime = Date.now() - metadataStartTime;
+    console.log(`📝 Metadados gerados (${metadataGenerationTime}ms):`, metadataResponse.success ? 'Sucesso' : 'Erro');
+    
+    if (!metadataResponse.success) {
+      console.log('❌ Erro na geração dos metadados:', metadataResponse.error);
+      return NextResponse.json({
+        success: false,
+        message: metadataResponse.error || 'Erro ao gerar metadados do produto'
+      }, { status: 500 });
+    }
 
-    // 5. Salvar no banco de dados
+    const { clothing_type, sleeve_type, gender, color, modelo, tokensUsed } = metadataResponse.data || {};
+    console.log('📝 Metadados gerados:', { clothing_type, sleeve_type, gender, color });
+
+    // 8. Salvar no banco de dados
     console.log('💾 Salvando no banco de dados...');
     let saveResult;
     try {
       saveResult = await saveMarketplaceDescription({
         productId: numericProductId,
-        title: uniqueTitle,
-        description,
+        title: existingTitle,
+        description: '', // Será preenchido pelo parágrafo
         openaiModel: agent.model || 'gpt-4o-mini',
-        tokensUsed: openaiResponse.data?.tokensUsed || 0,
-        tokensPrompt: openaiResponse.data?.tokensPrompt || 0,
-        tokensCompletion: openaiResponse.data?.tokensCompletion || 0,
-        cost: openaiResponse.data?.cost || 0,
-        requestId: openaiResponse.data?.requestId || '',
-        responseTime: openaiResponse.data?.responseTime || 0,
+        tokensUsed: metadataResponse.data?.tokensUsed || 0,
+        tokensPrompt: metadataResponse.data?.tokensPrompt || 0,
+        tokensCompletion: metadataResponse.data?.tokensCompletion || 0,
+        cost: metadataResponse.data?.cost || 0,
+        requestId: metadataResponse.data?.requestId || '',
+        responseTime: metadataResponse.data?.responseTime || 0,
         maxTokens: parseInt(agent.max_tokens) || 3000,
         temperature: parseFloat(agent.temperature) || 0.7,
-        // Novas colunas do marketplace - usando dados do produto + análise de imagem
+        // Metadados do produto
+        clothing_type: clothing_type,
+        sleeve_type: sleeve_type,
+        gender: gender,
+        color: color,
+        modelo: modelo
       });
       
       console.log('💾 Resultado do salvamento:', saveResult.success ? 'Sucesso' : 'Erro');
@@ -648,25 +1331,29 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 6. Gerar respostas das características usando subagente
-    console.log('🤖 Gerando respostas das características...');
-    console.log('📦 Produto para características:', product.name);
-    console.log('🖼️ Análise de imagem para características:', imageAnalysis ? 'Disponível' : 'Não disponível');
-    console.log('📝 Título para características:', uniqueTitle);
-    console.log('🔑 Chave OpenAI para características:', process.env.OPENAI_API_KEY ? 'Configurada' : 'NÃO CONFIGURADA');
+    // 9. Gerar parágrafo baseado no título e análise de fotografia
+    console.log('📝 Gerando parágrafo baseado no título e análise de fotografia...');
+    console.log('📦 Produto:', product.name);
+    console.log('🖼️ Análise de imagem:', imageAnalysis ? 'Disponível' : 'Não disponível');
+    console.log('📝 Título:', existingTitle);
+    console.log('🔑 Chave OpenAI:', process.env.OPENAI_API_KEY ? 'Configurada' : 'NÃO CONFIGURADA');
     
-    const characteristicsResponse = await generateCharacteristicsResponses(
+    let description = '';
+    
+    const paragraphResponse = await generateParagraphFromTitleAndImage(
       product,
       imageAnalysis,
-      { title: uniqueTitle, description },
+      existingTitle,
       numericProductId,
       process.env.OPENAI_API_KEY || ''
     );
 
-    if (characteristicsResponse.success) {
-      console.log(`✅ Respostas das características geradas: ${characteristicsResponse.data?.length || 0}`);
+    if (paragraphResponse.success) {
+      console.log('✅ Parágrafo gerado com sucesso');
+      // Atualizar a descrição com o parágrafo gerado
+      description = paragraphResponse.data || description;
     } else {
-      console.log('⚠️ Erro ao gerar respostas das características:', characteristicsResponse.error);
+      console.log('⚠️ Erro ao gerar parágrafo:', paragraphResponse.error);
     }
 
     console.log('✅ Descrição do Marketplace gerada com sucesso!');
@@ -674,15 +1361,14 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         ...saveResult.data,
-        title: uniqueTitle,
+        title: existingTitle,
         description,
         clothing_type,
         sleeve_type,
         gender,
         color,
         modelo,
-        tokensUsed,
-        characteristicsResponses: characteristicsResponse.data || []
+        tokensUsed
       }
     });
 
@@ -732,21 +1418,16 @@ async function generateMeliDescriptionWithOpenAI(
     console.log(`🚀 Usando modelo otimizado: ${modelToUse} (modo rápido)`);
 
     // Construir prompt para o Marketplace usando configurações do agente
-    let systemPrompt = agent.system_prompt || `Você é um especialista em e-commerce e marketing digital, focado especificamente no Marketplace. Sua tarefa é criar títulos e descrições otimizadas para produtos de moda e vestuário que maximizem a visibilidade e conversão no Marketplace.
+    let systemPrompt = agent.system_prompt || `Você é um especialista em e-commerce e marketing digital, focado especificamente no Marketplace. Sua tarefa é criar APENAS títulos otimizados para produtos de moda e vestuário que maximizem a visibilidade e conversão no Marketplace.
 
 REGRAS IMPORTANTES:
 1. Título deve ter MÁXIMO 60 caracteres (limite obrigatório do Marketplace)
-2. Descrição deve ter MÍNIMO 300 palavras, estruturada e eficiente
-3. Use palavras-chave relevantes para SEO
-4. Inclua informações técnicas e de qualidade
-5. Seja persuasivo mas honesto
-6. Foque nos benefícios para o cliente
-7. Use linguagem clara e direta
-8. Estruture a descrição com seções organizadas
-9. USE TAGS HTML BÁSICAS para formatação: <br> para quebras de linha, <b> para negrito, <li> para listas
-10. OBRIGATÓRIO: A descrição deve ter pelo menos 300 palavras para garantir qualidade e SEO
-11. NUNCA AFIRME materiais específicos (como "100% algodão", "poliéster", etc.) sem ter certeza absoluta
-12. Use termos genéricos como "material de qualidade", "tecido selecionado", "composição premium" quando não souber o material exato`;
+2. Use palavras-chave relevantes para SEO
+3. Seja persuasivo mas honesto
+4. Foque nos benefícios para o cliente
+5. Use linguagem clara e direta
+6. NUNCA AFIRME materiais específicos (como "100% algodão", "poliéster", etc.) sem ter certeza absoluta
+7. Use termos genéricos como "material de qualidade", "tecido selecionado", "composição premium" quando não souber o material exato`;
 
     // Adicionar instruções de unicidade se necessário
     if (shouldVary) {
@@ -766,17 +1447,21 @@ INSTRUÇÕES DE UNICIDADE E CRIATIVIDADE:
   * Em vez de "Blusa Zara Feminino Rosa" → "Blusa Rosa Zara - Look Feminino que Conquista"`;
     }
 
-    // Se há um título pré-definido, usar ele
+    // Se um título foi pré-definido, usar ele na descrição
     if (predefinedTitle) {
       systemPrompt += `
 
-TÍTULO PRÉ-DEFINIDO:
-- Use EXATAMENTE este título: "${predefinedTitle}"
-- NÃO gere um novo título, use o fornecido
-- Foque apenas na geração da descrição usando este título`;
-    }
-
-    systemPrompt += `
+TÍTULO PRÉ-DEFINIDO OBRIGATÓRIO:
+- Use EXCLUSIVAMENTE o título: "${predefinedTitle}"
+- TODA a descrição deve referenciar o produto por este título EXATO
+- NÃO altere, modifique, abreve ou gere um novo título
+- O título já foi otimizado e é único no banco de dados
+- NÃO gere um novo título, use APENAS o fornecido
+- Foque APENAS na geração da descrição usando este título
+- IMPORTANTE: Em todas as seções (FAQ, Call-to-action, etc.) use este título exato: "${predefinedTitle}"`;
+    } else {
+      // Só incluir instruções de título se não houver título pré-definido
+      systemPrompt += `
 
 ESTRUTURA OBRIGATÓRIA DO TÍTULO (MÁXIMO 60 CARACTERES):
 - CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
@@ -807,7 +1492,7 @@ EXEMPLOS DE TÍTULOS CRIATIVOS (SEM HÍFENS):
 ✅ Excelente: "Moletom Cinza Premium Feminino Confortável"
 
 ESTRUTURA DA DESCRIÇÃO (MÍNIMO 300 PALAVRAS):
-- Parágrafo introdutório sobre o produto (40-60 palavras)
+- Parágrafo introdutório sobre o produto COM REFERÊNCIA AO FUTEBOL (40-60 palavras) - OBRIGATÓRIO incluir menção ao futebol, esporte ou estilo esportivo
 - Informações sobre qualidade e benefícios (40-50 palavras)
 - Detalhes técnicos e materiais (50-70 palavras)
 - Seção "Destaques do produto" com 4-5 bullet points (50-70 palavras)
@@ -818,7 +1503,7 @@ ESTRUTURA DA DESCRIÇÃO (MÍNIMO 300 PALAVRAS):
 
 FORMATO DE RESPOSTA (JSON):
 {
-  "title": "título criativo e otimizado para busca (máximo 60 caracteres)",
+  ${predefinedTitle ? `"title": "${predefinedTitle}",` : `"title": "título criativo e otimizado para busca (máximo 60 caracteres)",`}
   "description": "descrição completa estruturada",
   "clothing_type": "Tipo de roupa (ex: Camiseta, Camiseta Polo, Moletom, etc.)",
   "sleeve_type": "Tipo de manga (Curta, Longa, 3/4, Sem Mangas, Tomara que caia)",
@@ -826,49 +1511,31 @@ FORMATO DE RESPOSTA (JSON):
   "color": "Cor principal do produto (ex: Azul, Vermelho, Preto, Branco, etc.)",
   "modelo": "5 variações do nome do produto separadas por vírgula (ex: Camiseta Básica, Camiseta Casual, Camisa Dia a Dia, Camisa Lisa, Camisa para Trabalhar)",
 }`;
+    }
 
-    const userPrompt = `Crie uma descrição otimizada para o Marketplace para este produto:
+    const userPrompt = `Crie um título otimizado para o Marketplace para este produto. Responda em formato JSON:
 
 === DADOS BÁSICOS DO PRODUTO ===
 PRODUTO ORIGINAL: ${product.name}
-REF_ID: ${product.ref_id || 'N/A'}
 MARCA: ${product.brand_name || 'N/A'}
 CATEGORIA: ${product.category_name || 'N/A'}
-DEPARTAMENTO ID: ${product.department_id || 'N/A'}
-DESCRIÇÃO ATUAL: ${product.description || 'N/A'}
-DESCRIÇÃO CURTA: ${product.description_short || 'N/A'}
-TÍTULO ATUAL: ${product.title || 'N/A'}
-PALAVRAS-CHAVE: ${product.keywords || 'N/A'}
-META TAG DESCRIPTION: ${product.meta_tag_description || 'N/A'}
-CÓDIGO DE IMPOSTO: ${product.tax_code || 'N/A'}
-CÓDIGO SUPPLIER: ${product.supplier_id || 'N/A'}
-SCORE: ${product.score || 'N/A'}
-DATA DE LANÇAMENTO: ${product.release_date || 'N/A'}
-UNIDADE DE MEDIDA: ${product.measurement_unit || 'N/A'}
-MULTIPLICADOR: ${product.unit_multiplier || 'N/A'}
-
-=== DADOS DOS SKUs ===
-${skus.length > 0 ? skus.map((sku, index) => `
-SKU ${index + 1}:
-- Nome: ${sku.sku_name || 'N/A'}
-- Código Fabricante: ${sku.manufacturer_code || 'N/A'}
-- É Kit: ${sku.is_kit ? 'Sim' : 'Não'}
-- Unidade: ${sku.measurement_unit || 'N/A'}
-- Multiplicador: ${sku.unit_multiplier || 'N/A'}
-- Valor Recompensa: ${sku.reward_value || 'N/A'}
-- Data Chegada: ${sku.estimated_date_arrival || 'N/A'}
-`).join('') : 'Nenhum SKU encontrado'}
-
-=== ESPECIFICAÇÕES TÉCNICAS ===
-${specifications.length > 0 ? specifications.map((spec, index) => `
-${index + 1}. ${spec.field_name}: ${spec.field_value_ids || 'N/A'} ${spec.field_group_name ? `(Grupo: ${spec.field_group_name})` : ''}
-`).join('') : 'Nenhuma especificação encontrada'}
 
 === ANÁLISE TÉCNICA DAS IMAGENS ===
 ${imageAnalysis ? `
 ${imageAnalysis.contextual_analysis}
 ` : 'Nenhuma análise de imagem disponível'}
 
+=== ESPECIFICAÇÕES TÉCNICAS ===
+${specifications.length > 0 ? specifications.map((spec, index) => `
+${index + 1}. ${spec.field_name}: ${spec.field_value_ids || 'N/A'} ${spec.field_group_name ? `(Grupo: ${spec.field_group_name})` : ''}
+`).join('') : 'Nenhuma especificação encontrada'}
+
+${predefinedTitle ? `
+TÍTULO PRÉ-DEFINIDO OBRIGATÓRIO:
+- Use EXCLUSIVAMENTE este título: "${predefinedTitle}"
+- NÃO altere, modifique, abreve ou gere um novo título
+- O título já foi otimizado e é único no banco de dados
+` : `
 INSTRUÇÕES CRÍTICAS PARA O TÍTULO: 
 - Crie um NOVO TÍTULO seguindo a ESTRUTURA OBRIGATÓRIA
 - OBRIGATÓRIO: CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
@@ -878,9 +1545,8 @@ INSTRUÇÕES CRÍTICAS PARA O TÍTULO:
 - OBRIGATÓRIO: O título DEVE sempre incluir a cor detectada
 - OBRIGATÓRIO: O título DEVE incluir palavras-chave SEO para melhorar busca
 - MÁXIMO 60 CARACTERES no título
-- Na descrição, use EXCLUSIVAMENTE o NOVO TÍTULO que você criou, NUNCA o nome original
 - O novo título deve ser mais atrativo e otimizado para SEO
-- TODA a descrição deve referenciar o produto pelo novo título otimizado
+`}
 
 ESTRUTURA EXEMPLO (SEM HÍFENS):
 "Camiseta Nike Masculino Azul Premium Estilo Urbano"
@@ -892,160 +1558,17 @@ REGRAS IMPORTANTES:
 - Use apenas espaços para separar as palavras
 - Mantenha a estrutura: CATEGORIA + MARCA + GÊNERO + COR + PALAVRAS SEO
 
-USO DOS DADOS TÉCNICOS:
-- Use as ESPECIFICAÇÕES TÉCNICAS para criar seções detalhadas sobre materiais, composição e características
-- Use os dados dos SKUs para mencionar variações, códigos de fabricante e informações de disponibilidade
-- Use as PALAVRAS-CHAVE do produto para otimizar SEO na descrição
-- Use a META TAG DESCRIPTION como referência para criar conteúdo otimizado
-- Use o SCORE do produto para destacar qualidade e popularidade
-- Use a DATA DE LANÇAMENTO para mencionar se é um produto novo ou lançamento recente
-- Use as informações de UNIDADE DE MEDIDA e MULTIPLICADOR para detalhes técnicos
-- Use o CÓDIGO DE IMPOSTO e SUPPLIER para informações de conformidade e origem
+FORMATO DE RESPOSTA (JSON):
+{
+  ${predefinedTitle ? `"title": "${predefinedTitle}",` : `"title": "título criativo e otimizado para busca (máximo 60 caracteres)",`}
+  "clothing_type": "Tipo de roupa (ex: Camiseta, Camiseta Polo, Moletom, etc.)",
+  "sleeve_type": "Tipo de manga (Curta, Longa, 3/4, Sem Mangas, Tomara que caia)",
+  "gender": "Gênero (Masculino, Feminino, Meninos, Meninas, Bebês, Sem gênero, Sem gênero infantil)",
+  "color": "Cor principal do produto (ex: Azul, Vermelho, Preto, Branco, etc.)",
+  "modelo": "5 variações do nome do produto separadas por vírgula (ex: Camiseta Básica, Camiseta Casual, Camisa Dia a Dia, Camisa Lisa, Camisa para Trabalhar)"
+}
 
-ESTRUTURA OBRIGATÓRIA DA DESCRIÇÃO:
-1. Parágrafo introdutório sobre o produto (use o novo título)
-2. Informações sobre a marca e qualidade
-3. Detalhes técnicos e materiais
-4. Benefícios e características
-5. Seção "Destaques do produto" com bullet points
-6. Seção "Material e cuidados"
-7. Seção "Por que escolher" com vantagens
-8. Seção "FAQ - Perguntas frequentes" com 4-5 perguntas
-9. Call-to-action final
-
-EXEMPLOS DE COMO MELHORAR O CONTEÚDO (APENAS SUGESTÕES):
-
-Exemplo 1 - Títulos com gênero obrigatório:
-- Para produtos masculinos: "[Nome do Produto] Masculino - [Características]"
-- Para produtos femininos: "[Nome do Produto] Feminino - [Características]"  
-- Para produtos unissex: "[Nome do Produto] Unissex - [Características]"
-
-Exemplo 2 - Introdução mais envolvente:
-"Descubra o <b>[Novo Título]</b>, uma peça essencial para quem busca [benefício principal]. Imagine-se [situação de uso específica] com total conforto e estilo. Este produto foi pensado para [público-alvo] que valoriza [características importantes]."
-
-Exemplo 2 - Storytelling da marca:
-"A <b>[Marca]</b> nasceu da paixão por [história da marca]. Cada produto carrega nossa missão de [valores da marca]. Quando você escolhe [Marca], está escolhendo [benefício da escolha da marca]."
-
-Exemplo 3 - Destaques mais persuasivos:
-"<b>O que torna este produto especial:</b><br>
-<li><b>Design inteligente:</b> [explicação detalhada do design]</li>
-<li><b>Conforto garantido:</b> [explicação do conforto]</li>
-<li><b>Durabilidade excepcional:</b> [explicação da durabilidade]</li>
-<li><b>Versatilidade única:</b> [explicação da versatilidade]</li>"
-
-Exemplo 3b - Como falar sobre materiais sem afirmar:
-"<b>Qualidade e conforto:</b><br>
-<li><b>Material selecionado:</b> Tecido de alta qualidade que oferece [benefícios]</li>
-<li><b>Composição premium:</b> Material cuidadosamente escolhido para [propósito]</li>
-<li><b>Acabamento refinado:</b> Detalhes que garantem [benefícios específicos]</li>"
-
-Exemplo 4 - FAQ mais humanizado:
-"<b>Dúvidas frequentes:</b><br>
-<b>Este produto é adequado para [situação específica]?</b><br>
-Sim! O [Novo Título] foi desenvolvido pensando em [situação específica]. [Explicação detalhada com benefícios].<br><br>
-
-<b>Como posso ter certeza da qualidade?</b><br>
-Nossa garantia de [tempo] cobre [cobertura da garantia]. Além disso, [argumentos de qualidade adicionais]."
-
-Exemplo 5 - Call-to-action mais persuasivo:
-"Não perca a oportunidade de ter o <b>[Novo Título]</b> em seu guarda-roupa. [Benefício imediato da compra]. [Urgência ou escassez]. Garanta o seu agora e [benefício adicional da compra]!"
-
-INSTRUÇÕES DE FORMATAÇÃO HTML:
-- Use <br> para quebras de linha (não use \n)
-- Use <b>texto</b> para destacar palavras importantes
-- Use <li>item</li> para criar listas (não use • ou -)
-- Use <br><br> para separar parágrafos
-- Mantenha o HTML simples e limpo
-
-DETECÇÃO DE TIPO DE ROUPA:
-- Analise o nome do produto para identificar o tipo de roupa
-- Se contém "Polo" ou "polo" → "Camiseta Polo"
-- Se contém "Camiseta" mas não "Polo" → "Camiseta"
-- Se contém "Moletom" → "Moletom"
-- Se contém "Calça" → "Calça"
-- Se contém "Short" → "Short"
-- Se contém "Jaqueta" → "Jaqueta"
-- Se contém "Blusa" → "Blusa"
-- Se contém "Vestido" → "Vestido"
-- Se contém "Saia" → "Saia"
-- Se não identificar, use o tipo mais genérico baseado no contexto
-
-DETECÇÃO DE TIPO DE MANGA:
-- Analise o nome do produto e descrição para identificar o tipo de manga
-- Se contém "Manga Curta", "Curta", "Regata" → "Curta"
-- Se contém "Manga Longa", "Longa", "Comprida" → "Longa"
-- Se contém "3/4", "Três Quartos", "Meia Manga" → "3/4"
-- Se contém "Sem Manga", "Sem Mangas", "Regata", "Tank Top" → "Sem Mangas"
-- Se contém "Tomara que Caia", "Tomara que caia", "Off Shoulder" → "Tomara que caia"
-- Se não identificar, use "Curta" como padrão para camisetas e "Longa" para blusas/jaquetas
-
-DETECÇÃO DE GÊNERO:
-- Analise o nome do produto e descrição para identificar o gênero
-- Se contém "Masculina", "Masculino", "Homem", "Men" → "Masculino"
-- Se contém "Feminina", "Feminino", "Mulher", "Woman", "Lady" → "Feminino"
-- Se contém "Meninos", "Boy", "Boys" → "Meninos"
-- Se contém "Meninas", "Girl", "Girls" → "Meninas"
-- Se contém "Bebê", "Bebês", "Baby", "Infantil" (para bebês) → "Bebês"
-- Se contém "Unissex", "Uni", "Neutro" → "Sem gênero"
-- Se contém "Infantil" (para crianças) → "Sem gênero infantil"
-- Se não identificar, use "Sem gênero" como padrão
-
-DETECÇÃO DE COR:
-- Analise o nome do produto e descrição para identificar a cor principal
-- Procure por palavras como: Azul, Vermelho, Preto, Branco, Verde, Amarelo, Rosa, Roxo, Cinza, Marrom, Bege, etc.
-- Se houver múltiplas cores, escolha a cor predominante
-- Se não identificar cor específica, use "Multicolorido" ou a cor mais comum mencionada
-- CRÍTICO: A cor detectada DEVE aparecer no título do produto
-- A cor deve ser uma palavra simples e clara (ex: "Azul", "Preto", "Rosa")
-
-ESTRUTURA OBRIGATÓRIA DO TÍTULO:
-- O título DEVE incluir: CATEGORIA + MARCA + GÊNERO + COR
-- LIMITE CRÍTICO: MÁXIMO 60 caracteres
-- Formato: "[Nome do Produto] [Marca] [Gênero] [Cor] - [Características]"
-- Exemplos:
-  * "Camiseta Nike Masculino Azul - Conforto" (42 caracteres)
-  * "Blusa Zara Feminino Rosa - Elegante" (35 caracteres)
-  * "Moletom Adidas Unissex Preto - Casual" (37 caracteres)
-- OBRIGATÓRIO: Sempre incluir a marca do produto no título
-- OBRIGATÓRIO: Sempre incluir a categoria do produto no título
-- OBRIGATÓRIO: Sempre incluir o gênero detectado: "Masculino", "Feminino" ou "Unissex"
-- OBRIGATÓRIO: Sempre incluir a cor detectada no título
-- OBRIGATÓRIO: Título deve ser ÚNICO e não duplicar títulos existentes
-- O gênero no título deve corresponder exatamente ao campo "gender" detectado
-- Se o gênero for "Masculino" → título deve conter "Masculino"
-- Se o gênero for "Feminino" → título deve conter "Feminino"
-- Se o gênero for "Sem gênero" → título deve conter "Unissex"
-
-GERAÇÃO DE VARIAÇÕES DO NOME (CAMPO MODELO):
-- Crie EXATAMENTE 5 variações do nome do produto separadas por vírgula
-- Estas variações NÃO devem aparecer no título ou na descrição
-- Use diferentes formas de chamar o mesmo produto
-- Inclua variações que os clientes usariam para buscar o produto
-- Exemplos de variações:
-  * Para "Camiseta Básica": "Camiseta Casual, Camisa Dia a Dia, Camisa Lisa, Camisa para Trabalhar, Camiseta Simples"
-  * Para "Blusa Elegante": "Blusa Social, Blusa para Festa, Blusa Feminina, Blusa Chique, Blusa Sofisticada"
-  * Para "Moletom Confortável": "Moletom Casual, Moletom para Casa, Moletom Quentinho, Moletom Relax, Moletom Básico"
-- Formato: "Variação 1, Variação 2, Variação 3, Variação 4, Variação 5"
-- Exemplo: "Camiseta Básica, Camiseta Casual, Camisa Dia a Dia, Camisa Lisa, Camisa para Trabalhar"
-
-
-CRIATIVIDADE E FLEXIBILIDADE:
-- Use os exemplos acima como inspiração, não como regras rígidas
-- Seja criativo na estrutura e abordagem
-- Adapte o tom e estilo ao produto específico
-- Varie a linguagem para evitar repetição
-- Crie conexão emocional com o cliente
-- Use storytelling quando apropriado
-- Seja autêntico e persuasivo
-
-CUIDADOS COM INFORMAÇÕES TÉCNICAS:
-- Use termos genéricos: "material de qualidade", "tecido selecionado", "composição premium"
-- Foque nos BENEFÍCIOS do material, não na composição exata
-- Se mencionar cuidados, seja genérico: "siga as instruções de lavagem do fabricante"
-
-LEMBRE-SE: A descrição deve usar APENAS o novo título otimizado, NUNCA o nome original do produto.
-
-Retorne APENAS o JSON com as informações solicitadas.`;
+IMPORTANTE: Responda APENAS em formato JSON válido com a estrutura especificada.`;
 
     console.log('🌐 Chamando API da OpenAI (modo rápido)...');
     const startTime = Date.now();
@@ -1152,7 +1675,6 @@ Retorne APENAS o JSON com as informações solicitadas.`;
       success: true,
       data: {
         title: uniqueTitle,
-        description: parsedContent.description || parsedContent.descricao || 'Descrição não gerada',
         clothing_type: parsedContent.clothing_type || 'Produto de Vestuário',
         sleeve_type: parsedContent.sleeve_type || 'Curta',
         gender: parsedContent.gender || 'Sem gênero',
@@ -1190,7 +1712,12 @@ async function saveMarketplaceDescription(data: {
   responseTime: number;
   maxTokens?: number;
   temperature?: number;
-  // Novas colunas do marketplace
+  // Metadados do produto
+  clothing_type?: string;
+  sleeve_type?: string;
+  gender?: string;
+  color?: string;
+  modelo?: string;
 }) {
   try {
     const { 
@@ -1206,6 +1733,11 @@ async function saveMarketplaceDescription(data: {
       responseTime,
       maxTokens,
       temperature,
+      clothing_type,
+      sleeve_type,
+      gender,
+      color,
+      modelo
     } = data;
 
     // Inserir ou atualizar descrição na tabela marketplace

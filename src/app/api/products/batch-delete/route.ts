@@ -53,49 +53,67 @@ export async function POST(request: NextRequest) {
           [productId]
         );
 
-        // 3. Deletar dados do Marketplace
+        // 3. Deletar títulos gerados
+        await executeQuery(
+          'DELETE FROM titles WHERE product_id = ?',
+          [productId]
+        );
+
+        // 4. Deletar descrições geradas
+        await executeQuery(
+          'DELETE FROM descriptions WHERE product_id = ?',
+          [productId]
+        );
+
+        // 5. Deletar dados do Marketplace
         await executeQuery(
           'DELETE FROM marketplace WHERE product_id = ?',
           [productId]
         );
 
-        // 4. Deletar dados do Meli (se existir)
+        // 6. Deletar dados do Meli (se existir)
         await executeQuery(
           'DELETE FROM meli WHERE product_id = ?',
           [productId]
         );
 
-        // 5. Deletar logs de sincronização Anymarket
+        // 7. Deletar logs de sincronização Anymarket
         await executeQuery(
           'DELETE FROM anymarket_sync_logs WHERE product_id = ?',
           [productId]
         );
 
-        // 6. Deletar dados do Anymarket
+        // 8. Deletar dados do Anymarket
         await executeQuery(
           'DELETE FROM anymarket WHERE ref_vtex = (SELECT ref_id FROM products_vtex WHERE id = ?)',
           [productId]
         );
 
-        // 7. Deletar logs de crop de imagens
+        // 9. Deletar logs de crop de imagens
         await executeQuery(
           'DELETE FROM crop_processing_logs WHERE product_id = ?',
           [productId]
         );
 
-        // 8. Deletar respostas de características
+        // 10. Deletar respostas de características
         await executeQuery(
           'DELETE FROM characteristics_responses WHERE product_id = ?',
           [productId]
         );
 
-        // 9. Buscar SKUs do produto
+        // 10.1. Deletar respostas de características (tabela alternativa)
+        await executeQuery(
+          'DELETE FROM respostas_caracteristicas WHERE produto_id = ?',
+          [productId]
+        );
+
+        // 11. Buscar SKUs do produto
         const skus = await executeQuery(
           'SELECT id FROM skus_vtex WHERE product_id = ?',
           [productId]
         );
 
-        // 10. Para cada SKU, deletar dados relacionados
+        // 12. Para cada SKU, deletar dados relacionados
         for (const sku of skus) {
           // Deletar estoque do SKU
           await executeQuery(
@@ -116,25 +134,25 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // 11. Deletar SKUs
+        // 13. Deletar SKUs
         await executeQuery(
           'DELETE FROM skus_vtex WHERE product_id = ?',
           [productId]
         );
 
-        // 12. Deletar atributos do produto (se existir tabela)
+        // 14. Deletar atributos do produto (se existir tabela)
         await executeQuery(
           'DELETE FROM product_attributes WHERE product_id = ?',
           [productId]
         );
 
-        // 13. Deletar imagens do produto (se existir tabela)
+        // 15. Deletar imagens do produto (se existir tabela)
         await executeQuery(
           'DELETE FROM product_images WHERE product_id = ?',
           [productId]
         );
 
-        // 14. Deletar o produto
+        // 16. Deletar o produto
         await executeQuery(
           'DELETE FROM products_vtex WHERE id = ?',
           [productId]

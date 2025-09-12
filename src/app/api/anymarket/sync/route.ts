@@ -97,36 +97,49 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 2. Buscar dados do Marketplace
-    const marketplaceQuery = `
-      SELECT * FROM marketplace 
-      WHERE product_id = ? 
-      ORDER BY created_at DESC 
-      LIMIT 1
+    // 2. Buscar título e descrição em uma única query
+    const titleDescriptionQuery = `
+      SELECT 
+        t.title,
+        d.description
+      FROM products_vtex p
+      LEFT JOIN titles t ON p.id = t.product_id 
+      LEFT JOIN descriptions d ON p.id = d.product_id 
+      WHERE p.id = ?
     `;
 
-    const marketplaceData = await executeQuery(marketplaceQuery, [productId]);
+    const titleDescriptionData = await executeQuery(titleDescriptionQuery, [productId]);
     
-    if (marketplaceData.length === 0) {
+    if (titleDescriptionData.length === 0) {
       return NextResponse.json({
         success: false,
-        message: 'Produto não possui descrição do Marketplace gerada'
+        message: 'Produto não encontrado'
+      }, { status: 404 });
+    }
+
+    const { title, description } = titleDescriptionData[0];
+    
+    if (!title) {
+      return NextResponse.json({
+        success: false,
+        message: 'Produto não possui título otimizado gerado'
       }, { status: 400 });
     }
 
-    const marketplace = marketplaceData[0];
+    if (!description) {
+      return NextResponse.json({
+        success: false,
+        message: 'Produto não possui descrição gerada'
+      }, { status: 400 });
+    }
 
-    console.log('📋 Dados do marketplace encontrados:', {
-      product_id: marketplace.product_id,
-      title: marketplace.title?.substring(0, 50) + '...',
-      modelo: marketplace.modelo || 'NÃO ENCONTRADO',
-      seller_sku: marketplace.seller_sku || 'NÃO ENCONTRADO',
-      clothing_type: marketplace.clothing_type || 'NÃO ENCONTRADO',
-      gender: marketplace.gender || 'NÃO ENCONTRADO',
-      color: marketplace.color || 'NÃO ENCONTRADO'
+    console.log('📋 Dados encontrados:', {
+      product_id: productId,
+      title: title?.substring(0, 50) + '...',
+      description_length: description?.length || 0
     });
 
-    // 3. Buscar características da tabela respostas_caracteristicas
+    // 4. Buscar características da tabela respostas_caracteristicas
     const characteristicsQuery = `
       SELECT caracteristica, resposta 
       FROM respostas_caracteristicas 
@@ -136,7 +149,7 @@ export async function POST(request: NextRequest) {
     const characteristicsData = await executeQuery(characteristicsQuery, [productId]);
     console.log('📋 Características encontradas:', characteristicsData.length);
 
-    // 4. Preparar dados para envio ao Anymarket
+    // 5. Preparar dados para envio ao Anymarket
     const characteristics = [];
     
     // Adicionar características da tabela respostas_caracteristicas
@@ -149,101 +162,36 @@ export async function POST(request: NextRequest) {
       }
     });
     
-    // Adicionar características baseadas nos campos do marketplace
-    if (marketplace.clothing_type) {
-      characteristics.push({
-        name: "Tipo de Roupa",
-        value: marketplace.clothing_type
-      });
-    }
-    
-    if (marketplace.sleeve_type) {
-      characteristics.push({
-        name: "Tipo de Manga", 
-        value: marketplace.sleeve_type
-      });
-    }
-    
-    if (marketplace.gender) {
-      characteristics.push({
-        name: "Gênero",
-        value: marketplace.gender
-      });
-    }
-    
-    if (marketplace.color) {
-      characteristics.push({
-        name: "Cor",
-        value: marketplace.color
-      });
-    }
-    
-    if (marketplace.wedge_shape) {
-      characteristics.push({
-        name: "Forma de Caimento",
-        value: marketplace.wedge_shape
-      });
-    }
-    
-    if (marketplace.is_sportive) {
-      characteristics.push({
-        name: "É Esportiva",
-        value: marketplace.is_sportive
-      });
-    }
-    
-    if (marketplace.main_color) {
-      characteristics.push({
-        name: "Cor Principal",
-        value: marketplace.main_color
-      });
-    }
-    
-    if (marketplace.item_condition) {
-      characteristics.push({
-        name: "Condição do Item",
-        value: marketplace.item_condition
-      });
-    }
-    
-    if (marketplace.brand) {
+    // Adicionar características básicas do produto
+    if (product.brand_name) {
       characteristics.push({
         name: "Marca",
-        value: marketplace.brand
+        value: product.brand_name
       });
     }
     
-    if (marketplace.modelo) {
+    if (product.category_name) {
       characteristics.push({
-        name: "Modelo",
-        value: marketplace.modelo
-      });
-    }
-    
-    if (marketplace.seller_sku) {
-      characteristics.push({
-        name: "SKU",
-        value: marketplace.seller_sku
+        name: "Categoria",
+        value: product.category_name
       });
     }
 
     const anymarketPayload = {
-      title: marketplace.title,
-      description: marketplace.description,
+      title: title,
+      description: description,
       characteristics: characteristics
     };
 
     console.log('📤 Enviando dados para Anymarket:', {
       anymarket_id: product.anymarket_id,
-      title: marketplace.title?.substring(0, 50) + '...',
-      description_length: marketplace.description?.length || 0,
+      title: title?.substring(0, 50) + '...',
+      description_length: description?.length || 0,
       characteristics_count: characteristics.length,
-      characteristics: characteristics.map(c => `${c.name}: ${c.value}`),
-      modelo_field: marketplace.modelo || 'NÃO ENCONTRADO',
-      seller_sku_field: marketplace.seller_sku || 'NÃO ENCONTRADO'
+      characteristics: characteristics.map(c => `${c.name}: ${c.value}`)
     });
 
-    // 4. Fazer PATCH para o Anymarket
+    // 6. Fazer PATCH para o Anymarket
     console.log('🌐 Fazendo requisição para Anymarket API...');
     console.log('🔗 URL:', `https://api.anymarket.com.br/v2/products/${product.anymarket_id}`);
     console.log('📋 Payload:', JSON.stringify(anymarketPayload, null, 2));
@@ -273,7 +221,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Erro de conexão com Anymarket:', fetchError);
       
       // Salvar log de erro de conexão
-      await saveSyncLog(productId, product.anymarket_id, marketplace.title, marketplace.description, false, null, `Erro de conexão: ${fetchError.message}`);
+      await saveSyncLog(productId, product.anymarket_id, title, description, false, null, `Erro de conexão: ${fetchError.message}`);
       
       return NextResponse.json({
         success: false,
@@ -292,7 +240,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Erro na API do Anymarket:', anymarketResult);
       
       // Salvar log de erro
-      await saveSyncLog(productId, product.anymarket_id, marketplace.title, marketplace.description, false, anymarketResult, anymarketResult.message || 'Erro desconhecido');
+      await saveSyncLog(productId, product.anymarket_id, title, description, false, anymarketResult, anymarketResult.message || 'Erro desconhecido');
       
       return NextResponse.json({
         success: false,
@@ -303,7 +251,7 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Sincronização com Anymarket realizada com sucesso!');
 
-    // 5. Atualizar data_sincronizacao na tabela anymarket
+    // 7. Atualizar data_sincronizacao na tabela anymarket
     try {
       await executeQuery(`
         UPDATE anymarket 
@@ -315,8 +263,8 @@ export async function POST(request: NextRequest) {
       console.error('⚠️ Erro ao atualizar data_sincronizacao (não crítico):', updateError);
     }
 
-    // 6. Salvar log da sincronização
-    await saveSyncLog(productId, product.anymarket_id, marketplace.title, marketplace.description, true, anymarketResult);
+    // 8. Salvar log da sincronização
+    await saveSyncLog(productId, product.anymarket_id, title, description, true, anymarketResult);
 
     return NextResponse.json({
       success: true,
@@ -324,8 +272,8 @@ export async function POST(request: NextRequest) {
       data: {
         product_id: productId,
         anymarket_id: product.anymarket_id,
-        title: marketplace.title,
-        description_length: marketplace.description?.length || 0,
+        title: title,
+        description_length: description?.length || 0,
         characteristics_count: characteristics.length,
         characteristics: characteristics,
         sync_timestamp: new Date().toISOString()

@@ -125,15 +125,9 @@ export async function POST(request: NextRequest) {
         originalData: img
       })) : [];
 
-    // 4. Salvar log da operação
-    try {
-      await executeQuery(`
-        INSERT INTO crop_logs (product_id, anymarket_id, images_count, success, created_at)
-        VALUES (?, ?, ?, TRUE, CURRENT_TIMESTAMP)
-      `, [productId, product.anymarket_id, processedImages.length]);
-    } catch (logError) {
-      console.warn('⚠️ Erro ao salvar log de crop:', logError);
-    }
+    // 4. Salvar log da operação (tabela crop_logs não existe ainda)
+    // TODO: Criar tabela crop_logs no banco de dados
+    console.log(`📊 Log de crop: Produto ${productId}, Anymarket ${product.anymarket_id}, ${processedImages.length} imagens processadas`);
 
     console.log(`✅ ${processedImages.length} imagens processadas com sucesso`);
 

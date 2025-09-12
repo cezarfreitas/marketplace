@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Layout from '@/components/Layout';
-import { Package, Trash2, X, ExternalLink, Copy, Check, Image, Loader2, Eye, Camera, RotateCcw, Warehouse, Download, Crop, List } from 'lucide-react';
+import { Package, Trash2, X, ExternalLink, Copy, Check, Image, Loader2, Eye, Camera, RotateCcw, Warehouse, Download, Crop, List, Type, AlertCircle, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
   useProducts, 
@@ -41,10 +41,18 @@ export default function ProductsPage() {
   const [existingAnalysis, setExistingAnalysis] = useState<any>(null);
   const [currentAnalysisData, setCurrentAnalysisData] = useState<any>(null);
   const [productsWithAnalysis, setProductsWithAnalysis] = useState<number[]>([]);
+  const [productsWithTitle, setProductsWithTitle] = useState<number[]>([]);
   const [showMarketplaceModal, setShowMarketplaceModal] = useState(false);
   const [showCharacteristicsModal, setShowCharacteristicsModal] = useState(false);
   const [showAnymarketingModal, setShowAnymarketingModal] = useState(false);
+  const [showTitleModal, setShowTitleModal] = useState(false);
   const [selectedProductForTool, setSelectedProductForTool] = useState<Product | null>(null);
+  
+  // Estados para Título
+  const [generatingTitle, setGeneratingTitle] = useState(false);
+  const [generatedTitle, setGeneratedTitle] = useState<string | null>(null);
+  const [originalTitle, setOriginalTitle] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
   
   // Estados para Marketplace
   const [marketplaceDescription, setMarketplaceDescription] = useState<any>(null);
@@ -218,11 +226,39 @@ export default function ProductsPage() {
     }
   };
 
+  // Função para buscar produtos com título gerado
+  const fetchProductsWithTitle = async () => {
+    try {
+      console.log('🔍 Buscando produtos com título gerado...');
+      const response = await fetch('/api/titles?status=validated&limit=1000');
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Dados recebidos da API titles:', data);
+        
+        if (data.success && data.data) {
+          const productIds = data.data.map((item: any) => item.product_id) as number[];
+          console.log('✅ Produtos com título gerado:', productIds);
+          setProductsWithTitle(productIds);
+        } else {
+          console.log('⚠️ Nenhum título encontrado ou dados inválidos');
+          setProductsWithTitle([]);
+        }
+      } else {
+        console.error('Erro ao buscar produtos com título:', response.status, response.statusText);
+        setProductsWithTitle([]);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar produtos com título:', error);
+      setProductsWithTitle([]);
+    }
+  };
+
   // Função para buscar produtos que já têm descrição do Marketplace
   const fetchProductsWithMarketplace = async () => {
     try {
       // console.log('🔍 Buscando produtos com descrição do Marketplace...');
-      const response = await fetch('/api/marketplace');
+      const response = await fetch('/api/descriptions?status=generated&limit=1000');
       if (response.ok) {
         const data = await response.json();
         // console.log('📊 Resposta da API marketplace:', data);
@@ -356,6 +392,7 @@ export default function ProductsPage() {
       try {
         await Promise.all([
           fetchProductsWithAnalysis(),
+          fetchProductsWithTitle(),
           fetchProductsWithMarketplace(),
           fetchProductsWithCharacteristics(),
           fetchProductsWithAnymarketSync(),
@@ -638,7 +675,7 @@ export default function ProductsPage() {
             // console.log(`🔄 Gerando descrição do Marketplace para produto ${i + 1}/${selectedProductsData.length}: ${product.name}`);
 
             // Gerar descrição do Marketplace
-            const response = await fetch('/api/generate-marketplace-description', {
+            const response = await fetch('/api/generate-description', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -1011,6 +1048,113 @@ export default function ProductsPage() {
     }
   };
 
+  const handleGenerateTitle = async (product: Product) => {
+    setSelectedProductForTool(product);
+    setTitleError(null);
+    setOriginalTitle(product.name); // Armazenar título original do produto
+    setShowTitleModal(true);
+    
+    // Buscar título existente se houver
+    try {
+      const response = await fetch(`/api/titles?productId=${product.id}&status=validated&limit=1`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data.length > 0) {
+          setGeneratedTitle(data.data[0].title);
+          console.log('📝 Título existente encontrado:', data.data[0].title);
+        } else {
+          setGeneratedTitle(null);
+        }
+      } else {
+        setGeneratedTitle(null);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar título existente:', error);
+      setGeneratedTitle(null);
+    }
+  };
+
+  const handleStartTitleGeneration = async (forceRegenerate = false) => {
+    // Corrigir se forceRegenerate for um evento
+    if (forceRegenerate && typeof forceRegenerate === 'object' && (forceRegenerate as any).preventDefault) {
+      forceRegenerate = true;
+    }
+    
+    console.log('🔍 handleStartTitleGeneration chamada:', { 
+      selectedProductForTool: selectedProductForTool?.name, 
+      generatingTitle, 
+      forceRegenerate 
+    });
+    
+    if (!selectedProductForTool) {
+      console.error('❌ selectedProductForTool não está definido');
+      setTitleError('Produto não selecionado. Feche e abra o modal novamente.');
+      return;
+    }
+    
+    if (generatingTitle) {
+      console.log('⚠️ Já está gerando título, ignorando clique');
+      return;
+    }
+    
+    setGeneratingTitle(true);
+    setTitleError(null);
+    
+    try {
+      console.log(`🎯 Gerando título para produto: ${selectedProductForTool.name} (ID: ${selectedProductForTool.id}) - Force: ${forceRegenerate}`);
+      
+      const response = await fetch('/api/generate-title', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: selectedProductForTool.id,
+          forceRegenerate: forceRegenerate
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          console.log('✅ Título gerado com sucesso:', data.data.title);
+          setGeneratedTitle(data.data.title);
+          
+          // Atualizar a lista de produtos com título
+          setProductsWithTitle(prev => [...prev, selectedProductForTool.id]);
+          
+          // Mostrar notificação de sucesso
+          addNotification(
+            'success', 
+            'Título Gerado!', 
+            `Título gerado com sucesso para ${selectedProductForTool.name}`,
+            5000
+          );
+        } else {
+          console.error('❌ Erro ao gerar título:', data.message);
+          setTitleError(data.message);
+        }
+      } else {
+        console.error('❌ Erro na resposta da API:', response.status, response.statusText);
+        let errorMessage = 'Erro desconhecido';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || 'Erro na API';
+          console.error('❌ Detalhes do erro:', errorData);
+        } catch (parseError) {
+          console.error('❌ Erro ao fazer parse da resposta de erro:', parseError);
+          errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        }
+        setTitleError(errorMessage);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao gerar título:', error);
+      setTitleError(`Erro ao gerar título: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setGeneratingTitle(false);
+    }
+  };
+
   // Função para gerar nova análise de imagens
   const handleGenerateNewAnalysis = async (forceRegenerate = false) => {
     if (!selectedProductForAnalysis) return;
@@ -1145,11 +1289,11 @@ export default function ProductsPage() {
     
     // Verificar se já existe descrição
     try {
-      const response = await fetch(`/api/marketplace?productId=${product.id}`);
+      const response = await fetch(`/api/descriptions?productId=${product.id}&status=generated&limit=1`);
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data) {
-          setMarketplaceDescription(data.data);
+        if (data.success && data.data.length > 0) {
+          setMarketplaceDescription(data.data[0]);
         } else {
           setMarketplaceDescription(null);
         }
@@ -1286,7 +1430,7 @@ export default function ProductsPage() {
     setGeneratingMarketplace(true);
     
     try {
-      const response = await fetch('/api/generate-marketplace-description', {
+      const response = await fetch('/api/generate-description', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1708,24 +1852,28 @@ export default function ProductsPage() {
     };
 
     try {
-      // 1. ANÁLISE DE IMAGENS
-      console.log('📸 === ETAPA 1: ANÁLISE DE IMAGENS ===');
-      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Análise de Imagens' }));
+      // PROCESSAR PRODUTO POR PRODUTO (TODAS AS OTIMIZAÇÕES)
+      console.log('🔄 === PROCESSAMENTO PRODUTO POR PRODUTO ===');
       
       for (let i = 0; i < productsToProcess.length; i++) {
         const product = productsToProcess[i];
-        const stepIndex = i * 5 + 1;
+        const productIndex = i + 1;
+        
+        console.log(`\n🎯 === PRODUTO ${productIndex}/${productsToProcess.length}: ${product.name} ===`);
         
         setBatchAllProgress(prev => ({
           ...prev,
-          current: stepIndex,
-          currentProduct: product.name
+          current: i * 5,
+          currentProduct: product.name,
+          currentStep: `Produto ${productIndex}/${productsToProcess.length}`
         }));
 
+        // 1. ANÁLISE DE IMAGENS
+        console.log(`📸 ETAPA 1/5: Análise de Imagens - ${product.name}`);
+        setBatchAllProgress(prev => ({ ...prev, currentStep: `Análise de Imagens - ${product.name}` }));
+        
         try {
-          // console.log(`📸 Analisando produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
-          
-          const response = await fetch('/api/analyze-images', {
+          const analysisResponse = await fetch('/api/analyze-images', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1736,8 +1884,8 @@ export default function ProductsPage() {
             }),
           });
 
-          if (response.ok) {
-            const result = await response.json();
+          if (analysisResponse.ok) {
+            const result = await analysisResponse.json();
             if (result.success) {
               setProductsWithAnalysis(prev => {
                 if (!prev.includes(product.id)) {
@@ -1747,13 +1895,16 @@ export default function ProductsPage() {
               });
               stepResults.analysis.success++;
               totalSuccess++;
+              console.log(`✅ Análise de imagens concluída para ${product.name}`);
             } else {
               stepResults.analysis.errors++;
               totalErrors++;
+              console.log(`❌ Erro na análise de imagens para ${product.name}`);
             }
           } else {
             stepResults.analysis.errors++;
             totalErrors++;
+            console.log(`❌ Erro na análise de imagens para ${product.name}`);
           }
         } catch (error) {
           console.error(`❌ Erro na análise de ${product.name}:`, error);
@@ -1762,26 +1913,13 @@ export default function ProductsPage() {
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
-      }
 
-      // 2. MARKETPLACE
-      console.log('📝 === ETAPA 2: MARKETPLACE ===');
-      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Marketplace' }));
-      
-      for (let i = 0; i < productsToProcess.length; i++) {
-        const product = productsToProcess[i];
-        const stepIndex = i * 5 + 2;
+        // 2. MARKETPLACE
+        console.log(`📝 ETAPA 2/5: Marketplace - ${product.name}`);
+        setBatchAllProgress(prev => ({ ...prev, currentStep: `Marketplace - ${product.name}` }));
         
-        setBatchAllProgress(prev => ({
-          ...prev,
-          current: stepIndex,
-          currentProduct: product.name
-        }));
-
         try {
-          console.log(`📝 Gerando Marketplace para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
-          
-          const response = await fetch('/api/generate-marketplace-description', {
+          const marketplaceResponse = await fetch('/api/generate-description', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1790,8 +1928,8 @@ export default function ProductsPage() {
             })
           });
 
-          if (response.ok) {
-            const result = await response.json();
+          if (marketplaceResponse.ok) {
+            const result = await marketplaceResponse.json();
             if (result.success) {
               setProductsWithMarketplace(prev => {
                 if (!prev.includes(product.id)) {
@@ -1801,13 +1939,16 @@ export default function ProductsPage() {
               });
               stepResults.marketplace.success++;
               totalSuccess++;
+              console.log(`✅ Marketplace concluído para ${product.name}`);
             } else {
               stepResults.marketplace.errors++;
               totalErrors++;
+              console.log(`❌ Erro no Marketplace para ${product.name}`);
             }
           } else {
             stepResults.marketplace.errors++;
             totalErrors++;
+            console.log(`❌ Erro no Marketplace para ${product.name}`);
           }
         } catch (error) {
           console.error(`❌ Erro no Marketplace de ${product.name}:`, error);
@@ -1816,26 +1957,13 @@ export default function ProductsPage() {
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
-      }
 
-      // 3. CARACTERÍSTICAS
-      console.log('📋 === ETAPA 3: CARACTERÍSTICAS ===');
-      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Características' }));
-      
-      for (let i = 0; i < productsToProcess.length; i++) {
-        const product = productsToProcess[i];
-        const stepIndex = i * 5 + 3;
+        // 3. CARACTERÍSTICAS
+        console.log(`📋 ETAPA 3/5: Características - ${product.name}`);
+        setBatchAllProgress(prev => ({ ...prev, currentStep: `Características - ${product.name}` }));
         
-        setBatchAllProgress(prev => ({
-          ...prev,
-          current: stepIndex,
-          currentProduct: product.name
-        }));
-
         try {
-          console.log(`📋 Gerando características para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
-          
-          const response = await fetch('/api/generate-characteristics', {
+          const characteristicsResponse = await fetch('/api/generate-characteristics', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1843,8 +1971,8 @@ export default function ProductsPage() {
             })
           });
 
-          if (response.ok) {
-            const result = await response.json();
+          if (characteristicsResponse.ok) {
+            const result = await characteristicsResponse.json();
             if (result.success) {
               setProductsWithCharacteristics(prev => {
                 if (!prev.includes(product.id)) {
@@ -1854,13 +1982,16 @@ export default function ProductsPage() {
               });
               stepResults.characteristics.success++;
               totalSuccess++;
+              console.log(`✅ Características concluídas para ${product.name}`);
             } else {
               stepResults.characteristics.errors++;
               totalErrors++;
+              console.log(`❌ Erro nas características para ${product.name}`);
             }
           } else {
             stepResults.characteristics.errors++;
             totalErrors++;
+            console.log(`❌ Erro nas características para ${product.name}`);
           }
         } catch (error) {
           console.error(`❌ Erro nas características de ${product.name}:`, error);
@@ -1869,26 +2000,13 @@ export default function ProductsPage() {
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
-      }
 
-      // 4. ANYMARKET (sincronização individual)
-      console.log('🔄 === ETAPA 4: ANYMARKET ===');
-      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Anymarket' }));
-      
-      for (let i = 0; i < productsToProcess.length; i++) {
-        const product = productsToProcess[i];
-        const stepIndex = i * 5 + 4;
+        // 4. ANYMARKET (sincronização individual)
+        console.log(`🔄 ETAPA 4/5: Anymarket - ${product.name}`);
+        setBatchAllProgress(prev => ({ ...prev, currentStep: `Anymarket - ${product.name}` }));
         
-        setBatchAllProgress(prev => ({
-          ...prev,
-          current: stepIndex,
-          currentProduct: product.name
-        }));
-
         try {
-          console.log(`🔄 Sincronizando Anymarket para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
-          
-          const response = await fetch('/api/anymarket/sync', {
+          const anymarketResponse = await fetch('/api/anymarket/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1896,8 +2014,8 @@ export default function ProductsPage() {
             })
           });
 
-          if (response.ok) {
-            const result = await response.json();
+          if (anymarketResponse.ok) {
+            const result = await anymarketResponse.json();
             if (result.success) {
               setProductsWithAnymarketSync(prev => {
                 if (!prev.includes(product.id)) {
@@ -1907,13 +2025,16 @@ export default function ProductsPage() {
               });
               stepResults.anymarket.success++;
               totalSuccess++;
+              console.log(`✅ Anymarket concluído para ${product.name}`);
             } else {
               stepResults.anymarket.errors++;
               totalErrors++;
+              console.log(`❌ Erro no Anymarket para ${product.name}`);
             }
           } else {
             stepResults.anymarket.errors++;
             totalErrors++;
+            console.log(`❌ Erro no Anymarket para ${product.name}`);
           }
         } catch (error) {
           console.error(`❌ Erro no Anymarket de ${product.name}:`, error);
@@ -1922,25 +2043,12 @@ export default function ProductsPage() {
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
-      }
 
-      // 5. CROP DE IMAGENS
-      console.log('✂️ === ETAPA 5: CROP DE IMAGENS ===');
-      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Crop de Imagens' }));
-      
-      for (let i = 0; i < productsToProcess.length; i++) {
-        const product = productsToProcess[i];
-        const stepIndex = i * 5 + 5;
+        // 5. CROP DE IMAGENS
+        console.log(`✂️ ETAPA 5/5: Crop de Imagens - ${product.name}`);
+        setBatchAllProgress(prev => ({ ...prev, currentStep: `Crop de Imagens - ${product.name}` }));
         
-        setBatchAllProgress(prev => ({
-          ...prev,
-          current: stepIndex,
-          currentProduct: product.name
-        }));
-
         try {
-          console.log(`✂️ Fazendo crop de imagens para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
-          
           // Registrar log de início do processo de crop
           try {
             await fetch('/api/crop-logs', {
@@ -1957,7 +2065,7 @@ export default function ProductsPage() {
             console.warn('⚠️ Erro ao registrar log de crop:', logError);
           }
 
-          const response = await fetch('/api/anymarket/crop-images', {
+          const cropResponse = await fetch('/api/anymarket/crop-images', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1966,8 +2074,8 @@ export default function ProductsPage() {
             })
           });
 
-          if (response.ok) {
-            const result = await response.json();
+          if (cropResponse.ok) {
+            const result = await cropResponse.json();
             if (result.success) {
               setProductsWithCroppedImages(prev => {
                 if (!prev.includes(product.id)) {
@@ -1975,30 +2083,18 @@ export default function ProductsPage() {
                 }
                 return prev;
               });
-              
-              // Registrar log de conclusão do processo de crop
-              try {
-                await fetch('/api/crop-logs', {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    productId: product.id,
-                    status: 'completed'
-                  })
-                });
-              } catch (logError) {
-                console.warn('⚠️ Erro ao registrar log de conclusão do crop:', logError);
-              }
-              
               stepResults.crop.success++;
               totalSuccess++;
+              console.log(`✅ Crop de imagens concluído para ${product.name}`);
             } else {
               stepResults.crop.errors++;
               totalErrors++;
+              console.log(`❌ Erro no crop de imagens para ${product.name}`);
             }
           } else {
             stepResults.crop.errors++;
             totalErrors++;
+            console.log(`❌ Erro no crop de imagens para ${product.name}`);
           }
         } catch (error) {
           console.error(`❌ Erro no crop de imagens de ${product.name}:`, error);
@@ -2007,60 +2103,9 @@ export default function ProductsPage() {
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      // 5. CROP DE IMAGENS
-      console.log('✂️ === ETAPA 5: CROP DE IMAGENS ===');
-      setBatchAllProgress(prev => ({ ...prev, currentStep: 'Crop de Imagens' }));
-      
-      for (let i = 0; i < productsToProcess.length; i++) {
-        const product = productsToProcess[i];
-        const stepIndex = i * 5 + 5;
         
-        setBatchAllProgress(prev => ({
-          ...prev,
-          current: stepIndex,
-          currentProduct: product.name
-        }));
-
-        try {
-          console.log(`✂️ Processando crop para produto ${i + 1}/${productsToProcess.length}: ${product.name}`);
-          
-          const response = await fetch('/api/crop-images-vtex', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productId: product.id,
-              anymarketId: product.anymarket_id
-            })
-          });
-
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-              setProductsWithCroppedImages(prev => {
-                if (!prev.includes(product.id)) {
-                  return [...prev, product.id];
-                }
-                return prev;
-              });
-              stepResults.crop.success++;
-              totalSuccess++;
-            } else {
-              stepResults.crop.errors++;
-              totalErrors++;
-            }
-          } else {
-            stepResults.crop.errors++;
-            totalErrors++;
-          }
-        } catch (error) {
-          console.error(`❌ Erro no crop de ${product.name}:`, error);
-          stepResults.crop.errors++;
-          totalErrors++;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log(`🎉 PRODUTO ${productIndex}/${productsToProcess.length} CONCLUÍDO: ${product.name}`);
+        console.log(`📊 Progresso: ${productIndex}/${productsToProcess.length} produtos processados`);
       }
 
     } catch (error) {
@@ -2844,11 +2889,13 @@ export default function ProductsPage() {
           onViewProduct={handleViewProduct}
           onDeleteProduct={handleDeleteProduct}
           onAnalyzeImages={handleAnalyzeImages}
+          onGenerateTitle={handleGenerateTitle}
           onGenerateMarketplaceDescription={handleGenerateMarketplaceDescription}
           onGenerateCharacteristics={handleGenerateCharacteristics}
           onSyncAnymarketing={handleSyncAnymarketing}
           onCropImages={handleCropImages}
           productsWithAnalysis={productsWithAnalysis}
+          productsWithTitle={productsWithTitle}
           productsWithMarketplace={productsWithMarketplace}
           productsWithCharacteristics={productsWithCharacteristics}
           productsWithAnymarketSync={productsWithAnymarketSync}
@@ -3756,13 +3803,13 @@ export default function ProductsPage() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Título Otimizado</h3>
                       <div className="bg-white border border-gray-200 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-gray-900 font-medium">{marketplaceDescription.title}</p>
+                          <p className="text-gray-900 font-medium">{marketplaceDescription.optimizedTitle || selectedProductForTool?.name || 'N/A'}</p>
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Único no banco
+                            ✓ Otimizado
                           </span>
                         </div>
                         <p className="text-xs text-gray-500">
-                          {marketplaceDescription.title.length} caracteres
+                          {(marketplaceDescription.optimizedTitle || selectedProductForTool?.name || '').length} caracteres
                         </p>
                       </div>
                     </div>
@@ -3773,7 +3820,7 @@ export default function ProductsPage() {
                       <div className="bg-white border border-gray-200 rounded-lg p-4">
                         <div 
                           className="text-gray-700 leading-relaxed"
-                          dangerouslySetInnerHTML={{ __html: marketplaceDescription.description }}
+                          dangerouslySetInnerHTML={{ __html: marketplaceDescription.description || 'Nenhuma descrição disponível' }}
                         />
                       </div>
                     </div>
@@ -4279,6 +4326,187 @@ export default function ProductsPage() {
           </div>
         ))}
       </div>
+
+      {/* Modal de Geração de Título */}
+      {showTitleModal && selectedProductForTool && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                  <span className="w-8 h-8 bg-purple-500 text-white rounded-lg flex items-center justify-center mr-3">
+                    <Type className="h-5 w-5" />
+                  </span>
+                  Geração de Título - {selectedProductForTool.name}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowTitleModal(false);
+                    setSelectedProductForTool(null);
+                    setGeneratedTitle(null);
+                    setTitleError(null);
+                    setGeneratingTitle(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Texto Explicativo */}
+                {!generatedTitle && !titleError && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Type className="w-4 h-4 text-blue-600" />
+                        </div>
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-blue-800">
+                          Geração de Título Otimizado
+                        </h3>
+                        <div className="mt-2 text-sm text-blue-700">
+                          <p className="mb-2">
+                            <strong>O que será feito:</strong> Criar um título otimizado para marketplace seguindo a estrutura: 
+                            <span className="font-mono bg-blue-100 px-1 rounded">Categoria + Marca + Gênero + Qualidade + Cor</span>
+                          </p>
+                          <p>
+                            <strong>Dados utilizados:</strong> Análise de imagens, informações do produto VTEX, especificações técnicas e dados dos SKUs.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Comparação de Títulos - quando há título gerado */}
+                {generatedTitle && originalTitle && (
+                  <div className="space-y-4">
+                    {/* Título Original */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center">
+                        <Type className="w-5 h-5 mr-2" />
+                        Título Original
+                      </h3>
+                      <div className="bg-white rounded-lg p-3 border border-blue-200">
+                        <p className="text-gray-900 text-sm leading-relaxed">{originalTitle}</p>
+                        <div className="mt-2 text-xs text-gray-500">
+                          {originalTitle?.length || 0} caracteres
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Título Gerado */}
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-green-900 mb-3 flex items-center">
+                        <Type className="w-5 h-5 mr-2" />
+                        Título Otimizado
+                      </h3>
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <p className="text-gray-900 text-sm leading-relaxed">{generatedTitle}</p>
+                        <div className="mt-2 text-xs text-gray-500">
+                          {generatedTitle?.length || 0} caracteres
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Botões de Ação - quando há título gerado */}
+                {generatedTitle && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Ações</h3>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedTitle);
+                          addNotification(
+                            'success',
+                            'Título Copiado!',
+                            'Título copiado para a área de transferência!',
+                            3000
+                          );
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                      >
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copiar Título Otimizado
+                      </button>
+                      <button
+                        onClick={() => handleStartTitleGeneration(true)}
+                        disabled={generatingTitle}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Regenerar Título
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Erro */}
+                {titleError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                      <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
+                      Erro na Geração
+                    </h3>
+                    <p className="text-red-700">{titleError}</p>
+                    <button
+                      onClick={() => handleStartTitleGeneration(true)}
+                      disabled={generatingTitle}
+                      className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Tentar Novamente
+                    </button>
+                  </div>
+                )}
+
+                {/* Botão de Iniciar */}
+                {!generatedTitle && !titleError && (
+                  <div className="text-center">
+                    <button
+                      onClick={() => handleStartTitleGeneration(false)}
+                      disabled={generatingTitle}
+                      className="px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center mx-auto font-medium shadow-sm text-lg"
+                    >
+                      {generatingTitle ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin mr-3" />
+                          Gerando Título...
+                        </>
+                      ) : (
+                        <>
+                          <Type className="w-5 h-5 mr-3" />
+                          Gerar Título Otimizado
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-6 border-t border-gray-200 mt-6">
+                <button
+                  onClick={() => {
+                    setShowTitleModal(false);
+                    setSelectedProductForTool(null);
+                    setGeneratedTitle(null);
+                    setTitleError(null);
+                    setGeneratingTitle(false);
+                  }}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

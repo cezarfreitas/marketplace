@@ -6,7 +6,7 @@ import { formatDate, formatNumber, getProductImageUrl } from '../utils/formatter
 import { StockTooltip } from './StockTooltip';
 import { 
   Eye, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon,
-  Camera, FileText, RotateCcw, Crop, Package, List
+  Camera, FileText, RotateCcw, Crop, Package, List, Type
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -27,11 +27,13 @@ interface ProductTableProps {
   onViewProduct: (product: Product) => void;
   onDeleteProduct: (product: Product) => void;
   onAnalyzeImages: (product: Product) => void;
+  onGenerateTitle: (product: Product) => void;
   onGenerateMarketplaceDescription: (product: Product) => void;
   onGenerateCharacteristics: (product: Product) => void;
   onSyncAnymarketing: (product: Product) => void;
   onCropImages: (product: Product) => void;
   productsWithAnalysis?: number[]; // IDs dos produtos que já têm análise
+  productsWithTitle?: number[]; // IDs dos produtos que já têm título gerado
   productsWithMarketplace?: number[]; // IDs dos produtos que já têm descrição do Marketplace
   productsWithCharacteristics?: number[]; // IDs dos produtos que já têm características
   productsWithAnymarketSync?: number[]; // IDs dos produtos que já foram sincronizados com Anymarket
@@ -56,11 +58,13 @@ export function ProductTable({
   onViewProduct,
   onDeleteProduct,
   onAnalyzeImages,
+  onGenerateTitle,
   onGenerateMarketplaceDescription,
   onGenerateCharacteristics,
   onSyncAnymarketing,
   onCropImages,
   productsWithAnalysis = [],
+  productsWithTitle = [],
   productsWithMarketplace = [],
   productsWithCharacteristics = [],
   productsWithAnymarketSync = [],
@@ -339,6 +343,32 @@ export function ProductTable({
                         }`}
                         style={productsWithAnalysis.includes(product.id) ? {
                           color: '#1e40af'
+                        } : {}}
+                      />
+                    </button>
+                    <button
+                      onClick={() => {
+                        onGenerateTitle(product);
+                      }}
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
+                        productsWithTitle.includes(product.id)
+                          ? 'border-purple-400 bg-purple-200 hover:bg-purple-300'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                      style={productsWithTitle.includes(product.id) ? {
+                        backgroundColor: '#c4b5fd',
+                        borderColor: '#a78bfa'
+                      } : {}}
+                      title={`Gerar Título${productsWithTitle.includes(product.id) ? ' (Gerado)' : ''}`}
+                    >
+                      <Type 
+                        className={`h-4 w-4 group-hover:text-gray-800 ${
+                          productsWithTitle.includes(product.id)
+                            ? 'text-purple-800'
+                            : 'text-gray-600'
+                        }`}
+                        style={productsWithTitle.includes(product.id) ? {
+                          color: '#6b21a8'
                         } : {}}
                       />
                     </button>
