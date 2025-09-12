@@ -17,35 +17,39 @@ export async function GET(
 
     console.log(`🔍 Buscando SKUs para produto ID: ${productId}`);
 
+    // Verificar se o produto existe primeiro
+    const productCheck = await executeQuery('SELECT id, name FROM products_vtex WHERE id = ?', [productId]);
+    console.log(`📋 Produto encontrado:`, productCheck);
+
+    if (productCheck.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Produto não encontrado'
+      }, { status: 404 });
+    }
+
+    // Query simplificada para debug
     const query = `
       SELECT 
         s.id,
         s.vtex_id,
         s.name_complete as sku_name,
-        s.product_ref_id,
-        s.manufacturer_code as ean,
-        s.is_active,
         s.product_id,
-        s.sku_name,
-        s.brand_name,
-        s.image_url,
-        s.detail_url,
-        s.created_at,
-        s.updated_at,
-        p.name as product_name,
-        p.ref_id as product_ref_id,
-        p.id as product_vtex_id,
-        m.seller_sku
+        s.is_active,
+        p.name as product_name
       FROM skus_vtex s
       INNER JOIN products_vtex p ON s.product_id = p.id
-      LEFT JOIN meli m ON p.id = m.product_id
       WHERE s.product_id = ?
-      ORDER BY s.name_complete ASC, s.id ASC
+      ORDER BY s.id ASC
     `;
 
+    console.log(`🔍 Executando query:`, query);
+    console.log(`🔍 Com parâmetros:`, [productId]);
+    
     const skus = await executeQuery(query, [productId]);
 
     console.log(`✅ Encontrados ${skus.length} SKUs para produto ID ${productId}`);
+    console.log(`📋 Primeiros 3 SKUs:`, skus.slice(0, 3));
 
     return NextResponse.json({
       success: true,
