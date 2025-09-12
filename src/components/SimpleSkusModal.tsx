@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Package, Loader2, Copy } from 'lucide-react';
 
 interface Sku {
@@ -31,13 +31,7 @@ export function SimpleSkusModal({ isOpen, onClose, productIds }: SimpleSkusModal
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && productIds.length > 0) {
-      fetchAllSkus();
-    }
-  }, [isOpen, productIds]);
-
-  const fetchAllSkus = async () => {
+  const fetchAllSkus = useCallback(async () => {
     setLoading(true);
     
     // Filtrar apenas IDs válidos
@@ -102,7 +96,13 @@ export function SimpleSkusModal({ isOpen, onClose, productIds }: SimpleSkusModal
     const results = await Promise.all(promises);
     setProductSkus(results);
     setLoading(false);
-  };
+  }, [productIds]);
+
+  useEffect(() => {
+    if (isOpen && productIds.length > 0) {
+      fetchAllSkus();
+    }
+  }, [isOpen, productIds, fetchAllSkus]);
 
   const copyAllReferences = async () => {
     const allReferences: string[] = [];

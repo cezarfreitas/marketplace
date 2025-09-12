@@ -1398,18 +1398,20 @@ export default function ProductsPage() {
       //   ok: response.ok
       // });
 
+      let originalImages = [];
+      
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Erro na API do Anymarket:', response.status, errorText);
         console.warn('⚠️ Continuando sem imagens do Anymarket, abrindo modal com imagens da VTEX');
         // Não retornar, continuar com lista vazia de imagens originais
-        var originalImages = [];
+        originalImages = [];
       } else {
         const imagesData = await response.json();
         // console.log('📸 Dados das imagens recebidos:', imagesData);
 
         // Filtrar apenas imagens com originalImage
-        var originalImages = imagesData
+        originalImages = imagesData
           .filter((img: any) => img.originalImage)
           .map((img: any, index: number) => ({
             id: img.id,
