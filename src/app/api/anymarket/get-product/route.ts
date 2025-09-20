@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       FROM products_vtex p
       LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
       LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
-      LEFT JOIN anymarketing a ON p.ref_produto = a.ref_produto_vtex
+      LEFT JOIN anymarket a ON p.ref_produto = a.ref_produto_vtex
       WHERE p.id_produto_vtex = ?
     `;
 
