@@ -259,19 +259,22 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
         addLog('info', '🗑️ ETAPA 1: Deletando imagens antigas do Anymarket...');
 
         try {
-          // Primeiro, buscar as imagens existentes no Anymarket
+          // Primeiro, buscar as imagens existentes no Anymarket via backend
           addLog('info', '🔍 Buscando imagens existentes no Anymarket...');
           
-          const existingImagesResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
-            method: 'GET',
+          const existingImagesResponse = await fetch('/api/anymarket/get-product', {
+            method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'gumgaToken': process.env.NEXT_PUBLIC_ANYMARKET || ''
-            }
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ productId: product.anymarket_id })
           });
 
         if (existingImagesResponse.ok) {
-          const existingImages = await existingImagesResponse.json();
+          const response = await existingImagesResponse.json();
+          const anymarketData = response.data?.anymarket_data;
+          const existingImages = anymarketData?.images || [];
+          
           addLog('info', `📊 Encontradas ${existingImages.length} imagens existentes no Anymarket`);
 
           if (existingImages.length > 0) {
