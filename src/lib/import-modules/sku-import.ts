@@ -151,9 +151,9 @@ export class SKUImportModule {
 
         // PASSO 2A: Verificar se o SKU já existe na nossa base de dados
         // Tabela: skus_vtex
-        // Campo de busca: id (que corresponde ao Id da VTEX)
+        // Campo de busca: id_sku_vtex (que corresponde ao Id da VTEX)
         const existingSku = await executeQuery(`
-          SELECT id FROM skus_vtex WHERE id = ?
+          SELECT id_sku_vtex FROM skus_vtex WHERE id_sku_vtex = ?
         `, [vtexSku.Id]);
 
         if (existingSku && existingSku.length > 0) {
@@ -162,29 +162,19 @@ export class SKUImportModule {
           
           await executeQuery(`
             UPDATE skus_vtex SET
-              product_id = ?,                -- ID do produto (referência local)
-              name = ?,                      -- Nome do SKU
+              id_produto_vtex = ?,           -- ID do produto VTEX
               is_active = ?,                 -- Se está ativo
-              is_kit = ?,                    -- Se é kit
-              commercial_condition_id = ?,   -- ID da condição comercial
-              reward_value = ?,              -- Valor de recompensa
-              estimated_date_arrival = ?,    -- Data estimada de chegada
-              measurement_unit = ?,          -- Unidade de medida
-              unit_multiplier = ?,           -- Multiplicador de unidade
-              manufacturer_code = ?,         -- Código do fabricante
-              updated_at = NOW()             -- Data de atualização
-            WHERE id = ?
+              name = ?,                      -- Nome do SKU
+              ref_sku = ?,                   -- Reference ID
+              date_updated = ?,              -- Data de atualização da VTEX
+              updated_at = NOW()             -- Data de atualização local
+            WHERE id_sku_vtex = ?
           `, [
-            vtexSku.ProductId,               // Mapear para product_id local
-            vtexSku.Name,                    // Nome do SKU
+            vtexSku.ProductId,               // ID do produto VTEX
             vtexSku.IsActive,                // Ativo
-            vtexSku.IsKit,                   // É kit
-            vtexSku.CommercialConditionId,   // ID da condição comercial
-            vtexSku.RewardValue,             // Valor de recompensa
-            vtexSku.EstimatedDateArrival,    // Data estimada
-            vtexSku.MeasurementUnit,         // Unidade de medida
-            vtexSku.UnitMultiplier,          // Multiplicador
-            vtexSku.ManufacturerCode,        // Código do fabricante
+            vtexSku.Name,                    // Nome do SKU
+            vtexSku.RefId,                   // Reference ID
+            vtexSku.DateUpdated,             // Data de atualização da VTEX
             vtexSku.Id                       // ID do SKU
           ]);
           
@@ -196,30 +186,22 @@ export class SKUImportModule {
           
           await executeQuery(`
             INSERT INTO skus_vtex (
-              id,                            -- ID da VTEX (chave primária)
-              product_id,                    -- ID do produto (referência local)
-              name,                          -- Nome do SKU
+              id_sku_vtex,                   -- ID da VTEX (chave primária)
+              id_produto_vtex,               -- ID do produto VTEX
               is_active,                     -- Se está ativo
-              is_kit,                        -- Se é kit
-              commercial_condition_id,       -- ID da condição comercial
-              reward_value,                  -- Valor de recompensa
-              estimated_date_arrival,        -- Data estimada de chegada
-              measurement_unit,              -- Unidade de medida
-              unit_multiplier,               -- Multiplicador de unidade
-              manufacturer_code              -- Código do fabricante
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              name,                          -- Nome do SKU
+              ref_sku,                       -- Reference ID
+              date_updated,                  -- Data de atualização da VTEX
+              created_at,                    -- Data de criação local
+              updated_at                     -- Data de atualização local
+            ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
           `, [
             vtexSku.Id,                      // ID da VTEX
-            vtexSku.ProductId,               // ID do produto (referência local)
-            vtexSku.Name,                    // Nome do SKU
+            vtexSku.ProductId,               // ID do produto VTEX
             vtexSku.IsActive,                // Ativo
-            vtexSku.IsKit,                   // É kit
-            vtexSku.CommercialConditionId,   // ID da condição comercial
-            vtexSku.RewardValue,             // Valor de recompensa
-            vtexSku.EstimatedDateArrival,    // Data estimada
-            vtexSku.MeasurementUnit,         // Unidade de medida
-            vtexSku.UnitMultiplier,          // Multiplicador
-            vtexSku.ManufacturerCode         // Código do fabricante
+            vtexSku.Name,                    // Nome do SKU
+            vtexSku.RefId,                   // Reference ID
+            vtexSku.DateUpdated              // Data de atualização da VTEX
           ]);
           
           importedCount++;
@@ -253,7 +235,7 @@ export class SKUImportModule {
   async checkSkuExists(skuId: number): Promise<boolean> {
     try {
       const result = await executeQuery(`
-        SELECT id FROM skus_vtex WHERE id = ?
+        SELECT id_sku_vtex FROM skus_vtex WHERE id_sku_vtex = ?
       `, [skuId]);
       
       return result && result.length > 0;
@@ -269,41 +251,39 @@ export class SKUImportModule {
   async getSkuById(skuId: number): Promise<VTEXSKU | null> {
     try {
       const result = await executeQuery(`
-        SELECT id, product_id, name, is_active, is_kit, commercial_condition_id, 
-               reward_value, estimated_date_arrival, measurement_unit, unit_multiplier, 
-               manufacturer_code
-        FROM skus_vtex WHERE id = ?
+        SELECT id_sku_vtex, id_produto_vtex, is_active, name, ref_sku, date_updated
+        FROM skus_vtex WHERE id_sku_vtex = ?
       `, [skuId]);
       
       if (result && result.length > 0) {
         const sku = result[0];
         return {
-          Id: sku.id,
-          ProductId: sku.product_id,
+          Id: sku.id_sku_vtex,
+          ProductId: sku.id_produto_vtex,
           Name: sku.name,
-          RefId: '', // Campo não existe na tabela atual
+          RefId: sku.ref_sku,
           IsActive: sku.is_active,
           Height: 0, // Campo não existe na tabela atual
           Width: 0, // Campo não existe na tabela atual
           Length: 0, // Campo não existe na tabela atual
           WeightKg: 0, // Campo não existe na tabela atual
           ModalId: 0, // Campo não existe na tabela atual
-          IsKit: sku.is_kit,
+          IsKit: false, // Campo não existe na tabela atual
           InternalNote: '', // Campo não existe na tabela atual
-          RewardValue: sku.reward_value,
-          CommercialConditionId: sku.commercial_condition_id,
+          RewardValue: 0, // Campo não existe na tabela atual
+          CommercialConditionId: 0, // Campo não existe na tabela atual
           FlagKitItensSellApart: false, // Campo não existe na tabela atual
-          ManufacturerCode: sku.manufacturer_code,
+          ManufacturerCode: '', // Campo não existe na tabela atual
           Position: 0, // Campo não existe na tabela atual
-          MeasurementUnit: sku.measurement_unit,
-          UnitMultiplier: sku.unit_multiplier,
+          MeasurementUnit: '', // Campo não existe na tabela atual
+          UnitMultiplier: 0, // Campo não existe na tabela atual
           CubicWeight: 0, // Campo não existe na tabela
-          DateUpdated: '', // Campo não existe na tabela
-          EstimatedDateArrival: sku.estimated_date_arrival,
+          DateUpdated: sku.date_updated,
+          EstimatedDateArrival: '', // Campo não existe na tabela atual
           ApprovedAdminId: 0, // Campo não existe na tabela
           EditionAdminId: 0, // Campo não existe na tabela
           ActivateIfPossible: true, // Campo não existe na tabela
-          ModalType: sku.modal_type
+          ModalType: '' // Campo não existe na tabela atual
         };
       }
       

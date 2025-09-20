@@ -65,11 +65,8 @@ export async function POST(request: NextRequest) {
           [productId]
         );
 
-        // 5. Deletar dados do Marketplace
-        await executeQuery(
-          'DELETE FROM marketplace WHERE product_id = ?',
-          [productId]
-        );
+        // 5. Deletar dados do Marketplace (tabela não existe)
+        console.log('🗑️ Deletando dados do Marketplace... (pulando - tabela não existe)');
 
         // 6. Deletar dados do Meli (se existir)
         await executeQuery(
@@ -85,7 +82,7 @@ export async function POST(request: NextRequest) {
 
         // 8. Deletar dados do Anymarket
         await executeQuery(
-          'DELETE FROM anymarket WHERE ref_vtex = (SELECT ref_id FROM products_vtex WHERE id = ?)',
+          'DELETE FROM anymarket WHERE ref_vtex = (SELECT ref_produto FROM products_vtex WHERE id_produto_vtex = ?)',
           [productId]
         );
 
@@ -154,7 +151,7 @@ export async function POST(request: NextRequest) {
 
         // 16. Deletar o produto
         await executeQuery(
-          'DELETE FROM products_vtex WHERE id = ?',
+          'DELETE FROM products_vtex WHERE id_produto_vtex = ?',
           [productId]
         );
 

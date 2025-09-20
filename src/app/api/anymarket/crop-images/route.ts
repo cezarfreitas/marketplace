@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
         p.*,
         a.id_produto_any as anymarket_id
       FROM products_vtex p
-      LEFT JOIN anymarket a ON p.ref_id = a.ref_vtex
+      LEFT JOIN anymarket a ON p.ref_id = a.ref_produto_vtex
       WHERE p.id = ?
     `;
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       anymarketResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
         method: 'GET',
         headers: {
-          'gumgaToken': 'MjU5MDYwMTI2Lg==.xk0BLaBr6Xp5ErWLBXq/Fp7MebhAY9G8/cduGnJECoETHLw1AvWwEFcX5z68M0HtWzBJazQWW5eNBL+eMUnHjw==',
+          'gumgaToken': process.env.ANYMARKET || '',
           'Content-Type': 'application/json',
           'User-Agent': 'Meli-Integration/1.0',
           'Accept': 'application/json'

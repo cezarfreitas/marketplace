@@ -1,6 +1,7 @@
 // Tipos específicos para o módulo de produtos
 export interface Product {
-  id: number;
+  id: number; // Mapeado de id_produto_vtex
+  id_produto_vtex: number; // Campo real da tabela
   vtex_id: number;
   name: string;
   department_id: number;
@@ -8,6 +9,7 @@ export interface Product {
   brand_id: number;
   link_id: string;
   ref_id: string;
+  ref_produto: string;
   is_visible: boolean;
   description: string;
   description_short: string;
@@ -41,6 +43,14 @@ export interface Product {
   image_count?: number;
   main_image?: string;
   anymarket_id?: string;
+  optimized_title?: string;
+  has_image_analysis?: boolean;
+  has_optimized_title?: boolean;
+  has_generated_description?: boolean;
+  has_generated_characteristics?: boolean;
+  has_anymarket_sync?: boolean;
+  anymarket_enviado_any?: string;
+  anymarket_imagem_cropada?: string;
 }
 
 export interface ProductFilters {
@@ -50,7 +60,6 @@ export interface ProductFilters {
   is_active: string;
   is_visible: string;
   has_image_analysis?: boolean;
-  has_marketplace_description?: boolean;
   has_anymarket_ref_id?: boolean;
   has_anymarket_sync_log?: boolean;
   has_images?: boolean;

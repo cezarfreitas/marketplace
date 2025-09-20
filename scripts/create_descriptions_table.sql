@@ -52,7 +52,7 @@ INSERT IGNORE INTO agents (
 MISSÃO: Criar uma descrição completa e atrativa do produto, seguida de um FAQ relevante.
 
 ESTRUTURA OBRIGATÓRIA:
-1. DESCRIÇÃO PRINCIPAL (2-3 parágrafos)
+1. Apresentação do produto (2-3 parágrafos)
    - Apresentar o produto de forma atrativa
    - Destacar benefícios e características principais
    - Usar linguagem persuasiva e profissional

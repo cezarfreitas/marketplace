@@ -11,40 +11,13 @@ function validateTitle(title: string): { isValid: boolean; errors: string[] } {
     return { isValid: false, errors };
   }
   
-  // Verificar tamanho
+  // ÚNICA VALIDAÇÃO CRÍTICA: Verificar tamanho máximo de 60 caracteres
   if (title.length > 60) {
     errors.push(`Título muito longo: ${title.length} caracteres (máximo 60)`);
   }
   
-  // Verificar hífens
-  if (title.includes('-')) {
-    errors.push('Título contém hífens (não permitido)');
-  }
-  
-  // Verificar palavras proibidas
-  const forbiddenWords = ['Top', 'Promoção', 'Mais Barata', 'Frete Grátis', 'Oferta', 'Liquidação'];
-  const hasForbiddenWord = forbiddenWords.some(word => 
-    title.toLowerCase().includes(word.toLowerCase())
-  );
-  if (hasForbiddenWord) {
-    errors.push('Título contém palavras promocionais proibidas');
-  }
-  
-  // Verificar se tem palavras cortadas/truncadas
-  if (hasTruncatedWords(title)) {
-    errors.push('Título contém palavras cortadas ou truncadas');
-  }
-  
-  // Verificar elementos essenciais
-  const hasProductType = /camiseta|boné|jaqueta|tênis|moletom|calça|short|blusa/i.test(title);
-  const hasAudience = /masculin|feminin|unissex|juvenil|infantil/i.test(title);
-  
-  if (!hasProductType) {
-    errors.push('Título não contém tipo de produto claro');
-  }
-  if (!hasAudience) {
-    errors.push('Título não contém público-alvo');
-  }
+  // Todas as outras validações foram removidas para dar mais flexibilidade
+  // A unicidade será verificada na tabela titles
   
   return {
     isValid: errors.length === 0,
@@ -122,39 +95,104 @@ function hasTruncatedWords(title: string): boolean {
   return false;
 }
 
+// Função para processar os 5 títulos gerados pela IA
+function parseGeneratedTitles(content: string): string[] {
+  const titles: string[] = [];
+  
+  // Dividir por linhas e processar cada uma
+  const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  
+  for (const line of lines) {
+    // Procurar por padrões como "1. Título", "2. Título", etc.
+    const match = line.match(/^\d+\.\s*(.+)$/);
+    if (match) {
+      let title = match[1].trim();
+      // Remover aspas se houver
+      title = title.replace(/^["']|["']$/g, '').trim();
+      if (title.length > 0) {
+        titles.push(title);
+      }
+    }
+  }
+  
+  // Se não encontrou títulos numerados, tentar dividir por linhas simples
+  if (titles.length === 0) {
+    const simpleTitles = lines.filter(line => 
+      line.length > 10 && 
+      line.length <= 60 && 
+      !line.includes('Exemplo') && 
+      !line.includes('FORMATO')
+    );
+    titles.push(...simpleTitles);
+  }
+  
+  console.log(`📋 Processados ${titles.length} títulos:`, titles);
+  return titles;
+}
+
 // Função para verificar se título já existe no banco
-async function checkTitleExists(title: string, productId: number): Promise<boolean> {
+async function checkTitleExists(title: string, productId: number, isRegeneration: boolean = false): Promise<boolean> {
   try {
-    console.log(`🔍 Verificando se título existe: "${title}"`);
+    console.log(`🔍 Verificando se título existe: "${title}" (Regeneração: ${isRegeneration})`);
     
-    // Verificar na tabela marketplace
-    const marketplaceQuery = `
-      SELECT COUNT(*) as count 
-      FROM marketplace 
-      WHERE title = ? AND product_id != ?
-    `;
-    const marketplaceResult = await executeQuery(marketplaceQuery, [title, productId]);
-    const marketplaceCount = (marketplaceResult[0] as any).count;
+    // Para regeneração, verificar se existe para outros produtos
+    // Para título novo, verificar se existe para qualquer produto
+    const titlesQuery = isRegeneration 
+      ? `SELECT COUNT(*) as count FROM titles WHERE title = ? AND id_product_vtex != ?`
+      : `SELECT COUNT(*) as count FROM titles WHERE title = ?`;
+      
+    const titlesResult = await executeQuery(titlesQuery, isRegeneration ? [title, productId] : [title]);
+    const titlesCount = (titlesResult[0] as any).count;
     
-    // Verificar também na tabela products_vtex (títulos originais)
-    const productsQuery = `
-      SELECT COUNT(*) as count 
-      FROM products_vtex 
-      WHERE title = ? AND id != ?
-    `;
-    const productsResult = await executeQuery(productsQuery, [title, productId]);
-    const productsCount = (productsResult[0] as any).count;
+    const exists = titlesCount > 0;
     
-    const totalCount = marketplaceCount + productsCount;
-    const exists = totalCount > 0;
-    
-    console.log(`📊 Resultado da verificação: Marketplace=${marketplaceCount}, Products=${productsCount}, Total=${totalCount}, Existe=${exists}`);
+    console.log(`📊 Resultado da verificação: Titles=${titlesCount}, Existe=${exists} (Regeneração: ${isRegeneration})`);
     
     return exists;
   } catch (error) {
     console.log('⚠️ Erro ao verificar duplicata de título:', error);
     return false; // Em caso de erro, assumir que não existe para não bloquear
   }
+}
+
+// Função para detectar nomes próprios no produto (como "Boyd ST", "Air Max", etc.)
+function detectProperNames(productName: string): string[] {
+  const properNames: string[] = [];
+  
+  // Padrões comuns de nomes próprios
+  const patterns = [
+    // Nomes com ST, LT, PRO, MAX, etc.
+    /\b[A-Z][a-z]+ [A-Z]{2,4}\b/g, // "Boyd ST", "Air Max", "Pro LT"
+    // Nomes com números
+    /\b[A-Z][a-z]+ \d+\b/g, // "Air Max 90", "Jordan 1"
+    // Nomes compostos com hífen
+    /\b[A-Z][a-z]+-[A-Z][a-z]+\b/g, // "Super-Star", "Ultra-Boost"
+    // Nomes com apostrofe
+    /\b[A-Z][a-z]+'[A-Z][a-z]+\b/g, // "Men's", "Women's"
+    // Nomes com ponto
+    /\b[A-Z][a-z]+\.[A-Z]{2,4}\b/g, // "Dr. Martens"
+    // Nomes com & (e comercial)
+    /\b[A-Z][a-z]+ & [A-Z][a-z]+\b/g, // "Tom & Jerry"
+  ];
+  
+  // Aplicar cada padrão
+  patterns.forEach(pattern => {
+    const matches = productName.match(pattern);
+    if (matches) {
+      properNames.push(...matches);
+    }
+  });
+  
+  // Remover duplicatas e filtrar nomes muito genéricos
+  const uniqueNames = Array.from(new Set(properNames)).filter(name => {
+    const lowerName = name.toLowerCase();
+    // Filtrar palavras muito genéricas
+    const genericWords = ['the', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by'];
+    return !genericWords.some(word => lowerName.includes(word)) && name.length > 2;
+  });
+  
+  console.log(`🔍 Nomes próprios detectados em "${productName}":`, uniqueNames);
+  return uniqueNames;
 }
 
 // Função para gerar título com agente exclusivo baseado na análise de fotografia e dados VTEX
@@ -166,11 +204,16 @@ async function generateTitleWithExclusiveAgent(
   productId: number,
   openaiApiKey: string,
   agent: any,
-  maxAttempts: number = 10
+  maxAttempts: number = 10,
+  isRegeneration: boolean = false
 ): Promise<{ success: boolean; data?: string; error?: string }> {
   try {
     console.log('🎯 Gerando título com agente exclusivo...');
     console.log(`🤖 Usando agente exclusivo: ${agent.name} (ID: ${agent.id})`);
+    
+    // Detectar nomes próprios no produto
+    const properNames = detectProperNames(product.name);
+    console.log(`🏷️ Nomes próprios detectados: ${properNames.length > 0 ? properNames.join(', ') : 'Nenhum'}`);
     
     // Gerar elementos criativos aleatórios
     const creativeElements = {
@@ -278,7 +321,7 @@ Retorne APENAS o título, sem aspas, sem explicações, sem formatação adicion
       const randomEmotion = creativeVariations.emotions[Math.floor(Math.random() * creativeVariations.emotions.length)];
       const randomAction = creativeVariations.actions[Math.floor(Math.random() * creativeVariations.actions.length)];
 
-      const userPrompt = `Crie um título perfeito para marketplace seguindo a estrutura ideal:
+      const userPrompt = `Gere 5 títulos diferentes para este produto:
 
 === ANÁLISE DA FOTOGRAFIA ===
 ${imageAnalysis ? imageAnalysis.contextualizacao : 'Nenhuma análise de imagem disponível'}
@@ -289,6 +332,9 @@ Marca: ${product.brand_name || 'N/A'}
 Categoria: ${product.category_name || 'N/A'}
 Ref ID: ${product.ref_id || 'N/A'}
 
+=== NOMES PRÓPRIOS DETECTADOS ===
+${properNames.length > 0 ? properNames.map(name => `- ${name}`).join('\n') : 'Nenhum nome próprio detectado'}
+
 === ESPECIFICAÇÕES TÉCNICAS ===
 ${specifications.length > 0 ? specifications.map((spec, index) => `
 ${index + 1}. ${spec.field_name}: ${spec.field_value_ids || 'N/A'} ${spec.field_group_name ? `(Grupo: ${spec.field_group_name})` : ''}
@@ -296,22 +342,24 @@ ${index + 1}. ${spec.field_name}: ${spec.field_value_ids || 'N/A'} ${spec.field_
 
 === DADOS DOS SKUs ===
 ${skus.length > 0 ? skus.map((sku, index) => `
-SKU ${index + 1}: ${sku.sku_name || 'N/A'} - ${sku.manufacturer_code || 'N/A'}
+SKU ${index + 1}: ${sku.sku_name || 'N/A'} - ${sku.name || 'N/A'}
 `).join('') : 'Nenhum SKU encontrado'}
 
-=== INSTRUÇÕES CRÍTICAS ===
-- Siga EXATAMENTE a estrutura: [TIPO DE PRODUTO] + [MARCA (OPCIONAL)] + [MODELO/ESTILO] + [CARACTERÍSTICA] + [COR (OPCIONAL)] + [PÚBLICO]
-- Máximo 60 caracteres
-- Sem hífens (-)
-- Marca e Cor são OPCIONAIS - inclua apenas se for relevante e couber no limite
-- Se for oficial/licenciado, incluir "Original" ou "Oficial"
-- Evite palavras promocionais proibidas
-- Otimize para filtros da plataforma
-- NUNCA cortar ou truncar palavras - todas devem estar completas
-- Se não couber em 60 chars, use sinônimos mais curtos, não corte palavras
+=== INSTRUÇÕES ===
+- Gere EXATAMENTE 5 títulos diferentes
+- Cada título deve ter no máximo 60 caracteres
+- Inclua pelo menos: [tipo de peça], [marca], [público-alvo], [cor]
+- Varie a ordem, estilo e palavras-chave
+- Seja criativo mas não invente informações
+- ${properNames.length > 0 ? `IMPORTANTE: SEMPRE preserve os nomes próprios detectados: ${properNames.join(', ')}` : ''}
 - Tentativa ${attempt} de ${maxAttempts}
 
-Responda APENAS com o título otimizado, sem explicações ou formatação adicional.`;
+FORMATO DE RESPOSTA:
+1. [primeiro título]
+2. [segundo título]
+3. [terceiro título]
+4. [quarto título]
+5. [quinto título]`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -351,65 +399,45 @@ Responda APENAS com o título otimizado, sem explicações ou formatação adici
         continue;
       }
 
-      let generatedTitle = content.trim();
-      
-      // Remover aspas se houver
-      generatedTitle = generatedTitle.replace(/^["']|["']$/g, '').trim();
-      
-      console.log(`📝 Título gerado (tentativa ${attempt}): "${generatedTitle}" (${generatedTitle.length} caracteres)`);
-      
-      // VALIDAÇÃO: Verificar se o título segue as regras do marketplace
-      const validation = validateTitle(generatedTitle);
-      if (!validation.isValid) {
-        console.log(`❌ Título inválido (${validation.errors.join(', ')}), tentando novamente...`);
-        if (attempt === maxAttempts) {
-          // Na última tentativa, tentar corrigir automaticamente
-          generatedTitle = fixTitleIssues(generatedTitle);
-          console.log(`⚠️ Título corrigido na última tentativa: "${generatedTitle}"`);
-        } else {
-          continue; // Tentar novamente
+      console.log(`📝 Conteúdo gerado (tentativa ${attempt}):`, content);
+
+      // Processar os 5 títulos gerados
+      const titles = parseGeneratedTitles(content);
+      if (titles.length === 0) {
+        console.log(`❌ Nenhum título válido encontrado na tentativa ${attempt}, tentando novamente...`);
+        continue;
+      }
+
+      console.log(`📋 ${titles.length} títulos processados na tentativa ${attempt}`);
+
+      // Tentar cada título até encontrar um válido e único
+      for (let i = 0; i < titles.length; i++) {
+        const title = titles[i];
+        console.log(`🔍 Testando título ${i + 1}/${titles.length}: "${title}" (${title.length} caracteres)`);
+
+        // VALIDAÇÃO: Verificar se o título segue as regras do marketplace
+        const validation = validateTitle(title);
+        if (!validation.isValid) {
+          console.log(`❌ Título ${i + 1} inválido (${validation.errors.join(', ')})`);
+          continue;
         }
-      }
-      
-      // VALIDAÇÃO: Verificar se não está vazio
-      if (generatedTitle.length === 0) {
-        console.log(`❌ Título vazio na tentativa ${attempt}, tentando novamente...`);
-        continue;
-      }
-      
-      // VALIDAÇÃO: Verificar se contém informações básicas
-      const hasBasicInfo = (
-        generatedTitle.toLowerCase().includes((product.brand_name || '').toLowerCase()) ||
-        generatedTitle.toLowerCase().includes((product.category_name || '').toLowerCase()) ||
-        generatedTitle.toLowerCase().includes('camiseta') ||
-        generatedTitle.toLowerCase().includes('moletom') ||
-        generatedTitle.toLowerCase().includes('calça') ||
-        generatedTitle.toLowerCase().includes('blusa')
-      );
-      
-      if (!hasBasicInfo) {
-        console.log(`❌ Título não contém informações básicas na tentativa ${attempt}, tentando novamente...`);
-        continue;
-      }
-      
-      // VALIDAÇÃO: Verificar unicidade no banco
-      const exists = await checkTitleExists(generatedTitle, productId);
-      if (exists) {
-        console.log(`❌ Título já existe na tentativa ${attempt}, tentando novamente...`);
-        if (attempt === maxAttempts) {
-          // Na última tentativa, adicionar sufixo único
-          const uniqueSuffix = ` ${Date.now().toString().slice(-4)}`;
-          const finalTitle = generatedTitle.length + uniqueSuffix.length <= 60 
-            ? generatedTitle + uniqueSuffix
-            : generatedTitle.substring(0, 60 - uniqueSuffix.length) + uniqueSuffix;
-          console.log(`⚠️ Título com sufixo único na última tentativa: "${finalTitle}"`);
-          return { success: true, data: finalTitle };
+        
+        // VALIDAÇÃO: Verificar unicidade no banco
+        const exists = await checkTitleExists(title, productId, isRegeneration);
+        if (exists) {
+          console.log(`❌ Título ${i + 1} já existe no banco`);
+          continue;
         }
-        continue;
+
+        // Se chegou até aqui, o título é válido e único
+        console.log(`✅ Título ${i + 1} válido e único encontrado: "${title}"`);
+        return {
+          success: true,
+          data: title
+        };
       }
-      
-      console.log(`✅ Título válido gerado com sucesso na tentativa ${attempt}!`);
-      return { success: true, data: generatedTitle };
+
+      console.log(`❌ Nenhum dos ${titles.length} títulos foi válido na tentativa ${attempt}, tentando novamente...`);
     }
     
     // Se chegou aqui, todas as tentativas falharam
@@ -424,12 +452,11 @@ Responda APENAS com o título otimizado, sem explicações ou formatação adici
   }
 }
 
-// Função para salvar título na tabela dedicada de títulos
+// Função para salvar título na tabela titles
 async function saveTitleToTitlesTable(
   productId: number,
   title: string,
   originalTitle: string,
-  agentId: number,
   openaiModel: string,
   tokensUsed: number,
   tokensPrompt: number,
@@ -446,16 +473,15 @@ async function saveTitleToTitlesTable(
   try {
     const insertQuery = `
       INSERT INTO titles (
-        product_id, title, original_title, agent_id, openai_model,
+        id_product_vtex, title, original_title, openai_model,
         openai_tokens_used, openai_tokens_prompt, openai_tokens_completion,
         openai_cost, openai_request_id, openai_response_time_ms,
         openai_max_tokens, openai_temperature, generation_attempts,
         is_unique, validation_passed, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'validated')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'validated')
       ON DUPLICATE KEY UPDATE
         title = VALUES(title),
         original_title = VALUES(original_title),
-        agent_id = VALUES(agent_id),
         openai_model = VALUES(openai_model),
         openai_tokens_used = openai_tokens_used + VALUES(openai_tokens_used),
         openai_tokens_prompt = openai_tokens_prompt + VALUES(openai_tokens_prompt),
@@ -476,7 +502,6 @@ async function saveTitleToTitlesTable(
       productId,
       title,
       originalTitle,
-      agentId,
       openaiModel,
       tokensUsed,
       tokensPrompt,
@@ -519,12 +544,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
     }
 
-    console.log('🎯 Iniciando geração de título...');
     
     let body;
     try {
       body = await request.json();
-      console.log('📝 Body recebido:', body);
     } catch (parseError) {
       console.error('❌ Erro ao fazer parse do JSON:', parseError);
       return NextResponse.json({
@@ -553,25 +576,23 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('🎯 Gerando título para produto ID:', productId);
 
     // 1. Buscar dados completos do produto
-    console.log('🔍 Buscando dados completos do produto...');
     let products;
     try {
       const productQuery = `
         SELECT 
           p.*,
           b.name as brand_name,
+          b.contexto as brand_context,
           c.name as category_name
         FROM products_vtex p
-        LEFT JOIN brands b ON p.brand_id = b.id
-        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
-        WHERE p.id = ?
+        LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+        LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+        WHERE p.id_produto_vtex = ?
       `;
 
       products = await executeQuery(productQuery, [numericProductId]);
-      console.log('📊 Resultado da busca do produto:', products?.length || 0, 'registros');
     } catch (dbError) {
       console.error('❌ Erro ao buscar produto no banco:', dbError);
       return NextResponse.json({
@@ -598,17 +619,9 @@ export async function POST(request: NextRequest) {
       const skuQuery = `
         SELECT 
           s.*,
-          s.name as sku_name,
-          s.manufacturer_code,
-          s.measurement_unit,
-          s.unit_multiplier,
-          s.is_kit,
-          s.commercial_condition_id,
-          s.reward_value,
-          s.estimated_date_arrival
+          s.name as sku_name
         FROM skus_vtex s
-        WHERE s.product_id = ?
-        ORDER BY s.id
+        WHERE s.id_produto_vtex = ?
       `;
       
       skus = await executeQuery(skuQuery, [numericProductId]);
@@ -618,27 +631,9 @@ export async function POST(request: NextRequest) {
       skus = [];
     }
 
-    // 3. Buscar especificações do produto
-    console.log('🔍 Buscando especificações do produto...');
-    let specifications = [];
-    try {
-      const specQuery = `
-        SELECT 
-          ps.*,
-          ps.field_name,
-          ps.field_value_ids,
-          ps.field_group_name
-        FROM product_specifications ps
-        WHERE ps.product_id = ?
-        ORDER BY ps.field_group_name, ps.field_name
-      `;
-      
-      specifications = await executeQuery(specQuery, [numericProductId]);
-      console.log('📊 Especificações encontradas:', specifications?.length || 0);
-    } catch (error) {
-      console.log('⚠️ Tabela product_specifications não existe ou erro ao buscar:', (error as any)?.message);
-      specifications = [];
-    }
+    // 3. Especificações não disponíveis (tabela não existe)
+    console.log('⚠️ Especificações não disponíveis - tabela product_specifications não existe');
+    const specifications: any[] = [];
 
     // 4. Buscar análise de imagens mais recente
     let imageAnalysis = null;
@@ -652,19 +647,16 @@ export async function POST(request: NextRequest) {
           ai.agent_name,
           ai.contextualizacao as contextual_analysis
         FROM analise_imagens ai
-        WHERE ai.id_produto = ?
+        WHERE ai.id_produto_vtex = ?
         ORDER BY ai.created_at DESC
         LIMIT 1
       `;
       
       const analyses = await executeQuery(analysisQuery, [numericProductId]);
-      console.log('📊 Análises encontradas na tabela analise_imagens:', analyses?.length || 0);
       
       if (analyses && analyses.length > 0) {
         imageAnalysis = analyses[0];
-        console.log('🖼️ Análise de imagem encontrada');
       } else {
-        console.log('🖼️ Nenhuma análise de imagem encontrada');
         return NextResponse.json({
           success: false,
           message: 'Nenhuma análise de imagem encontrada. Execute a análise de imagem primeiro.'
@@ -682,7 +674,7 @@ export async function POST(request: NextRequest) {
     if (!forceRegenerate) {
       console.log('🔍 Verificando se já existe título...');
       try {
-        const existingQuery = `SELECT title FROM titles WHERE product_id = ? AND status = 'validated'`;
+        const existingQuery = `SELECT title FROM titles WHERE id_product_vtex = ? AND status = 'validated'`;
         const existing = await executeQuery(existingQuery, [numericProductId]);
         console.log('📊 Títulos existentes:', existing?.length || 0);
         
@@ -704,7 +696,7 @@ export async function POST(request: NextRequest) {
       console.log('🔄 Regeneração forçada - removendo títulos existentes...');
       try {
         // Remover títulos existentes para forçar nova geração
-        const deleteQuery = `DELETE FROM titles WHERE product_id = ?`;
+        const deleteQuery = `DELETE FROM titles WHERE id_product_vtex = ?`;
         await executeQuery(deleteQuery, [numericProductId]);
         console.log('🗑️ Títulos existentes removidos para regeneração');
       } catch (error) {
@@ -723,36 +715,54 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 6. Buscar agente exclusivo para títulos
-    console.log('🔍 Buscando agente exclusivo para títulos...');
-    let agent;
-    try {
-      const agentQuery = `
-        SELECT id, name, system_prompt, model, max_tokens, temperature
-        FROM agents 
-        WHERE function_type = 'title_generation' AND is_active = 1
-        LIMIT 1
-      `;
-      
-      const agentResult = await executeQuery(agentQuery, []);
-      agent = agentResult && agentResult.length > 0 ? agentResult[0] : null;
-      
-      if (!agent) {
-        console.log('❌ Agente exclusivo para títulos não encontrado');
-        return NextResponse.json({
-          success: false,
-          message: 'Agente exclusivo para títulos não encontrado. Configure um agente com function_type = "title_generation"'
-        }, { status: 404 });
-      }
-      
-      console.log(`🤖 Agente encontrado: ${agent.name} (ID: ${agent.id})`);
-    } catch (error) {
-      console.log('❌ Erro ao buscar agente:', error);
-      return NextResponse.json({
-        success: false,
-        message: 'Erro ao buscar agente para geração de títulos'
-      }, { status: 500 });
-    }
+    // 6. Configurar agente hardcoded para títulos
+    console.log('🤖 Configurando agente hardcoded para títulos...');
+    const agent = {
+      id: 1,
+      name: 'Agente de Geração de Títulos',
+      system_prompt: `Você é um especialista em SEO e naming criativo para e-commerce de moda.  
+Sua missão é gerar títulos curtos, atrativos e otimizados para produtos de roupas.
+
+⚠️ Regras:
+- Cada título deve ter no máximo **60 caracteres**.  
+- Sempre gerar exatamente **5 opções diferentes**.  
+- O título deve conter pelo menos: [tipo de peça], [marca], [público-alvo], [cor].  
+- Pode variar ordem, estilo e palavras-chave (ex: casual, streetwear, slim fit, original, algodão).  
+- Seja criativo, mas não invente informações que não foram dadas.  
+- Os títulos devem ser diretos, claros e fáceis de entender.  
+
+🏷️ REGRA CRÍTICA - PRESERVAÇÃO DE NOMES PRÓPRIOS:
+- SEMPRE identifique e preserve nomes próprios do produto original (ex: "Boyd ST", "Air Max", "Pro LT", "Jordan 1")
+- Nomes próprios são combinações como: [Palavra] + [Sigla] (Boyd ST), [Palavra] + [Número] (Air Max 90), [Palavra] + [Palavra] (Super Star)
+- Se detectar nomes próprios, SEMPRE incluí-los nos títulos gerados
+- Nomes próprios são parte da identidade do produto e devem ser mantidos
+
+### Exemplo com nome próprio:
+Entrada: "Meia Stance Boyd ST Branca"
+Saída:
+1. Meia Stance Boyd ST Branca Masculina
+2. Meia Masculina Stance Boyd ST Branca  
+3. Meia Stance Boyd ST Branca Original
+4. Meia Boyd ST Stance Branca Masculina
+5. Meia Masculina Boyd ST Stance Branca
+
+### Exemplo sem nome próprio:
+Entrada: "Camiseta Stance Masculina Casual Algodão Verde Militar"
+Saída:
+1. Camiseta Masculina Stance Verde Militar Algodão  
+2. Camiseta Stance Casual Masculina Verde Militar  
+3. Camiseta Masculina Stance Algodão Verde Militar  
+4. Camiseta Stance Verde Militar Masculina Original  
+5. Camiseta Masculina Stance Streetwear Verde Militar
+
+FORMATO DE RESPOSTA OBRIGATÓRIO:
+Retorne EXATAMENTE 5 títulos numerados (1. 2. 3. 4. 5.), um por linha, sem explicações adicionais.`,
+      model: 'gpt-4o-mini',
+      max_tokens: 100,
+      temperature: 0.3
+    };
+    
+    console.log(`🤖 Agente hardcoded configurado: ${agent.name}`);
 
     // 7. Gerar título com agente exclusivo
     console.log('🎯 Gerando título com agente exclusivo...');
@@ -764,7 +774,9 @@ export async function POST(request: NextRequest) {
       specifications, 
       numericProductId, 
       openaiApiKey,
-      agent
+      agent,
+      10, // maxAttempts
+      forceRegenerate // isRegeneration
     );
     const titleGenerationTime = Date.now() - titleStartTime;
     console.log(`🎯 Título gerado (${titleGenerationTime}ms):`, titleResponse.success ? 'Sucesso' : 'Erro');
@@ -786,7 +798,6 @@ export async function POST(request: NextRequest) {
       numericProductId,
       generatedTitle,
       product.name, // Título original
-      agent.id, // ID do agente
       agent.model || 'gpt-4o-mini',
       0, // Tokens (será calculado se necessário)
       0, // Tokens prompt
@@ -794,8 +805,8 @@ export async function POST(request: NextRequest) {
       0, // Custo (será calculado se necessário)
       '', // Request ID
       titleGenerationTime,
-      parseInt(agent.max_tokens) || 100,
-      parseFloat(agent.temperature) || 0.3,
+      (agent.max_tokens as number) || 100,
+      (agent.temperature as number) || 0.3,
       1, // Tentativas de geração
       true, // É único
       true // Validação passou

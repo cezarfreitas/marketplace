@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
         caracteristica,
         pergunta_ia,
         valores_possiveis,
-        is_active,
         categorias,
+        is_active,
         created_at,
         updated_at
       FROM caracteristicas
@@ -64,9 +64,9 @@ export async function POST(request: NextRequest) {
 
     // Inserir nova característica
     const result = await executeQuery(`
-      INSERT INTO caracteristicas (caracteristica, pergunta_ia, valores_possiveis, is_active, categorias, created_at, updated_at)
+      INSERT INTO caracteristicas (caracteristica, pergunta_ia, valores_possiveis, categorias, is_active, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, NOW(), NOW())
-    `, [caracteristica, pergunta_ia, valores_possiveis || null, is_active, categorias || null]);
+    `, [caracteristica, pergunta_ia, valores_possiveis || null, categorias || null, is_active]);
 
     console.log('✅ Característica criada com sucesso');
 

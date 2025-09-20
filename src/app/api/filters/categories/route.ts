@@ -13,7 +13,7 @@ export async function GET() {
 
     const query = `
       SELECT 
-        vtex_id as id,
+        id_category_vtex as id,
         name
       FROM categories_vtex 
       WHERE is_active = 1

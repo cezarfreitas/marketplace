@@ -9,8 +9,40 @@ import {
 } from '../utils/formatters';
 import { 
   Eye, Trash2, ChevronLeft, ChevronRight, 
-  ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, Folder
+  ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, Folder,
+  Search, Filter, MoreHorizontal, Settings2, Download
 } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from '@/components/ui/pagination';
 
 interface CategoryTableProps {
   categories: Category[];
@@ -21,6 +53,7 @@ interface CategoryTableProps {
   itemsPerPage: number;
   sort: CategorySortOptions;
   selectedCategories: number[];
+  searchTerm?: string;
   onSort: (field: CategorySortOptions['field']) => void;
   onPageChange: (page: number) => void;
   onItemsPerPageChange: (limit: number) => void;
@@ -29,6 +62,8 @@ interface CategoryTableProps {
   onViewCategory: (category: Category) => void;
   onEditCategory: (category: Category) => void;
   onDeleteCategory: (category: Category) => void;
+  onSearchChange?: (term: string) => void;
+  onExport?: () => void;
 }
 
 export function CategoryTable({
@@ -40,6 +75,7 @@ export function CategoryTable({
   itemsPerPage,
   sort,
   selectedCategories,
+  searchTerm = "",
   onSort,
   onPageChange,
   onItemsPerPageChange,
@@ -47,12 +83,10 @@ export function CategoryTable({
   onSelectAll,
   onViewCategory,
   onEditCategory,
-  onDeleteCategory
+  onDeleteCategory,
+  onSearchChange,
+  onExport
 }: CategoryTableProps) {
-  // Debug: verificar dados recebidos
-  console.log('CategoryTable - categories:', categories);
-  console.log('CategoryTable - loading:', loading);
-  console.log('CategoryTable - categories.length:', categories?.length);
   
 
   const getSortIcon = (field: CategorySortOptions['field']) => {
@@ -64,181 +98,354 @@ export function CategoryTable({
       : <ArrowDown className="h-4 w-4 text-blue-600" />;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <span className="ml-3 text-gray-600">Carregando categorias...</span>
-      </div>
-    );
-  }
+  const renderSkeletonRows = () => {
+    return Array.from({ length: itemsPerPage }).map((_, index) => (
+      <TableRow key={index}>
+        <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+        <TableCell>
+          <div className="flex items-center space-x-2">
+            <Skeleton className="h-4 w-4" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </TableCell>
+        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+        <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+        <TableCell>
+          <div className="flex justify-end space-x-2">
+            <Skeleton className="h-8 w-8" />
+            <Skeleton className="h-8 w-8" />
+          </div>
+        </TableCell>
+      </TableRow>
+    ));
+  };
 
   if (categories.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <FolderOpen className="h-8 w-8 text-gray-400" />
+      <div className="rounded-xl border shadow-sm bg-card">
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+            <FolderOpen className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">Nenhuma categoria encontrada</h3>
+          <p className="text-muted-foreground">Tente ajustar os filtros ou importar novas categorias.</p>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma categoria encontrada</h3>
-        <p className="text-gray-500">Tente ajustar os filtros ou importar novas categorias.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+    <div className="rounded-xl border shadow-sm bg-card">
+      {/* Header com pesquisa e ações */}
+      <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center space-x-4 flex-1">
+          {onSearchChange && (
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar categorias..."
+                value={searchTerm}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          )}
+          {selectedCategories.length > 0 && (
+            <Badge variant="secondary" className="ml-2">
+              {selectedCategories.length} selecionada(s)
+            </Badge>
+          )}
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          {onExport && (
+            <Button variant="outline" size="sm" onClick={onExport}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar
+            </Button>
+          )}
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Configurações
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Itens por página</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {[10, 20, 50, 100].map((limit) => (
+                <DropdownMenuCheckboxItem
+                  key={limit}
+                  checked={itemsPerPage === limit}
+                  onCheckedChange={() => onItemsPerPageChange(limit)}
+                >
+                  {limit} itens
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
       <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="px-4 py-3 text-left">
-                <input
-                  type="checkbox"
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
                   checked={selectedCategories.length === categories.length && categories.length > 0}
-                  onChange={onSelectAll}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  onCheckedChange={onSelectAll}
                 />
-              </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => onSort('vtex_id')}
+              >
+                <div className="flex items-center space-x-2">
+                  <span>ID</span>
+                  {getSortIcon('vtex_id')}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => onSort('name')}
               >
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-2">
                   <span>Nome</span>
                   {getSortIcon('name')}
                 </div>
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Categoria Pai
-              </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => onSort('product_count')}
               >
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-2">
                   <span>Produtos</span>
                   {getSortIcon('product_count')}
                 </div>
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Ações
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {categories.map((category) => (
-              <tr 
-                key={category.id} 
-                className="hover:bg-gray-50 transition-colors"
-              >
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
+              </TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? renderSkeletonRows() : categories.map((category) => (
+              <TableRow key={category.id} className="group">
+                <TableCell>
+                  <Checkbox
                     checked={selectedCategories.includes(category.id)}
-                    onChange={() => onCategorySelect(category.id)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    onCheckedChange={() => onCategorySelect(category.id)}
                   />
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center">
+                </TableCell>
+                <TableCell className="font-medium">
+                  <span className="text-muted-foreground">#{category.id}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center space-x-2">
                     {category.has_children ? (
-                      <Folder className="h-4 w-4 text-blue-500 mr-2" />
+                      <Folder className="h-4 w-4 text-blue-500" />
                     ) : (
-                      <FolderOpen className="h-4 w-4 text-gray-400 mr-2" />
+                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
                     )}
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {category.name}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        ID: {category.vtex_id}
-                      </div>
-                    </div>
+                    <span className="font-medium">{category.name}</span>
+                    {category.parent_name && (
+                      <Badge variant="outline" className="text-xs">
+                        {category.parent_name}
+                      </Badge>
+                    )}
                   </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="text-sm text-gray-900">
-                    {category.parent_name || '-'}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center space-x-1">
+                    <span className="font-medium">{formatNumber(category.product_count)}</span>
+                    <span className="text-muted-foreground text-sm">produtos</span>
                   </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="text-sm text-gray-900">
-                    {formatNumber(category.product_count)}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCategoryStatusColor(category.is_active)}`}>
+                </TableCell>
+                <TableCell>
+                  <Badge 
+                    variant={category.is_active ? "default" : "secondary"}
+                    className={`${getCategoryStatusColor(category.is_active)} ${
+                      category.is_active 
+                        ? "bg-green-100 text-green-800 hover:bg-green-200" 
+                        : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                    }`}
+                  >
                     {getCategoryStatusText(category.is_active)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end space-x-2">
-                    <button
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => onViewCategory(category)}
-                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200"
-                      title="Ver detalhes"
+                      className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                      title="Visualizar categoria"
                     >
                       <Eye className="h-4 w-4" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => onDeleteCategory(category)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 border border-transparent hover:border-red-200"
+                      className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
                       title="Excluir categoria"
                     >
                       <Trash2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Paginação */}
-      <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-700">
-              Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalCategories)} de {totalCategories} categorias
-            </span>
-            <select
-              value={itemsPerPage}
-              onChange={(e) => onItemsPerPageChange(parseInt(e.target.value))}
-              className="ml-2 px-2 py-1 border border-gray-300 rounded text-sm"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            
-            <span className="text-sm text-gray-700">
-              Página {currentPage} de {totalPages}
-            </span>
-            
-            <button
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+      <div className="flex items-center justify-between px-4 py-4 border-t bg-muted/50">
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-muted-foreground">
+            Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalCategories)} de {totalCategories} categorias
+          </span>
+          {selectedCategories.length > 0 && (
+            <Badge variant="secondary">
+              {selectedCategories.length} selecionada(s)
+            </Badge>
+          )}
         </div>
+        
+        {totalPages > 1 && (
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentPage > 1) onPageChange(currentPage - 1);
+                  }}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              
+              {/* Lógica de paginação inteligente */}
+              {(() => {
+                const pages = [];
+                const maxVisiblePages = 7;
+                
+                if (totalPages <= maxVisiblePages) {
+                  // Mostrar todas as páginas se houver poucas
+                  for (let i = 1; i <= totalPages; i++) {
+                    pages.push(
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onPageChange(i);
+                          }}
+                          isActive={i === currentPage}
+                        >
+                          {i}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                } else {
+                  // Lógica para muitas páginas
+                  const startPage = Math.max(1, currentPage - 2);
+                  const endPage = Math.min(totalPages, currentPage + 2);
+                  
+                  // Primeira página
+                  if (startPage > 1) {
+                    pages.push(
+                      <PaginationItem key={1}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onPageChange(1);
+                          }}
+                          isActive={1 === currentPage}
+                        >
+                          1
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                    
+                    if (startPage > 2) {
+                      pages.push(
+                        <PaginationItem key="ellipsis1">
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                  }
+                  
+                  // Páginas do meio
+                  for (let i = startPage; i <= endPage; i++) {
+                    pages.push(
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onPageChange(i);
+                          }}
+                          isActive={i === currentPage}
+                        >
+                          {i}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                  
+                  // Última página
+                  if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                      pages.push(
+                        <PaginationItem key="ellipsis2">
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    
+                    pages.push(
+                      <PaginationItem key={totalPages}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onPageChange(totalPages);
+                          }}
+                          isActive={totalPages === currentPage}
+                        >
+                          {totalPages}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                }
+                
+                return pages;
+              })()}
+              
+              <PaginationItem>
+                <PaginationNext 
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentPage < totalPages) onPageChange(currentPage + 1);
+                  }}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
       </div>
     </div>
   );

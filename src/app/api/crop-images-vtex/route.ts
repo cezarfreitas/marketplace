@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       const anymarketResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
         method: 'GET',
         headers: {
-          'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==',
+          'gumgaToken': process.env.ANYMARKET || '',
           'Content-Type': 'application/json',
           'User-Agent': 'Meli-Integration/1.0',
           'Accept': 'application/json'
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         const deleteResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images/${image.id}`, {
           method: 'DELETE',
           headers: {
-            'gumgaToken': 'MjU5MDYwMTI2Lg==.xk0BLaBr6Xp5ErWLBXq/Fp7MebhAY9G8/cduGnJECoETHLw1AvWwEFcX5z68M0HtWzBJazQWW5eNBL+eMUnHjw=='
+            'gumgaToken': process.env.ANYMARKET_GUMGA_TOKEN || ''
           }
         });
 
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
         const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
           method: 'POST',
           headers: {
-            'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==',
+            'gumgaToken': process.env.ANYMARKET || '',
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({

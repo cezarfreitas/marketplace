@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // Campos permitidos para ordenação
-    const allowedSortFields = ['name', 'created_at', 'updated_at', 'vtex_id', 'product_count'];
+    const allowedSortFields = ['name', 'created_at', 'updated_at', 'id', 'id_brand_vtex', 'product_count'];
     const sortField = allowedSortFields.includes(sort) ? sort : 'name';
     const sortDirection = order === 'desc' ? 'DESC' : 'ASC';
 
@@ -52,13 +52,12 @@ export async function GET(request: Request) {
     const countResult = await executeQuery(countQuery, queryParams);
     const total = countResult[0]?.total || 0;
 
-    console.log(`📊 Total de marcas encontradas: ${total}`);
 
-    // Buscar marcas com contagem de produtos
+    // Buscar marcas com contagem de produtos (usando campo correto id_brand_vtex)
     const brandsQuery = `
       SELECT 
-        b.id, 
-        b.vtex_id, 
+        b.id_brand_vtex as id, 
+        b.id_brand_vtex, 
         b.name, 
         b.is_active, 
         b.title, 
@@ -70,10 +69,11 @@ export async function GET(request: Request) {
         COALESCE(p.product_count, 0) as product_count
       FROM brands_vtex b
       LEFT JOIN (
-        SELECT brand_id, COUNT(*) as product_count 
+        SELECT id_brand_vtex, COUNT(*) as product_count 
         FROM products_vtex 
-        GROUP BY brand_id
-      ) p ON b.vtex_id = p.brand_id
+        WHERE id_brand_vtex IS NOT NULL
+        GROUP BY id_brand_vtex
+      ) p ON b.id_brand_vtex = p.id_brand_vtex
       ${whereClause}
       ORDER BY ${sortField === 'product_count' ? 'COALESCE(p.product_count, 0)' : `b.${sortField}`} ${sortDirection}
       LIMIT ${limit} OFFSET ${offset}
@@ -81,7 +81,6 @@ export async function GET(request: Request) {
 
     const brands = await executeQuery(brandsQuery, queryParams);
 
-    console.log(`✅ Retornando ${brands.length} marcas`);
 
     return NextResponse.json({
       success: true,

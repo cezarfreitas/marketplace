@@ -30,7 +30,7 @@ export default function Layout({ children, title = 'Dashboard', subtitle }: Layo
           <Header onMenuClick={toggleSidebar} title={title} subtitle={subtitle} />
           
           {/* Page Content */}
-          <main className="flex-1 p-6">
+          <main className="flex-1 px-4 py-6">
             {children}
           </main>
         </div>

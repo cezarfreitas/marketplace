@@ -5,8 +5,40 @@ import { Brand, BrandSortOptions } from '../types';
 import { formatDate, formatNumber, getBrandImageUrl } from '../utils/formatters';
 import { 
   Eye, Trash2, MoreVertical, Star, StarOff, ExternalLink, Copy, 
-  ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Bot, Download
+  ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Bot, Download,
+  Search, Filter, MoreHorizontal, Settings2
 } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from '@/components/ui/pagination';
 
 interface BrandTableProps {
   brands: Brand[];
@@ -17,6 +49,7 @@ interface BrandTableProps {
   itemsPerPage: number;
   sort: BrandSortOptions;
   selectedBrands: number[];
+  searchTerm?: string;
   onSort: (field: BrandSortOptions['field']) => void;
   onPageChange: (page: number) => void;
   onItemsPerPageChange: (limit: number) => void;
@@ -25,7 +58,9 @@ interface BrandTableProps {
   onViewBrand: (brand: Brand) => void;
   onEditBrand: (brand: Brand) => void;
   onDeleteBrand: (brand: Brand) => void;
-  onGenerateAuxiliary: (brand: Brand) => void;
+  onGenerateContext: (brand: Brand) => void;
+  onSearchChange?: (term: string) => void;
+  onExport?: () => void;
 }
 
 export function BrandTable({
@@ -37,6 +72,7 @@ export function BrandTable({
   itemsPerPage,
   sort,
   selectedBrands,
+  searchTerm = "",
   onSort,
   onPageChange,
   onItemsPerPageChange,
@@ -45,109 +81,184 @@ export function BrandTable({
   onViewBrand,
   onEditBrand,
   onDeleteBrand,
-  onGenerateAuxiliary
+  onGenerateContext,
+  onSearchChange,
+  onExport
 }: BrandTableProps) {
-  // Debug: verificar dados recebidos
-  console.log('BrandTable - brands:', brands);
-  console.log('BrandTable - loading:', loading);
-  console.log('BrandTable - brands.length:', brands?.length);
 
   const getSortIcon = (field: BrandSortOptions['field']) => {
     if (sort.field !== field) {
-      return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+      return <ArrowUpDown className="h-4 w-4 text-muted-foreground" />;
     }
     return sort.direction === 'asc' ? 
-      <ArrowUp className="h-4 w-4 text-primary-600" /> : 
-      <ArrowDown className="h-4 w-4 text-primary-600" />;
+      <ArrowUp className="h-4 w-4 text-primary" /> : 
+      <ArrowDown className="h-4 w-4 text-primary" />;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-        <span className="ml-3 text-gray-600">Carregando marcas...</span>
-      </div>
-    );
-  }
+  const renderSkeletonRows = () => {
+    return Array.from({ length: itemsPerPage }).map((_, index) => (
+      <TableRow key={index}>
+        <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+        <TableCell>
+          <div className="flex items-center space-x-3">
+            <Skeleton className="h-10 w-10 rounded-lg" />
+            <div className="space-y-1">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </div>
+        </TableCell>
+        <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-40" /></TableCell>
+        <TableCell><Skeleton className="h-8 w-8 rounded-full mx-auto" /></TableCell>
+        <TableCell><Skeleton className="h-6 w-20 rounded-full mx-auto" /></TableCell>
+        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+        <TableCell>
+          <div className="flex justify-end space-x-2">
+            <Skeleton className="h-8 w-8" />
+            <Skeleton className="h-8 w-8" />
+            <Skeleton className="h-8 w-8" />
+          </div>
+        </TableCell>
+      </TableRow>
+    ));
+  };
 
-  if (brands.length === 0) {
+  if (brands.length === 0 && !loading) {
     return (
-      <div className="text-center py-12">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Eye className="h-8 w-8 text-gray-400" />
+      <div className="rounded-xl border shadow-sm bg-card">
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+            <Eye className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">Nenhuma marca encontrada</h3>
+          <p className="text-muted-foreground">Tente ajustar os filtros ou importar novas marcas.</p>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma marca encontrada</h3>
-        <p className="text-gray-500">Tente ajustar os filtros ou importar novas marcas.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+    <div className="rounded-xl border shadow-sm bg-card">
+      {/* Header com pesquisa e ações */}
+      <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center space-x-4 flex-1">
+          {onSearchChange && (
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar marcas..."
+                value={searchTerm}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          )}
+          {selectedBrands.length > 0 && (
+            <Badge variant="secondary" className="ml-2">
+              {selectedBrands.length} selecionada(s)
+            </Badge>
+          )}
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          {onExport && (
+            <Button variant="outline" size="sm" onClick={onExport}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar
+            </Button>
+          )}
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Configurações
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Itens por página</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {[10, 20, 50, 100].map((limit) => (
+                <DropdownMenuCheckboxItem
+                  key={limit}
+                  checked={itemsPerPage === limit}
+                  onCheckedChange={() => onItemsPerPageChange(limit)}
+                >
+                  {limit} itens
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-            <tr>
-              <th className="px-4 py-4 text-left w-12">
-                <input
-                  type="checkbox"
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
                   checked={selectedBrands.length === brands.length && brands.length > 0}
-                  onChange={onSelectAll}
-                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 focus:ring-2"
+                  onCheckedChange={onSelectAll}
                 />
-              </th>
-              <th 
-                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => onSort('vtex_id')}
+              >
+                <div className="flex items-center space-x-2">
+                  <span>ID</span>
+                  {getSortIcon('vtex_id')}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => onSort('name')}
               >
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-2">
                   <span>Marca</span>
                   {getSortIcon('name')}
                 </div>
-              </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
-                Título
-              </th>
-              <th 
-                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-20 cursor-pointer hover:bg-gray-200 transition-colors"
+              </TableHead>
+              <TableHead className="hidden md:table-cell">Título</TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 text-center"
                 onClick={() => onSort('product_count')}
               >
-                <div className="flex items-center justify-center space-x-1">
+                <div className="flex items-center justify-center space-x-2">
                   <span>Produtos</span>
                   {getSortIcon('product_count')}
                 </div>
-              </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-24">
-                Status
-              </th>
-              <th 
-                className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+              </TableHead>
+              <TableHead className="text-center">Status</TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => onSort('created_at')}
               >
-                <div className="flex items-center space-x-1">
-                  <span>Data</span>
+                <div className="flex items-center space-x-2">
+                  <span>Criado</span>
                   {getSortIcon('created_at')}
                 </div>
-              </th>
-              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
-                Ações
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {brands.map((brand) => (
-              <tr key={brand.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-4 whitespace-nowrap">
-                  <input
-                    type="checkbox"
+              </TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? renderSkeletonRows() : brands.map((brand) => (
+              <TableRow key={brand.id} className="group">
+                <TableCell>
+                  <Checkbox
                     checked={selectedBrands.includes(brand.id)}
-                    onChange={() => onBrandSelect(brand.id)}
-                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    onCheckedChange={() => onBrandSelect(brand.id)}
                   />
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                </TableCell>
+                <TableCell className="font-medium">
+                  <span className="text-muted-foreground">#{brand.id}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
                       {brand.image_url ? (
                         <img
                           src={getBrandImageUrl(brand)}
@@ -158,160 +269,235 @@ export function BrandTable({
                           }}
                         />
                       ) : (
-                        <span className="text-gray-400 font-semibold text-sm">
+                        <span className="text-muted-foreground font-semibold text-sm">
                           {brand.name.charAt(0).toUpperCase()}
                         </span>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center space-x-2">
-                        <div className="text-sm font-medium text-gray-900 truncate">
+                        <div className="font-medium truncate">
                           {brand.name}
                         </div>
-                        <div className="flex items-center space-x-1">
-                          {brand.is_active ? (
-                            <div className="w-2 h-2 bg-green-500 rounded-full" title="Marca ativa"></div>
-                          ) : (
-                            <div className="w-2 h-2 bg-red-500 rounded-full" title="Marca inativa"></div>
-                          )}
-                        </div>
+                        <div className="w-2 h-2 rounded-full bg-green-500" title="Marca ativa"></div>
                       </div>
-                      <div className="text-xs text-gray-400">
-                        ID: {brand.vtex_id}
-                      </div>
+                      <Badge variant="outline" className="text-xs mt-1">
+                        ID: {brand.id}
+                      </Badge>
                     </div>
                   </div>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
-                  <span className="truncate block max-w-xs">
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <span className="truncate block max-w-xs text-muted-foreground">
                     {brand.title || 'N/A'}
                   </span>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-center">
-                  <div className="flex items-center justify-center">
-                    <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 text-sm font-semibold border border-emerald-200">
-                      {brand.product_count || 0}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-center">
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${
-                    brand.is_active 
-                      ? 'bg-green-50 text-green-700 border-green-200' 
-                      : 'bg-red-50 text-red-700 border-red-200'
-                  }`}>
+                </TableCell>
+                <TableCell className="text-center">
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
+                    {formatNumber(brand.product_count || 0)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-center">
+                  <Badge 
+                    variant={brand.is_active ? "default" : "secondary"}
+                    className={`${
+                      brand.is_active 
+                        ? "bg-green-100 text-green-800 hover:bg-green-200" 
+                        : "bg-red-100 text-red-800 hover:bg-red-200"
+                    }`}
+                  >
                     {brand.is_active ? 'Ativa' : 'Inativa'}
-                  </span>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                  </Badge>
+                </TableCell>
+                <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-medium">{formatDate(brand.created_at).split(',')[0]}</span>
-                    <span className="text-xs text-gray-400">{formatDate(brand.created_at).split(',')[1]?.trim()}</span>
+                    <span className="font-medium text-sm">{formatDate(brand.created_at).split(',')[0]}</span>
+                    <span className="text-xs text-muted-foreground">{formatDate(brand.created_at).split(',')[1]?.trim()}</span>
                   </div>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap">
-                  <div className="flex items-center space-x-2">
-                    <button 
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => onViewBrand(brand)}
-                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200"
-                      title="Ver detalhes"
+                      className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                      title="Visualizar marca"
                     >
                       <Eye className="h-4 w-4" />
-                    </button>
-                    <button 
-                      onClick={() => onGenerateAuxiliary(brand)}
-                      className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all duration-200 border border-transparent hover:border-purple-200"
-                      title="Gerar dados auxiliares"
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onGenerateContext(brand)}
+                      className={`h-8 w-8 p-0 ${
+                        brand.contexto && brand.contexto.trim() 
+                          ? 'text-green-600 hover:text-green-700 hover:bg-green-50 bg-green-50' 
+                          : 'text-purple-600 hover:text-purple-700 hover:bg-purple-50'
+                      }`}
+                      title={brand.contexto && brand.contexto.trim() ? "Contexto já gerado - Clique para editar" : "Gerar contexto de marca com IA"}
                     >
                       <Bot className="h-4 w-4" />
-                    </button>
-                    <button 
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => onDeleteBrand(brand)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 border border-transparent hover:border-red-200"
+                      className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
                       title="Excluir marca"
                     >
                       <Trash2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Paginação */}
-      <div className="px-4 py-4 border-t border-gray-200 bg-gray-50">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-gray-600">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-              <div className="flex items-center gap-4">
-                <span>
-                  <span className="font-medium">{formatNumber(totalBrands)}</span> marcas total
-                </span>
-                <span className="text-gray-400">•</span>
-                <span>
-                  Página <span className="font-medium">{currentPage}</span> de <span className="font-medium">{totalPages}</span>
-                </span>
-                <span className="text-gray-400">•</span>
-                <span>
-                  {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalBrands)} de {formatNumber(totalBrands)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Itens por página:</span>
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => onItemsPerPageChange(parseInt(e.target.value))}
-                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          {totalPages > 1 && (
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
-                disabled={currentPage === 1}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              
-              {/* Renderizar páginas */}
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const page = i + 1;
-                return (
-                  <button
-                    key={page}
-                    onClick={() => onPageChange(page)}
-                    className={`w-8 h-8 text-sm rounded-lg transition-colors ${
-                      currentPage === page
-                        ? 'bg-primary-600 text-white'
-                        : 'text-gray-600 hover:bg-white hover:text-gray-900'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                );
-              })}
-              
-              <button
-                onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+      <div className="flex items-center justify-between px-4 py-4 border-t bg-muted/50">
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-muted-foreground">
+            Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalBrands)} de {totalBrands} marcas
+          </span>
+          {selectedBrands.length > 0 && (
+            <Badge variant="secondary">
+              {selectedBrands.length} selecionada(s)
+            </Badge>
           )}
         </div>
+        
+        {totalPages > 1 && (
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentPage > 1) onPageChange(currentPage - 1);
+                  }}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              
+              {/* Lógica de paginação inteligente */}
+              {(() => {
+                const pages = [];
+                const maxVisiblePages = 7;
+                
+                if (totalPages <= maxVisiblePages) {
+                  // Mostrar todas as páginas se houver poucas
+                  for (let i = 1; i <= totalPages; i++) {
+                    pages.push(
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onPageChange(i);
+                          }}
+                          isActive={i === currentPage}
+                        >
+                          {i}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                } else {
+                  // Lógica para muitas páginas
+                  const startPage = Math.max(1, currentPage - 2);
+                  const endPage = Math.min(totalPages, currentPage + 2);
+                  
+                  // Primeira página
+                  if (startPage > 1) {
+                    pages.push(
+                      <PaginationItem key={1}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onPageChange(1);
+                          }}
+                          isActive={1 === currentPage}
+                        >
+                          1
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                    
+                    if (startPage > 2) {
+                      pages.push(
+                        <PaginationItem key="ellipsis1">
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                  }
+                  
+                  // Páginas do meio
+                  for (let i = startPage; i <= endPage; i++) {
+                    pages.push(
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onPageChange(i);
+                          }}
+                          isActive={i === currentPage}
+                        >
+                          {i}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                  
+                  // Última página
+                  if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                      pages.push(
+                        <PaginationItem key="ellipsis2">
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    
+                    pages.push(
+                      <PaginationItem key={totalPages}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onPageChange(totalPages);
+                          }}
+                          isActive={totalPages === currentPage}
+                        >
+                          {totalPages}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }
+                }
+                
+                return pages;
+              })()}
+              
+              <PaginationItem>
+                <PaginationNext 
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentPage < totalPages) onPageChange(currentPage + 1);
+                  }}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
       </div>
     </div>
   );

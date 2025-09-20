@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
     // Buscar mapeamentos na tabela anymarket
     const placeholders = refIds.map(() => '?').join(',');
     const query = `
-      SELECT ref_vtex, id_produto_any 
+      SELECT ref_produto_vtex, id_produto_any 
       FROM anymarket 
-      WHERE ref_vtex IN (${placeholders})
+      WHERE ref_produto_vtex IN (${placeholders})
     `;
 
     const mappings = await executeQuery(query, refIds);
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     // Criar um mapa para fácil acesso
     const mappingMap: Record<string, string> = {};
     mappings.forEach((mapping: any) => {
-      mappingMap[mapping.ref_vtex] = mapping.id_produto_any;
+      mappingMap[mapping.ref_produto_vtex] = mapping.id_produto_any;
     });
 
     console.log(`✅ Encontrados ${mappings.length} mapeamentos Anymarket`);

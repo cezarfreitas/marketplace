@@ -90,49 +90,147 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`📊 Processando ${rows.length} linhas...`);
+    console.log(`📊 Processando ${rows.length} linhas em lotes de 300...`);
     let processed = 0;
     let errors = 0;
     const errorDetails: string[] = [];
+    const BATCH_SIZE = 300;
 
-    // Processar cada linha
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const idAny = row[idAnyIndex];
-      const vtexId = row[vtexIdIndex];
-
-      // Validar dados
-      if (!idAny || !vtexId) {
-        errors++;
-        errorDetails.push(`Linha ${i + 2}: Dados vazios (ID_PRODUTO_ANY: "${idAny}", ID_PRODUTO_VTEX: "${vtexId}")`);
-        continue;
-      }
-
-      // Limpar dados
-      const cleanIdAny = String(idAny).trim();
-      const cleanVtexId = String(vtexId).trim();
-
-      if (!cleanIdAny || !cleanVtexId) {
-        errors++;
-        errorDetails.push(`Linha ${i + 2}: Dados inválidos após limpeza`);
-        continue;
-      }
-
+    // Processar em lotes de 300 linhas
+    for (let batchStart = 0; batchStart < rows.length; batchStart += BATCH_SIZE) {
       try {
-        // Inserir ou atualizar registro na tabela anymarket
-        await executeModificationQuery(`
-          INSERT INTO anymarket (id_produto_any, ref_vtex)
-          VALUES (?, ?)
-          ON DUPLICATE KEY UPDATE
-            ref_vtex = VALUES(ref_vtex),
-            updated_at = CURRENT_TIMESTAMP
-        `, [cleanIdAny, cleanVtexId]);
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, rows.length);
+        const batch = rows.slice(batchStart, batchEnd);
+        const currentBatch = Math.floor(batchStart / BATCH_SIZE) + 1;
+        
+        console.log(`🔄 Processando lote ${currentBatch}: linhas ${batchStart + 1} a ${batchEnd}`);
+        
+        // Verificar memória a cada 10 lotes
+        if (currentBatch % 10 === 0) {
+          const memUsage = process.memoryUsage();
+          console.log(`📊 Memória - RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB, Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
+        }
+        
+        // Pequeno delay entre lotes para evitar sobrecarga do banco
+        if (batchStart > 0) {
+          console.log(`⏳ Aguardando 50ms antes do próximo lote...`);
+          await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
+        }
 
-        processed++;
-      } catch (insertError: any) {
-        console.error('❌ Erro ao inserir:', insertError);
+      // Preparar dados válidos do lote
+      const validBatchData: Array<{idAny: string, vtexId: string, originalIndex: number}> = [];
+      
+      for (let i = 0; i < batch.length; i++) {
+        const row = batch[i];
+        const idAny = row[idAnyIndex];
+        const vtexId = row[vtexIdIndex];
+        const originalIndex = batchStart + i;
+
+        // Validar dados
+        if (!idAny || !vtexId) {
+          errors++;
+          errorDetails.push(`Linha ${originalIndex + 2}: Dados vazios (ID_PRODUTO_ANY: "${idAny}", ID_PRODUTO_VTEX: "${vtexId}")`);
+          continue;
+        }
+
+        // Limpar dados
+        const cleanIdAny = String(idAny).trim();
+        const cleanVtexId = String(vtexId).trim();
+
+        if (!cleanIdAny || !cleanVtexId) {
+          errors++;
+          errorDetails.push(`Linha ${originalIndex + 2}: Dados inválidos após limpeza`);
+          continue;
+        }
+
+        validBatchData.push({
+          idAny: cleanIdAny,
+          vtexId: cleanVtexId,
+          originalIndex
+        });
+      }
+
+      // Se há dados válidos no lote, inserir em batch
+      if (validBatchData.length > 0) {
+        console.log(`📝 Preparando inserção de ${validBatchData.length} registros...`);
+        try {
+          // Construir query de INSERT múltiplo
+          const values = validBatchData.map(() => '(?, ?)').join(', ');
+          const params: string[] = [];
+          
+          validBatchData.forEach(item => {
+            params.push(item.idAny, item.vtexId);
+          });
+
+          console.log(`💾 Executando INSERT para lote ${Math.floor(batchStart / BATCH_SIZE) + 1}...`);
+
+          // Adicionar timeout para a operação
+          const batchPromise = executeModificationQuery(`
+            INSERT INTO anymarket (id_produto_any, ref_produto_vtex)
+            VALUES ${values}
+            ON DUPLICATE KEY UPDATE
+              ref_produto_vtex = CASE 
+                WHEN ref_produto_vtex != VALUES(ref_produto_vtex) THEN VALUES(ref_produto_vtex)
+                ELSE ref_produto_vtex
+              END,
+              updated_at = CURRENT_TIMESTAMP
+          `, params);
+
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout na operação de batch')), 30000) // 30s timeout
+          );
+
+          const result = await Promise.race([batchPromise, timeoutPromise]);
+          
+          // Verificar quantos registros foram realmente afetados       
+          const affectedRows = (result as any)?.affectedRows || 0;
+          const changedRows = (result as any)?.changedRows || 0;
+          const insertedRows = affectedRows - changedRows;
+          
+          // Contar registros processados (inseridos + atualizados)
+          const actuallyProcessed = affectedRows;
+          processed += actuallyProcessed;
+          
+          console.log(`✅ Lote ${Math.floor(batchStart / BATCH_SIZE) + 1} processado: ${validBatchData.length} registros enviados`);
+          console.log(`📊 Resultado DB - Afetados: ${affectedRows}, Inseridos: ${insertedRows}, Atualizados: ${changedRows}`);
+          
+        } catch (batchError: any) {
+          console.error(`❌ Erro ao processar lote ${Math.floor(batchStart / BATCH_SIZE) + 1}:`, batchError);
+          
+          // Se o batch falhou, tentar inserir individualmente
+          console.log(`🔄 Tentando inserção individual para o lote ${Math.floor(batchStart / BATCH_SIZE) + 1}...`);
+          for (const item of validBatchData) {
+            try {
+              await executeModificationQuery(`
+                INSERT INTO anymarket (id_produto_any, ref_produto_vtex)
+                VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE
+                  ref_produto_vtex = CASE 
+                    WHEN ref_produto_vtex != VALUES(ref_produto_vtex) THEN VALUES(ref_produto_vtex)
+                    ELSE ref_produto_vtex
+                  END,
+                  updated_at = CURRENT_TIMESTAMP
+              `, [item.idAny, item.vtexId]);
+              
+              processed++;
+            } catch (individualError: any) {
+              errors++;
+              errorDetails.push(`Linha ${item.originalIndex + 2}: ${individualError.message}`);
+            }
+          }
+        }
+      } else {
+        console.log(`⚠️ Lote ${Math.floor(batchStart / BATCH_SIZE) + 1} não possui dados válidos`);
+      }
+      
+      } catch (batchError: any) {
+        console.error(`❌ Erro crítico no lote ${Math.floor(batchStart / BATCH_SIZE) + 1}:`, batchError);
+        console.error(`📍 Linha do erro: ${batchStart + 1} a ${Math.min(batchStart + BATCH_SIZE, rows.length)}`);
+        
+        // Continuar com o próximo lote em caso de erro
         errors++;
-        errorDetails.push(`Linha ${i + 2}: ${insertError.message}`);
+        errorDetails.push(`Lote ${Math.floor(batchStart / BATCH_SIZE) + 1}: ${batchError.message}`);
+        continue;
       }
     }
 

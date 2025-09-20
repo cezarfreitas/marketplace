@@ -114,10 +114,10 @@ export class ProductImportModule {
 
       // PASSO 2: Verificar se o produto já existe na nossa base de dados
       // Tabela: products_vtex
-      // Campo de busca: id (que corresponde ao Id da VTEX)
+      // Campo de busca: id_produto_vtex (que corresponde ao Id da VTEX)
       console.log(`🔍 Verificando se produto já existe na tabela products_vtex...`);
       const existingProduct = await executeQuery(`
-        SELECT id FROM products_vtex WHERE id = ?
+        SELECT id_produto_vtex FROM products_vtex WHERE id_produto_vtex = ?
       `, [product.Id]);
 
       let productId: number;
@@ -125,16 +125,16 @@ export class ProductImportModule {
       if (existingProduct && existingProduct.length > 0) {
         // PASSO 3A: Produto já existe - ATUALIZAR dados
         console.log(`📝 Produto já existe, atualizando dados...`);
-        productId = existingProduct[0].id;
+        productId = existingProduct[0].id_produto_vtex;
         
         await executeQuery(`
           UPDATE products_vtex SET
             name = ?,                    -- Nome do produto
             department_id = ?,           -- ID do departamento
-            category_id = ?,             -- ID da categoria
-            brand_id = ?,                -- ID da marca
+            id_category_vtex = ?,        -- ID da categoria
+            id_brand_vtex = ?,           -- ID da marca
             link_id = ?,                 -- Link ID
-            ref_id = ?,                  -- Reference ID
+            ref_produto = ?,             -- Reference ID
             is_visible = ?,              -- Se está visível
             description = ?,             -- Descrição completa
             description_short = ?,       -- Descrição curta
@@ -146,10 +146,11 @@ export class ProductImportModule {
             meta_tag_description = ?,    -- Meta descrição para SEO
             supplier_id = ?,             -- ID do fornecedor
             show_without_stock = ?,      -- Mostrar sem estoque
+            list_store_id = ?,           -- ID da loja na lista
             adwords_remarketing_code = ?, -- Código AdWords
             lomadee_campaign_code = ?,   -- Código Lomadee
             updated_at = NOW()           -- Data de atualização
-          WHERE id = ?
+          WHERE id_produto_vtex = ?
         `, [
           product.Name,
           product.DepartmentId,
@@ -168,6 +169,7 @@ export class ProductImportModule {
           product.MetaTagDescription,
           product.SupplierId,
           product.ShowWithoutStock,
+          null, // list_store_id (não disponível na API VTEX)
           product.AdWordsRemarketingCode,
           product.LomadeeCampaignCode,
           product.Id
@@ -179,13 +181,13 @@ export class ProductImportModule {
         
         const insertResult = await executeQuery(`
           INSERT INTO products_vtex (
-            id,                          -- ID da VTEX
+            id_produto_vtex,             -- ID da VTEX
             name,                        -- Nome do produto
             department_id,               -- ID do departamento
-            category_id,                 -- ID da categoria
-            brand_id,                    -- ID da marca
+            id_category_vtex,            -- ID da categoria
+            id_brand_vtex,               -- ID da marca
             link_id,                     -- Link ID
-            ref_id,                      -- Reference ID
+            ref_produto,                 -- Reference ID
             is_visible,                  -- Se está visível
             description,                 -- Descrição completa
             description_short,           -- Descrição curta
@@ -197,9 +199,10 @@ export class ProductImportModule {
             meta_tag_description,        -- Meta descrição para SEO
             supplier_id,                 -- ID do fornecedor
             show_without_stock,          -- Mostrar sem estoque
+            list_store_id,               -- ID da loja na lista
             adwords_remarketing_code,    -- Código AdWords
             lomadee_campaign_code        -- Código Lomadee
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           product.Id,                    // ID da VTEX
           product.Name,                  // Nome
@@ -219,6 +222,7 @@ export class ProductImportModule {
           product.MetaTagDescription,    // Meta descrição
           product.SupplierId,            // ID do fornecedor
           product.ShowWithoutStock,      // Mostrar sem estoque
+          null,                          // list_store_id (não disponível na API VTEX)
           product.AdWordsRemarketingCode, // Código AdWords
           product.LomadeeCampaignCode    // Código Lomadee
         ]);

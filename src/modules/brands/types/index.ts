@@ -7,6 +7,7 @@ export interface Brand {
   title?: string;
   meta_tag_description?: string;
   image_url?: string;
+  contexto?: string;
   brand_history?: string;
   target_audience?: string;
   language_type?: string;

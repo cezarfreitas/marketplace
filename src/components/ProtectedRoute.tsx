@@ -4,6 +4,17 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LoginForm from './LoginForm';
 
+// Função para verificar se o token está expirado (client-side)
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Math.floor(Date.now() / 1000);
+    return payload.exp < currentTime;
+  } catch (error) {
+    return true; // Se não conseguir decodificar, considerar expirado
+  }
+};
+
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
@@ -23,6 +34,16 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         // console.log('🔍 Verificando autenticação:', { hasToken: !!token, isAuth });
         
         if (token && isAuth === 'true') {
+          // Verificar se o token está expirado antes de fazer a requisição
+          if (isTokenExpired(token)) {
+            console.log('⏰ Token expirado, limpando dados de autenticação');
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            localStorage.removeItem('isAuthenticated');
+            setIsAuthenticated(false);
+            return;
+          }
+
           try {
             // Verificar token no servidor
             const response = await fetch('/api/auth/verify', {
@@ -48,7 +69,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
             }
           } catch (error) {
             // console.error('❌ Erro ao verificar token:', error);
-            // Em caso de erro, assumir que não está autenticado
+            // Em caso de erro, limpar dados e assumir que não está autenticado
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            localStorage.removeItem('isAuthenticated');
             setIsAuthenticated(false);
           }
         } else {

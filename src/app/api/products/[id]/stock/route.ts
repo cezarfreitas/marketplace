@@ -19,15 +19,15 @@ export async function GET(
     // Query para buscar estoque detalhado por SKU
     const stockQuery = `
       SELECT 
-        st.sku_id,
-        st.vtex_sku_id,
+        st.id_sku_vtex as sku_id,
+        st.id_sku_vtex as vtex_sku_id,
         s.name as sku_name,
         st.warehouse_name,
         st.total_quantity,
-        st.reserved_quantity
+        0 as reserved_quantity
       FROM stock_vtex st
-      JOIN skus_vtex s ON st.vtex_sku_id = s.id
-      WHERE s.product_id = ?
+      JOIN skus_vtex s ON st.id_sku_vtex = s.id_sku_vtex
+      WHERE s.id_produto_vtex = ?
       ORDER BY s.name, st.warehouse_name
     `;
 
@@ -66,9 +66,9 @@ export async function POST(
 
     // Buscar dados do produto
     const productQuery = `
-      SELECT p.id, p.ref_id, p.name
+      SELECT p.id_produto_vtex as id, p.ref_produto as ref_id, p.name
       FROM products_vtex p
-      WHERE p.id = ?
+      WHERE p.id_produto_vtex = ?
     `;
     
     const productResult = await executeQuery(productQuery, [productId]);
@@ -84,9 +84,9 @@ export async function POST(
 
     // Buscar SKUs do produto
     const skusQuery = `
-      SELECT s.id, s.name
+      SELECT s.id_sku_vtex as id, s.name
       FROM skus_vtex s
-      WHERE s.product_id = ?
+      WHERE s.id_produto_vtex = ?
     `;
     
     const skus = await executeQuery(skusQuery, [productId]);

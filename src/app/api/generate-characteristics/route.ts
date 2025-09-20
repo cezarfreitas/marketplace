@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
           b.name as brand_name,
           c.name as category_name
         FROM products_vtex p
-        LEFT JOIN brands b ON p.brand_id = b.id
-        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
-        WHERE p.id = ?
+        LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+        LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+        WHERE p.id_produto_vtex = ?
       `;
 
       products = await executeQuery(productQuery, [numericProductId]);
@@ -65,15 +65,21 @@ export async function POST(request: NextRequest) {
     const product = products[0];
     console.log('📦 Produto encontrado:', product.name);
 
-    // Buscar atributos do produto
-    const productAttributes = await executeQuery(`
-      SELECT attribute_name, attribute_values
-      FROM product_attributes
-      WHERE product_id = ?
-      ORDER BY attribute_name
-    `, [numericProductId]);
-    
-    console.log(`📋 ${productAttributes?.length || 0} atributos encontrados para o produto`);
+    // Buscar atributos do produto (tabela não existe, inicializar como vazio)
+    let productAttributes = [];
+    try {
+      const productAttributesQuery = `
+        SELECT attribute_name, attribute_values
+        FROM product_attributes
+        WHERE product_id = ?
+        ORDER BY attribute_name
+      `;
+      productAttributes = await executeQuery(productAttributesQuery, [numericProductId]);
+      console.log(`📋 ${productAttributes?.length || 0} atributos encontrados para o produto`);
+    } catch (error) {
+      console.log('⚠️ Tabela product_attributes não existe, continuando sem atributos');
+      productAttributes = [];
+    }
 
     // 2. Buscar análise de imagem
     console.log('🔍 Buscando análise de imagem...');
@@ -81,11 +87,9 @@ export async function POST(request: NextRequest) {
     try {
       const analysisQuery = `
         SELECT 
-          ai.*,
-          a.name as agent_name
+          ai.*
         FROM analise_imagens ai
-        LEFT JOIN agents a ON ai.agent_id = a.id
-        WHERE ai.id_produto = ?
+        WHERE ai.id_produto_vtex = ?
         ORDER BY ai.generated_at DESC
         LIMIT 1
       `;
@@ -106,9 +110,9 @@ export async function POST(request: NextRequest) {
     let marketplaceDescription = null;
     try {
       const marketplaceQuery = `
-        SELECT * FROM marketplace 
-        WHERE product_id = ? 
-        ORDER BY generated_at DESC 
+        SELECT * FROM descriptions 
+        WHERE id_product_vtex = ? 
+        ORDER BY created_at DESC 
         LIMIT 1
       `;
       
@@ -127,8 +131,8 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Buscando características ativas para a categoria do produto...');
     let characteristics = [];
     try {
-      // Primeiro, verificar se o produto tem categoria
-      if (!product.category_id) {
+      // Verificar se o produto tem categoria
+      if (!product.id_category_vtex) {
         console.log('⚠️ Produto não possui categoria definida');
         return NextResponse.json({
           success: false,
@@ -136,43 +140,37 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Buscar o vtex_id da categoria do produto
-      const categoryQuery = `
-        SELECT vtex_id FROM categories_vtex WHERE vtex_id = ?
-      `;
-      const categoryResult = await executeQuery(categoryQuery, [product.category_id]);
-      const categoryVtexId = categoryResult && categoryResult.length > 0 ? categoryResult[0].vtex_id : null;
-
-      if (!categoryVtexId) {
-        console.log('⚠️ Categoria não encontrada ou sem vtex_id');
-        return NextResponse.json({
-          success: false,
-          message: 'Categoria não encontrada ou sem vtex_id'
-        }, { status: 400 });
-      }
-
-      // Buscar características que se aplicam à categoria do produto usando vtex_id
+      // Buscar características que se aplicam à categoria do produto
       const characteristicsQuery = `
         SELECT id, caracteristica, pergunta_ia, valores_possiveis
         FROM caracteristicas 
         WHERE is_active = 1 
-          AND categorias IS NOT NULL 
-          AND categorias != '' 
-          AND TRIM(categorias) != ''
-          AND FIND_IN_SET(?, categorias) > 0
+        AND (
+          categorias LIKE ? 
+          OR categorias LIKE ?
+          OR categorias LIKE ?
+          OR categorias = ''
+          OR categorias IS NULL
+          OR categorias = '[]'
+          OR categorias = '{}'
+        )
         ORDER BY caracteristica
       `;
       
-      const characteristicsResult = await executeQuery(characteristicsQuery, [categoryVtexId]);
+      const characteristicsResult = await executeQuery(characteristicsQuery, [
+        `%${product.id_category_vtex}%`,
+        `"${product.id_category_vtex}"`,
+        `'${product.id_category_vtex}'`
+      ]);
       characteristics = characteristicsResult || [];
       
-      console.log(`📋 ${characteristics.length} características ativas encontradas para categoria ID ${product.category_id} (vtex_id: ${categoryVtexId})`);
+      console.log(`📋 ${characteristics.length} características ativas encontradas para categoria ID ${product.id_category_vtex}`);
       
       if (!characteristics || characteristics.length === 0) {
         console.log('⚠️ Nenhuma característica configurada para esta categoria');
         return NextResponse.json({
           success: false,
-          message: `Nenhuma característica está configurada para a categoria "${product.category_name || 'ID: ' + product.category_id}". Configure as características para esta categoria primeiro.`
+          message: `Nenhuma característica está configurada para a categoria "${product.category_name || 'ID: ' + product.id_category_vtex}". Configure as características para esta categoria primeiro.`
         }, { status: 400 });
       }
       
@@ -185,36 +183,17 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 5. Buscar agente de características
-    console.log('🔍 Buscando agente de características...');
-    let agent = null;
-    try {
-      const agentQuery = `
-        SELECT id, name, system_prompt, model, max_tokens, temperature
-        FROM agents 
-        WHERE name = 'Agente Características' AND is_active = 1
-        LIMIT 1
-      `;
-      
-      const agentResult = await executeQuery(agentQuery, []);
-      agent = agentResult?.[0];
-      
-      if (!agent) {
-        console.log('❌ Agente de características não encontrado');
-        return NextResponse.json({
-          success: false,
-          message: 'Agente de características não encontrado. Verifique se existe um agente ativo com o nome "Agente Características".'
-        }, { status: 400 });
-      }
-      
-      console.log(`🤖 Usando agente: ${agent.name} (ID: ${agent.id})`);
-    } catch (error) {
-      console.log('⚠️ Erro ao buscar agente:', error);
-      return NextResponse.json({
-        success: false,
-        message: 'Erro ao buscar agente de características'
-      }, { status: 500 });
-    }
+    // 5. Configurar agente de características (hardcoded)
+    console.log('🤖 Configurando agente de características...');
+    const agent = {
+      name: 'Agente Características',
+      system_prompt: 'Você é um especialista em análise de produtos para e-commerce com expertise em moda, design e características visuais.',
+      model: 'gpt-4o-mini',
+      max_tokens: 3000,
+      temperature: 0.1
+    };
+    
+    console.log(`🤖 Usando agente: ${agent.name} (Modelo: ${agent.model})`);
 
     // 6. Verificar se OpenAI API Key está configurada
     const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -333,13 +312,13 @@ IMPORTANTE:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o', // Modelo mais avançado para melhor precisão
+        model: agent.model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 3000, // Mais tokens para respostas detalhadas
-        temperature: 0.1, // Temperatura mais baixa para respostas mais consistentes
+        max_tokens: agent.max_tokens,
+        temperature: agent.temperature,
         response_format: { type: 'json_object' },
         top_p: 0.9, // Parâmetro para melhor qualidade
         frequency_penalty: 0.1, // Reduz repetições
@@ -493,7 +472,7 @@ IMPORTANTE:
         filteredResponses: respostas.length - respostasValidas.length,
         tokensUsed: responseData.usage?.total_tokens || 0,
         responseTime: responseTime,
-        model: 'gpt-4o',
+        model: agent.model,
         qualityFilter: 'Aplicado - apenas respostas válidas e específicas foram salvas'
       }
     });

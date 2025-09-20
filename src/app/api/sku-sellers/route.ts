@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (skuId) {
-      query += ` AND m.seller_sku = (SELECT ref_id FROM products_vtex WHERE id = ?)`;
+      query += ` AND m.seller_sku = (SELECT ref_produto FROM products_vtex WHERE id_produto_vtex = ?)`;
       params.push(skuId);
     }
 

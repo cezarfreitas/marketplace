@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('🔄 Iniciando sincronização com Anymarket para produto ID:', productId);
+    console.log('🔍 Buscando dados do produto no Anymarket para produto ID:', productId);
 
     // 1. Buscar dados do produto
     const productQuery = `
@@ -73,10 +73,10 @@ export async function POST(request: NextRequest) {
         c.name as category_name,
         a.id_produto_any as anymarket_id
       FROM products_vtex p
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
-      LEFT JOIN anymarket a ON p.ref_id = a.ref_vtex
-      WHERE p.id = ?
+      LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+      LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+      LEFT JOIN anymarket a ON p.ref_produto = a.ref_produto_vtex
+      WHERE p.id_produto_vtex = ?
     `;
 
     const products = await executeQuery(productQuery, [productId]);
@@ -151,6 +151,15 @@ export async function POST(request: NextRequest) {
 
     // 5. Preparar dados para envio ao Anymarket
     const characteristics = [];
+    let modelValue = null;
+    let genderValue = null;
+    let warrantyTimeValue = null;
+    let warrantyTextValue = null;
+    let heightValue = null;
+    let widthValue = null;
+    let weightValue = null;
+    let lengthValue = null;
+    let videoUrlValue = null;
     
     // Adicionar características da tabela respostas_caracteristicas
     characteristicsData.forEach(char => {
@@ -159,6 +168,70 @@ export async function POST(request: NextRequest) {
           name: char.caracteristica,
           value: char.resposta
         });
+        
+        // Extrair valores específicos para model e gender
+        if (char.caracteristica.toLowerCase().includes('modelo')) {
+          modelValue = char.resposta;
+        }
+        if (char.caracteristica.toLowerCase().includes('gênero') || char.caracteristica.toLowerCase().includes('genero')) {
+          // Mapear gênero para o formato do Anymarket
+          const genderLower = char.resposta.toLowerCase();
+          if (genderLower.includes('masculino') || genderLower.includes('male')) {
+            genderValue = 'MALE';
+          } else if (genderLower.includes('feminino') || genderLower.includes('female')) {
+            genderValue = 'FEMALE';
+          } else if (genderLower.includes('unissex') || genderLower.includes('unisex')) {
+            genderValue = 'UNISEX';
+          } else {
+            genderValue = 'UNISEX'; // Default
+          }
+        }
+        
+        // Extrair valores específicos para garantia
+        if (char.caracteristica.toLowerCase().includes('tempo de garantia') || char.caracteristica.toLowerCase().includes('warranty time')) {
+          // Tentar extrair número da resposta (ex: "12 meses", "1 ano", "24")
+          const timeMatch = char.resposta.match(/(\d+)/);
+          if (timeMatch) {
+            warrantyTimeValue = parseInt(timeMatch[1]);
+          }
+        }
+        if (char.caracteristica.toLowerCase().includes('garantia') || char.caracteristica.toLowerCase().includes('warranty')) {
+          warrantyTextValue = char.resposta;
+        }
+        
+        // Extrair valores específicos para dimensões e peso
+        if (char.caracteristica.toLowerCase().includes('altura') || char.caracteristica.toLowerCase().includes('height')) {
+          const heightMatch = char.resposta.match(/(\d+(?:\.\d+)?)/);
+          if (heightMatch) {
+            heightValue = parseFloat(heightMatch[1]);
+          }
+        }
+        if (char.caracteristica.toLowerCase().includes('largura') || char.caracteristica.toLowerCase().includes('width')) {
+          const widthMatch = char.resposta.match(/(\d+(?:\.\d+)?)/);
+          if (widthMatch) {
+            widthValue = parseFloat(widthMatch[1]);
+          }
+        }
+        if (char.caracteristica.toLowerCase().includes('peso') || char.caracteristica.toLowerCase().includes('weight')) {
+          const weightMatch = char.resposta.match(/(\d+(?:\.\d+)?)/);
+          if (weightMatch) {
+            weightValue = parseFloat(weightMatch[1]);
+          }
+        }
+        if (char.caracteristica.toLowerCase().includes('comprimento') || char.caracteristica.toLowerCase().includes('length')) {
+          const lengthMatch = char.resposta.match(/(\d+(?:\.\d+)?)/);
+          if (lengthMatch) {
+            lengthValue = parseFloat(lengthMatch[1]);
+          }
+        }
+        
+        // Extrair URL do vídeo
+        if (char.caracteristica.toLowerCase().includes('vídeo') || char.caracteristica.toLowerCase().includes('video') || char.caracteristica.toLowerCase().includes('url')) {
+          // Verificar se é uma URL válida
+          if (char.resposta.includes('http') || char.resposta.includes('www.')) {
+            videoUrlValue = char.resposta;
+          }
+        }
       }
     });
     
@@ -177,38 +250,38 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const anymarketPayload = {
-      title: title,
-      description: description,
-      characteristics: characteristics
-    };
-
-    console.log('📤 Enviando dados para Anymarket:', {
+    console.log('📋 Dados preparados para consulta:', {
       anymarket_id: product.anymarket_id,
       title: title?.substring(0, 50) + '...',
       description_length: description?.length || 0,
       characteristics_count: characteristics.length,
-      characteristics: characteristics.map(c => `${c.name}: ${c.value}`)
+      characteristics: characteristics.map(c => `${c.name}: ${c.value}`),
+      model: modelValue || 'não informado',
+      gender: genderValue || 'não informado',
+      warrantyTime: warrantyTimeValue || 'não informado',
+      warrantyText: warrantyTextValue || 'não informado',
+      height: heightValue || 'não informado',
+      width: widthValue || 'não informado',
+      weight: weightValue || 'não informado',
+      length: lengthValue || 'não informado',
+      videoUrl: videoUrlValue || 'não informado'
     });
 
-    // 6. Fazer PATCH para o Anymarket
-    console.log('🌐 Fazendo requisição para Anymarket API...');
+    // 6. Fazer GET para o Anymarket (apenas consultar dados)
+    console.log('🌐 Fazendo requisição GET para Anymarket API...');
     console.log('🔗 URL:', `https://api.anymarket.com.br/v2/products/${product.anymarket_id}`);
-    console.log('📋 Payload:', JSON.stringify(anymarketPayload, null, 2));
     
     let anymarketResponse;
     try {
       anymarketResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}`, {
-        method: 'PATCH',
+        method: 'GET',
         headers: {
-          'gumgaToken': 'MjU5MDYwMTI2Lg==.xk0BLaBr6Xp5ErWLBXq/Fp7MebhAY9G8/cduGnJECoETHLw1AvWwEFcX5z68M0HtWzBJazQWW5eNBL+eMUnHjw==',
-          'Content-Type': 'application/merge-patch+json',
+          'gumgaToken': process.env.ANYMARKET || '',
+          'Content-Type': 'application/json',
           'User-Agent': 'Meli-Integration/1.0',
           'Accept': 'application/json'
         },
-        body: JSON.stringify(anymarketPayload),
-        cache: 'no-store',
-        next: { revalidate: 0 }
+        cache: 'no-store'
       });
       
       console.log('📡 Resposta recebida da API Anymarket:', {
@@ -219,9 +292,6 @@ export async function POST(request: NextRequest) {
       
     } catch (fetchError: any) {
       console.error('❌ Erro de conexão com Anymarket:', fetchError);
-      
-      // Salvar log de erro de conexão
-      await saveSyncLog(productId, product.anymarket_id, title, description, false, null, `Erro de conexão: ${fetchError.message}`);
       
       return NextResponse.json({
         success: false,
@@ -239,44 +309,27 @@ export async function POST(request: NextRequest) {
     if (!anymarketResponse.ok) {
       console.error('❌ Erro na API do Anymarket:', anymarketResult);
       
-      // Salvar log de erro
-      await saveSyncLog(productId, product.anymarket_id, title, description, false, anymarketResult, anymarketResult.message || 'Erro desconhecido');
-      
       return NextResponse.json({
         success: false,
-        message: 'Erro ao sincronizar com Anymarket: ' + (anymarketResult.message || 'Erro desconhecido'),
+        message: 'Erro ao buscar produto no Anymarket: ' + (anymarketResult.message || 'Erro desconhecido'),
         error: anymarketResult
       }, { status: anymarketResponse.status });
     }
 
-    console.log('✅ Sincronização com Anymarket realizada com sucesso!');
-
-    // 7. Atualizar data_sincronizacao na tabela anymarket
-    try {
-      await executeQuery(`
-        UPDATE anymarket 
-        SET data_sincronizacao = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-        WHERE ref_vtex = ?
-      `, [product.ref_id]);
-      console.log('📅 Data de sincronização atualizada na tabela anymarket');
-    } catch (updateError) {
-      console.error('⚠️ Erro ao atualizar data_sincronizacao (não crítico):', updateError);
-    }
-
-    // 8. Salvar log da sincronização
-    await saveSyncLog(productId, product.anymarket_id, title, description, true, anymarketResult);
+    console.log('✅ Dados do produto obtidos com sucesso do Anymarket!');
 
     return NextResponse.json({
       success: true,
-      message: 'Produto sincronizado com sucesso no Anymarket',
+      message: 'Dados do produto obtidos com sucesso do Anymarket',
       data: {
         product_id: productId,
         anymarket_id: product.anymarket_id,
+        product_name: product.name,
         title: title,
-        description_length: description?.length || 0,
-        characteristics_count: characteristics.length,
+        description: description,
         characteristics: characteristics,
-        sync_timestamp: new Date().toISOString()
+        anymarket_data: anymarketResult,
+        timestamp: new Date().toISOString()
       }
     });
 

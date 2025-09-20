@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database';
+import { createVtexClient } from '@/lib/vtex-api';
 
 export async function GET(
   request: NextRequest,
@@ -21,13 +22,11 @@ export async function GET(
       SELECT 
         p.*,
         b.name as brand_name,
-        c.name as category_name,
-        d.name as department_name
+        c.name as category_name
       FROM products_vtex p
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN departments d ON p.department_id = d.id
-      WHERE p.id = ?
+      LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+      LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+      WHERE p.id_produto_vtex = ?
     `;
 
     const products = await executeQuery(productQuery, [productId]);
@@ -45,11 +44,11 @@ export async function GET(
     // 2. Buscar SKUs (se a tabela existir)
     let skus = [];
     try {
-      const checkSkusTable = `SHOW TABLES LIKE 'skus'`;
+      const checkSkusTable = `SHOW TABLES LIKE 'skus_vtex'`;
       const skusTableExists = await executeQuery(checkSkusTable, []);
       
       if (skusTableExists.length > 0) {
-        const skusQuery = `SELECT * FROM skus_vtex WHERE product_id = ?`;
+        const skusQuery = `SELECT * FROM skus_vtex WHERE id_produto_vtex = ?`;
         skus = await executeQuery(skusQuery, [productId]);
         console.log('📦 SKUs encontrados:', skus.length);
       }
@@ -60,20 +59,34 @@ export async function GET(
     // 3. Buscar imagens (se as tabelas existirem)
     let images = [];
     try {
-      const checkImagesTable = `SHOW TABLES LIKE 'images'`;
+      const checkImagesTable = `SHOW TABLES LIKE 'images_vtex'`;
       const imagesTableExists = await executeQuery(checkImagesTable, []);
       
+      console.log('🔍 Verificando tabela images_vtex:', imagesTableExists.length > 0);
+      
       if (imagesTableExists.length > 0) {
-        const imagesQuery = `
-          SELECT 
-            i.*,
-            CONCAT('https://projetoinfluencer.', i.file_location) as file_url
-          FROM images_vtex i
-          JOIN skus_vtex s ON i.sku_id = s.id
-          WHERE s.product_id = ?
-        `;
-        images = await executeQuery(imagesQuery, [productId]);
-        console.log('🖼️ Imagens encontradas:', images.length);
+        // Primeiro, verificar se há SKUs para este produto
+        const checkSkusQuery = `SELECT id_sku_vtex FROM skus_vtex WHERE id_produto_vtex = ?`;
+        const skus = await executeQuery(checkSkusQuery, [productId]);
+        console.log('📦 SKUs encontrados para imagens:', skus.length);
+        
+        if (skus.length > 0) {
+          const imagesQuery = `
+            SELECT 
+              i.*,
+              i.file_location as file_url
+            FROM images_vtex i
+            JOIN skus_vtex s ON i.id_sku_vtex = s.id_sku_vtex
+            WHERE s.id_produto_vtex = ?
+          `;
+          images = await executeQuery(imagesQuery, [productId]);
+          console.log('🖼️ Imagens encontradas:', images.length);
+          console.log('🖼️ Dados das imagens:', images);
+        } else {
+          console.log('⚠️ Nenhum SKU encontrado para o produto, não é possível buscar imagens');
+        }
+      } else {
+        console.log('⚠️ Tabela images_vtex não existe');
       }
     } catch (error) {
       console.log('⚠️ Erro ao buscar imagens:', error);

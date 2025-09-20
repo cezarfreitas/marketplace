@@ -114,10 +114,10 @@ export class CategoryImportModule {
 
       // PASSO 2: Verificar se a categoria já existe na nossa base de dados
       // Tabela: categories_vtex
-      // Campo de busca: vtex_id (que corresponde ao Id da VTEX)
+      // Campo de busca: id_category_vtex (que corresponde ao Id da VTEX)
       console.log(`🔍 Verificando se categoria já existe na tabela categories_vtex...`);
       const existingCategory = await executeQuery(`
-        SELECT vtex_id FROM categories_vtex WHERE vtex_id = ?
+        SELECT id_category_vtex FROM categories_vtex WHERE id_category_vtex = ?
       `, [category.Id]);
 
       let categoryDbId: number;
@@ -125,7 +125,7 @@ export class CategoryImportModule {
       if (existingCategory && existingCategory.length > 0) {
         // PASSO 3A: Categoria já existe - ATUALIZAR dados
         console.log(`📝 Categoria já existe, atualizando dados...`);
-        categoryDbId = existingCategory[0].vtex_id;
+        categoryDbId = existingCategory[0].id_category_vtex;
         
         await executeQuery(`
           UPDATE categories_vtex SET
@@ -135,18 +135,11 @@ export class CategoryImportModule {
             description = ?,             -- Descrição da categoria
             keywords = ?,                -- Palavras-chave
             is_active = ?,               -- Se está ativa
-            lomadee_campaign_code = ?,   -- Código da campanha Lomadee
-            adwords_remarketing_code = ?, -- Código do remarketing AdWords
             show_in_store_front = ?,     -- Mostrar na vitrine
-            show_brand_filter = ?,       -- Mostrar filtro de marca
-            active_store_front_link = ?, -- Link ativo na vitrine
-            global_category_id = ?,      -- ID da categoria global
-            stock_keeping_unit_selection_mode = ?, -- Modo de seleção de SKU
-            score = ?,                   -- Pontuação
-            link_id = ?,                 -- Link ID
             has_children = ?,            -- Tem filhos
+            contexto = NULL,             -- Campo contexto (não disponível na API VTEX)
             updated_at = NOW()           -- Data de atualização
-          WHERE vtex_id = ?
+          WHERE id_category_vtex = ?
         `, [
           category.Name,
           category.FatherCategoryId,
@@ -154,15 +147,7 @@ export class CategoryImportModule {
           category.Description,
           category.Keywords,
           category.IsActive,
-          category.LomadeeCampaignCode,
-          category.AdWordsRemarketingCode,
           category.ShowInStoreFront,
-          category.ShowBrandFilter,
-          category.ActiveStoreFrontLink,
-          category.GlobalCategoryId,
-          category.StockKeepingUnitSelectionMode,
-          category.Score,
-          category.LinkId,
           category.HasChildren,
           category.Id
         ]);
@@ -173,26 +158,19 @@ export class CategoryImportModule {
         
         const insertResult = await executeQuery(`
           INSERT INTO categories_vtex (
-            vtex_id,                     -- ID da VTEX (único)
+            id_category_vtex,            -- ID da VTEX (único)
             name,                        -- Nome da categoria
             father_category_id,          -- ID da categoria pai
             title,                       -- Título da categoria
             description,                 -- Descrição da categoria
             keywords,                    -- Palavras-chave
             is_active,                   -- Se está ativa
-            lomadee_campaign_code,       -- Código da campanha Lomadee
-            adwords_remarketing_code,    -- Código do remarketing AdWords
             show_in_store_front,         -- Mostrar na vitrine
-            show_brand_filter,           -- Mostrar filtro de marca
-            active_store_front_link,     -- Link ativo na vitrine
-            global_category_id,          -- ID da categoria global
-            stock_keeping_unit_selection_mode, -- Modo de seleção de SKU
-            score,                       -- Pontuação
-            link_id,                     -- Link ID
             has_children,                -- Tem filhos
+            contexto,                    -- Campo contexto (não disponível na API VTEX)
             created_at,                  -- Data de criação
             updated_at                   -- Data de atualização
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         `, [
           category.Id,                   // ID da VTEX
           category.Name,                 // Nome
@@ -201,16 +179,9 @@ export class CategoryImportModule {
           category.Description,          // Descrição
           category.Keywords,             // Palavras-chave
           category.IsActive,             // Ativa
-          category.LomadeeCampaignCode,  // Código da campanha Lomadee
-          category.AdWordsRemarketingCode, // Código do remarketing AdWords
           category.ShowInStoreFront,     // Mostrar na vitrine
-          category.ShowBrandFilter,      // Mostrar filtro de marca
-          category.ActiveStoreFrontLink, // Link ativo na vitrine
-          category.GlobalCategoryId,     // ID da categoria global
-          category.StockKeepingUnitSelectionMode, // Modo de seleção de SKU
-          category.Score,                // Pontuação
-          category.LinkId,               // Link ID
           category.HasChildren,          // Tem filhos
+          null                           // Contexto (não disponível na API VTEX)
         ]);
         categoryDbId = (insertResult as any).insertId!;
         console.log(`✅ Categoria inserida com sucesso: ${category.Name} (ID: ${categoryDbId})`);
@@ -241,7 +212,7 @@ export class CategoryImportModule {
   async checkCategoryExists(categoryId: number): Promise<boolean> {
     try {
       const result = await executeQuery(`
-        SELECT vtex_id FROM categories_vtex WHERE vtex_id = ?
+        SELECT id_category_vtex FROM categories_vtex WHERE id_category_vtex = ?
       `, [categoryId]);
       
       return result && result.length > 0;
@@ -257,32 +228,24 @@ export class CategoryImportModule {
   async getCategoryById(categoryId: number): Promise<VTEXCategory | null> {
     try {
       const result = await executeQuery(`
-        SELECT vtex_id, name, father_category_id, title, description, keywords, 
-               is_active, show_in_store_front, show_brand_filter, active_store_front_link,
-               global_category_id, stock_keeping_unit_selection_mode, score, link_id,
-               has_children
-        FROM categories_vtex WHERE vtex_id = ?
+        SELECT id_category_vtex, name, father_category_id, title, description, keywords, 
+               is_active, show_in_store_front, has_children
+        FROM categories_vtex WHERE id_category_vtex = ?
       `, [categoryId]);
       
       if (result && result.length > 0) {
         const category = result[0];
         return {
-          Id: category.vtex_id,
+          Id: category.id_category_vtex,
           Name: category.name,
           FatherCategoryId: category.father_category_id,
           Title: category.title,
           Description: category.description,
           Keywords: category.keywords,
           IsActive: category.is_active,
-          LomadeeCampaignCode: category.lomadee_campaign_code,
-          AdWordsRemarketingCode: category.adwords_remarketing_code,
           ShowInStoreFront: category.show_in_store_front,
-          ShowBrandFilter: category.show_brand_filter,
-          ActiveStoreFrontLink: category.active_store_front_link,
-          GlobalCategoryId: category.global_category_id,
-          StockKeepingUnitSelectionMode: category.stock_keeping_unit_selection_mode,
-          Score: category.score,
-          LinkId: category.link_id,
+          ShowBrandFilter: true, // Valor padrão
+          ActiveStoreFrontLink: true, // Valor padrão
           HasChildren: category.has_children
         };
       }

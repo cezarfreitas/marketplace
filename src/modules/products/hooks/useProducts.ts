@@ -18,7 +18,6 @@ export function useProducts(options: UseProductsOptions = {}) {
       brand_id: [] as string[],
       category_id: [] as string[],
       has_image_analysis: undefined,
-      has_marketplace_description: undefined,
       has_anymarket_ref_id: undefined,
       has_anymarket_sync_log: undefined,
       is_active: '',
@@ -47,11 +46,11 @@ export function useProducts(options: UseProductsOptions = {}) {
   // Função para buscar mapeamentos do Anymarket
   const fetchAnymarketMappings = useCallback(async (products: Product[]) => {
     try {
-      const refIds = products
-        .map(p => p.ref_id)
-        .filter(refId => refId && refId.trim() !== '');
+      const refProdutos = products
+        .map(p => p.ref_produto)
+        .filter(refProduto => refProduto && refProduto.trim() !== '');
       
-      if (refIds.length === 0) {
+      if (refProdutos.length === 0) {
         setAnymarketMappings({});
         return;
       }
@@ -61,7 +60,7 @@ export function useProducts(options: UseProductsOptions = {}) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refIds }),
+        body: JSON.stringify({ refIds: refProdutos }), // Usando ref_produto como refIds
       });
 
       const data = await response.json();
@@ -172,6 +171,7 @@ export function useProducts(options: UseProductsOptions = {}) {
   return {
     // Estados
     products,
+    setProducts,
     loading,
     error,
     currentPage,

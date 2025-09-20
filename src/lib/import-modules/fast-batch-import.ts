@@ -5,6 +5,7 @@ import { SKUImportModule } from './sku-import';
 import { ImageImportModule } from './image-import';
 import { StockImportModule } from './stock-import';
 import { ProductAttributesImportModule } from './product-attributes-import';
+import { ProductAttributesVtexImportModule } from './product-attributes-vtex-import';
 import { executeQuery } from '../database';
 
 /**
@@ -23,6 +24,7 @@ export interface FastBatchImportResult {
     imageResult?: any;
     stockResult?: any;
     attributesResult?: any;
+    attributesVtexResult?: any;
     totalTime: number;
     errors: string[];
   };
@@ -36,6 +38,7 @@ export interface FastBatchImportConfig {
   importImages?: boolean;
   importStock?: boolean;
   importAttributes?: boolean;
+  importAttributesVtex?: boolean;
 }
 
 /**
@@ -59,6 +62,7 @@ export class FastBatchImportModule {
   private imageImporter: ImageImportModule;
   private stockImporter: StockImportModule;
   private attributesImporter: ProductAttributesImportModule;
+  private attributesVtexImporter: ProductAttributesVtexImportModule;
   
   // Cache para evitar importações duplicadas
   private brandCache = new Map<number, any>();
@@ -72,6 +76,7 @@ export class FastBatchImportModule {
     this.imageImporter = new ImageImportModule(baseUrl, headers);
     this.stockImporter = new StockImportModule(baseUrl, headers);
     this.attributesImporter = new ProductAttributesImportModule();
+    this.attributesVtexImporter = new ProductAttributesVtexImportModule(baseUrl, headers);
   }
 
   /**
@@ -79,14 +84,35 @@ export class FastBatchImportModule {
    */
   async importMultipleProductsFast(
     refIds: string[], 
-    config: FastBatchImportConfig
+    config: FastBatchImportConfig,
+    onProgress?: (current: number, total: number, currentItem?: string) => void
   ): Promise<FastBatchImportResult[]> {
     const startTime = Date.now();
+    
+    // Primeiro, contar total de SKUs para todos os produtos
+    let totalSkus = 0;
+    console.log('🔍 Contando SKUs totais...');
+    
+    for (const refId of refIds) {
+      try {
+        const productResult = await this.productImporter.importProductByRefId(refId);
+        if (productResult.success && productResult.data?.product?.Id) {
+          const skuResult = await this.skuImporter.importSkusByProductId(productResult.data.product.Id);
+          if (skuResult.success && skuResult.data?.skus) {
+            totalSkus += skuResult.data.skus.length;
+          }
+        }
+      } catch (error) {
+        console.log(`⚠️ Erro ao contar SKUs para ${refId}:`, error);
+      }
+    }
+    
+    console.log(`📊 Total de SKUs encontrados: ${totalSkus}`);
     console.log(`🚀 INICIANDO IMPORTAÇÃO RÁPIDA PARA ${refIds.length} PRODUTOS`);
     console.log('============================================================\n');
 
     // Dividir em lotes para processamento otimizado
-    const batchSize = Math.min(config.batchSize || 10, 10); // Ajustado para 10
+    const batchSize = Math.min(config.batchSize || 20, 20); // Aumentado para 20
     const batches = [];
     for (let i = 0; i < refIds.length; i += batchSize) {
       batches.push(refIds.slice(i, i + batchSize));
@@ -99,22 +125,41 @@ export class FastBatchImportModule {
       const batch = batches[batchIndex];
       console.log(`\n📦 Processando lote ${batchIndex + 1}/${batches.length} (${batch.length} produtos)`);
       
-      // Processar produtos do lote sequencialmente para evitar sobrecarga
+      // Processar produtos do lote em paralelo para máxima velocidade
       const batchResults: FastBatchImportResult[] = [];
-      for (const refId of batch) {
-        try {
-          const result = await this.importProductByRefIdFast(refId, config);
-          batchResults.push(result);
+      
+      // Processar até 5 produtos em paralelo por vez
+      const parallelLimit = Math.min(5, batch.length);
+      
+      for (let i = 0; i < batch.length; i += parallelLimit) {
+        const parallelBatch = batch.slice(i, i + parallelLimit);
+        
+        const parallelPromises = parallelBatch.map(async (refId, parallelIndex) => {
+          const currentIndex = batchIndex * batchSize + i + parallelIndex;
           
-          // Pequena pausa entre produtos para evitar sobrecarga
-          await new Promise(resolve => setTimeout(resolve, 50));
-        } catch (error: any) {
-          console.error(`❌ Erro ao processar ${refId}:`, error.message);
-          batchResults.push({
-            refId,
-            success: false,
-            message: error.message
-          });
+          try {
+            const result = await this.importProductByRefIdFast(refId, config, onProgress, currentIndex, refIds.length);
+            return result;
+          } catch (error: any) {
+            console.error(`❌ Erro ao processar ${refId}:`, error.message);
+            
+            // Não atualizar progresso em caso de erro - apenas SKUs mostram progresso
+            
+            return {
+              refId,
+              success: false,
+              message: error.message
+            };
+          }
+        });
+        
+        // Aguardar processamento paralelo
+        const parallelResults = await Promise.all(parallelPromises);
+        batchResults.push(...parallelResults);
+        
+        // Pausa mínima entre lotes paralelos para evitar sobrecarga
+        if (i + parallelLimit < batch.length) {
+          await new Promise(resolve => setTimeout(resolve, 5));
         }
       }
       
@@ -123,7 +168,7 @@ export class FastBatchImportModule {
       
       // Pausa entre lotes para evitar sobrecarga do banco
       if (batchIndex < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
 
@@ -145,13 +190,17 @@ export class FastBatchImportModule {
    */
   async importProductByRefIdFast(
     refId: string, 
-    config: FastBatchImportConfig
+    config: FastBatchImportConfig,
+    onProgress?: (current: number, total: number, currentItem?: string) => void,
+    currentIndex?: number,
+    totalItems?: number
   ): Promise<FastBatchImportResult> {
     const startTime = Date.now();
     const errors: string[] = [];
 
     try {
       console.log(`📦 Importando produto: ${refId}`);
+
 
       // PASSO 1: Importar produto
       let productResult = null;
@@ -250,7 +299,7 @@ export class FastBatchImportModule {
         }
       }
 
-      // PASSO 5: Importar imagens e estoque para cada SKU (em paralelo)
+      // PASSO 5: Importar imagens e estoque para cada SKU (otimizado)
       let imageResult = null;
       let stockResult = null;
       
@@ -258,93 +307,98 @@ export class FastBatchImportModule {
         const skus = skuResult?.data?.skus || [];
         
         if (skus.length > 0) {
-          // Processar SKUs sequencialmente para imagens (só importar do primeiro que tiver)
-          let imagesFound = false;
-          let skuWithImages: any = null;
+          // Importar imagens apenas do primeiro SKU que tenha imagens disponíveis
+          let imagesImported = false;
+          let firstSkuWithImages: any = null;
+          let totalImportedImages = 0;
+          let totalUpdatedImages = 0;
           
-          for (let i = 0; i < skus.length; i++) {
-            const sku = skus[i];
-            const skuResults: any = {};
-            
-            // Importar imagens do SKU - Nova lógica: só importar do primeiro que tiver imagens
-            if (config.importImages && !imagesFound) {
-              console.log(`  🖼️ Verificando imagens do SKU ${sku.Id}...`);
+          if (config.importImages) {
+            // Tentar importar imagens do primeiro SKU que tenha imagens
+            for (let i = 0; i < skus.length && !imagesImported; i++) {
+              const sku = skus[i];
               try {
                 const imgResult = await this.imageImporter.importImagesBySkuId(sku.Id);
-                
-                if (imgResult.success) {
-                  const importedCount = imgResult.data?.importedCount || 0;
-                  const updatedCount = imgResult.data?.updatedCount || 0;
-                  
-                  if (importedCount > 0 || updatedCount > 0) {
-                    // Conseguiu importar imagens - parar aqui
-                    skuResults.images = imgResult;
-                    imagesFound = true;
-                    skuWithImages = sku;
-                    console.log(`  ✅ Imagens encontradas no SKU ${sku.Id}! ${importedCount} importadas, ${updatedCount} atualizadas`);
-                    console.log(`  🛑 Parando busca de imagens - usando apenas este SKU`);
-                  } else {
-                    // SKU não tem imagens, tentar próximo
-                    console.log(`  ❌ SKU ${sku.Id} não possui imagens, tentando próximo...`);
-                  }
-                } else {
-                  console.log(`  ❌ Erro ao verificar imagens do SKU ${sku.Id}: ${imgResult.message}`);
+                if (imgResult.success && imgResult.data && (imgResult.data.importedCount > 0 || imgResult.data.updatedCount > 0)) {
+                  imagesImported = true;
+                  firstSkuWithImages = sku;
+                  totalImportedImages = imgResult.data.importedCount;
+                  totalUpdatedImages = imgResult.data.updatedCount;
+                  console.log(`✅ Imagens importadas do SKU ${sku.Id} (${sku.Name}) - ${totalImportedImages + totalUpdatedImages} imagens`);
+                  break;
                 }
-              } catch (error: any) {
-                const errorMsg = `Erro ao verificar imagens do SKU ${sku.Id}: ${error.message}`;
-                console.error(`  ❌ ${errorMsg}`);
-              }
-            } else if (config.importImages && imagesFound) {
-              console.log(`  ⏭️ SKU ${sku.Id} pulado - imagens já importadas do SKU ${skuWithImages?.Id}`);
-            }
-            
-            // Importar estoque do SKU
-            if (config.importStock) {
-              try {
-                console.log(`  📦 Importando estoque do SKU ${sku.Id}...`);
-                const stockRes = await this.stockImporter.importStockBySkuId(sku.Id);
-                skuResults.stock = stockRes;
-                
-                if (stockRes.success) {
-                  console.log(`  ✅ Estoque: ${stockRes.data?.importedCount} importados, ${stockRes.data?.updatedCount} atualizados`);
-                } else {
-                  console.log(`  ❌ Erro ao importar estoque: ${stockRes.message}`);
-                  errors.push(`Estoque SKU ${sku.Id}: ${stockRes.message}`);
-                }
-              } catch (error: any) {
-                const errorMsg = `Erro ao importar estoque do SKU ${sku.Id}: ${error.message}`;
-                console.error(`  ❌ ${errorMsg}`);
-                errors.push(errorMsg);
+              } catch (error) {
+                // Continuar para o próximo SKU se houver erro
+                continue;
               }
             }
             
-            // Armazenar resultados
-            if (config.importImages && skuResults.images) {
-              imageResult = skuResults.images;
-            }
-            if (config.importStock && skuResults.stock) {
-              stockResult = skuResults.stock;
+            if (!imagesImported) {
+              console.log(`⚠️ Nenhuma imagem encontrada para nenhum SKU do produto ${refId}`);
             }
           }
+
+          // Processar SKUs em paralelo para máxima velocidade (apenas estoque)
+          const skuPromises = skus.map(async (sku: any, i: number) => {
+            // Atualizar progresso durante processamento de SKUs
+            if (onProgress && currentIndex !== undefined && totalItems) {
+              const progressMessage = `Processando SKU ${i + 1}/${skus.length} do produto ${refId}`;
+              onProgress(currentIndex + (i / skus.length), totalItems, progressMessage);
+            }
+            
+            const skuResults: any = {};
+            
+            // Processar apenas estoque para cada SKU (imagens já foram processadas acima)
+            const stockResult = await Promise.resolve(
+              config.importStock ? this.stockImporter.importStockBySkuId(sku.Id) : Promise.resolve({ success: false })
+            );
+            
+            // Processar resultado do estoque
+            if (config.importStock && stockResult.success && 'data' in stockResult) {
+              const stockData = stockResult.data as { importedCount?: number; updatedCount?: number };
+              skuResults.stockImported = stockData?.importedCount || 0;
+              skuResults.stockUpdated = stockData?.updatedCount || 0;
+            }
+            
+            return { sku, results: skuResults };
+          });
           
-          // Consolidar resultados de imagens
-          if (config.importImages && imageResult) {
-            console.log(`✅ Imagens processadas: ${imageResult.data?.importedCount || 0} importadas, ${imageResult.data?.updatedCount || 0} atualizadas`);
-          }
+          // Aguardar processamento paralelo de todos os SKUs
+          const skuResults = await Promise.all(skuPromises);
           
-          // Consolidar resultados de estoque
-          if (config.importStock && stockResult) {
-            console.log(`✅ Estoque processado: ${stockResult.data?.importedCount || 0} importados, ${stockResult.data?.updatedCount || 0} atualizados`);
-          }
+          // Consolidar resultados
+          let totalImportedStock = 0;
+          let totalUpdatedStock = 0;
+          
+          skuResults.forEach(({ results }) => {
+            totalImportedStock += results.stockImported || 0;
+            totalUpdatedStock += results.stockUpdated || 0;
+          });
+          
+          imageResult = {
+            success: true,
+            data: {
+              importedCount: totalImportedImages,
+              updatedCount: totalUpdatedImages
+            }
+          };
+          
+          stockResult = {
+            success: true,
+            data: {
+              importedCount: totalImportedStock,
+              updatedCount: totalUpdatedStock
+            }
+          };
         }
       }
 
-      // PASSO 6: Importar atributos do produto
+      // PASSO 6: Importar atributos do produto (módulo antigo - desabilitado)
       let attributesResult = null;
-      if (config.importAttributes && product?.Id) {
+      if (false && config.importAttributes && product?.Id) {
         try {
-          console.log(`📋 Importando atributos do produto ${product.Id}...`);
-          attributesResult = await this.attributesImporter.importProductAttributes(product.Id);
+          console.log(`📋 Importando atributos do produto ${product!.Id}...`);
+          attributesResult = await this.attributesImporter.importProductAttributes(product!.Id);
           
           if (attributesResult.success) {
             console.log(`✅ Atributos: ${attributesResult.attributesImported} importados`);
@@ -353,7 +407,29 @@ export class FastBatchImportModule {
             errors.push(`Atributos: ${attributesResult.message}`);
           }
         } catch (error: any) {
-          const errorMsg = `Erro ao importar atributos do produto ${product.Id}: ${error.message}`;
+          const errorMsg = `Erro ao importar atributos do produto ${product!.Id}: ${error.message}`;
+          console.error(`❌ ${errorMsg}`);
+          errors.push(errorMsg);
+        }
+      }
+
+      // PASSO 6B: Importar atributos VTEX do produto
+      let attributesVtexResult = null;
+      if (config.importAttributesVtex && product?.Id) {
+        try {
+          console.log(`📋 Importando atributos VTEX do produto ${product.Id}...`);
+          attributesVtexResult = await this.attributesVtexImporter.importAttributesByProductId(product.Id);
+          
+          if (attributesVtexResult.success) {
+            const importedCount = attributesVtexResult.data?.importedCount || 0;
+            const updatedCount = attributesVtexResult.data?.updatedCount || 0;
+            console.log(`✅ Atributos VTEX: ${importedCount} importados, ${updatedCount} atualizados`);
+          } else {
+            console.log(`❌ Erro ao importar atributos VTEX: ${attributesVtexResult.message}`);
+            errors.push(`Atributos VTEX: ${attributesVtexResult.message}`);
+          }
+        } catch (error: any) {
+          const errorMsg = `Erro ao importar atributos VTEX do produto ${product.Id}: ${error.message}`;
           console.error(`❌ ${errorMsg}`);
           errors.push(errorMsg);
         }
@@ -377,6 +453,7 @@ export class FastBatchImportModule {
           imageResult,
           stockResult,
           attributesResult,
+          attributesVtexResult,
           totalTime,
           errors
         }
@@ -404,12 +481,12 @@ export class FastBatchImportModule {
     try {
       const placeholders = refIds.map(() => '?').join(',');
       const query = `
-        SELECT ref_id FROM products_vtex 
-        WHERE ref_id IN (${placeholders})
+        SELECT ref_produto FROM products_vtex 
+        WHERE ref_produto IN (${placeholders})
       `;
       
       const results = await executeQuery(query, refIds);
-      const existingRefIds = new Set(results.map((row: any) => row.ref_id));
+      const existingRefIds = new Set(results.map((row: any) => row.ref_produto));
       
       const existenceMap = new Map<string, boolean>();
       refIds.forEach(refId => {

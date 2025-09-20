@@ -21,13 +21,11 @@ export async function GET(
       SELECT 
         p.*,
         b.name as brand_name,
-        c.name as category_name,
-        d.name as department_name
+        c.name as category_name
       FROM products_vtex p
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN departments d ON p.department_id = d.id
-      WHERE p.id = ?
+      LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+      LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+      WHERE p.id_produto_vtex = ?
     `;
 
     const products = await executeQuery(query, [productId]);
@@ -76,7 +74,7 @@ export async function DELETE(
 
     // Verificar se o produto existe
     const existingProduct = await executeQuery(
-      'SELECT id, name FROM products_vtex WHERE id = ?',
+      'SELECT id_produto_vtex, name FROM products_vtex WHERE id_produto_vtex = ?',
       [productId]
     );
 
@@ -125,12 +123,8 @@ export async function DELETE(
         [productId]
       );
 
-      // 5. Deletar dados do Marketplace
-      console.log('🗑️ Deletando dados do Marketplace...');
-      await executeQuery(
-        'DELETE FROM marketplace WHERE product_id = ?',
-        [productId]
-      );
+      // 5. Deletar dados do Marketplace (tabela não existe)
+      console.log('🗑️ Deletando dados do Marketplace... (pulando - tabela não existe)');
 
       // 6. Deletar dados do Meli (se existir)
       console.log('🗑️ Deletando dados do Meli...');
@@ -149,7 +143,7 @@ export async function DELETE(
       // 8. Deletar dados do Anymarket
       console.log('🗑️ Deletando dados do Anymarket...');
       await executeQuery(
-        'DELETE FROM anymarket WHERE ref_vtex = (SELECT ref_id FROM products_vtex WHERE id = ?)',
+        'DELETE FROM anymarket WHERE ref_vtex = (SELECT ref_produto FROM products_vtex WHERE id_produto_vtex = ?)',
         [productId]
       );
 
@@ -227,7 +221,7 @@ export async function DELETE(
       // 16. Deletar o produto
       console.log('🗑️ Deletando produto...');
       await executeQuery(
-        'DELETE FROM products_vtex WHERE id = ?',
+        'DELETE FROM products_vtex WHERE id_produto_vtex = ?',
         [productId]
       );
 

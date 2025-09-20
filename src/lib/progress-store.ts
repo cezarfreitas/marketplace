@@ -15,6 +15,8 @@ interface ProgressData {
   currentItem?: string;
   results?: any[];
   errors?: string[];
+  totalSkus?: number;
+  completedSkus?: number;
 }
 
 class ProgressStore {
@@ -29,6 +31,8 @@ class ProgressStore {
       startTime: Date.now(),
       totalItems,
       completedItems: 0,
+      totalSkus: 0,
+      completedSkus: 0,
       results: [],
       errors: []
     });
@@ -39,7 +43,9 @@ class ProgressStore {
     status: ProgressData['status'], 
     progress: number, 
     message: string,
-    currentItem?: string
+    currentItem?: string,
+    totalItems?: number,
+    completedItems?: number
   ): void {
     const existing = this.progress.get(id);
     if (existing) {
@@ -47,6 +53,14 @@ class ProgressStore {
       existing.progress = progress;
       existing.message = message;
       existing.currentItem = currentItem;
+      
+      if (totalItems !== undefined) {
+        existing.totalItems = totalItems;
+      }
+      
+      if (completedItems !== undefined) {
+        existing.completedItems = completedItems;
+      }
       
       if (status === 'completed' || status === 'error') {
         existing.endTime = Date.now();
@@ -82,6 +96,22 @@ class ProgressStore {
     if (existing) {
       if (!existing.errors) existing.errors = [];
       existing.errors.push(error);
+      this.progress.set(id, existing);
+    }
+  }
+
+  updateSkuCount(id: string, totalSkus: number): void {
+    const existing = this.progress.get(id);
+    if (existing) {
+      existing.totalSkus = totalSkus;
+      this.progress.set(id, existing);
+    }
+  }
+
+  incrementSkuProgress(id: string): void {
+    const existing = this.progress.get(id);
+    if (existing) {
+      existing.completedSkus = (existing.completedSkus || 0) + 1;
       this.progress.set(id, existing);
     }
   }

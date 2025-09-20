@@ -1,25 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery, executeModificationQuery } from '@/lib/database';
+import { executeQuery } from '@/lib/database';
 
 // GET - Buscar logs de processamento
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Iniciando busca de logs de crop...');
     
-    // Retornar dados mockados primeiro para testar
-    console.log('🧪 Retornando dados mockados para teste...');
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status') || 'all';
+    const limit = parseInt(searchParams.get('limit') || '100');
+    const offset = parseInt(searchParams.get('offset') || '0');
+
+    console.log('📋 Parâmetros da busca:', { status, limit, offset });
+
+    // Construir query base
+    let query = `
+      SELECT 
+        id,
+        product_id,
+        anymarket_id,
+        product_name,
+        status,
+        total_images,
+        processed_images,
+        failed_images,
+        pixian_success_count,
+        pixian_error_count,
+        anymarket_success_count,
+        anymarket_error_count,
+        processing_time_seconds,
+        error_message,
+        details,
+        started_at,
+        completed_at,
+        created_at,
+        updated_at
+      FROM crop_processing_logs
+    `;
+
+    const queryParams = [];
+
+    // Adicionar filtro de status se especificado
+    if (status !== 'all') {
+      query += ' WHERE status = ?';
+      queryParams.push(status);
+    }
+
+    // Adicionar ordenação e paginação
+    query += ' ORDER BY created_at DESC';
+    query += ` LIMIT ${limit} OFFSET ${offset}`;
+
+    console.log('🔍 Query SQL:', query);
+    console.log('🔍 Parâmetros:', queryParams);
+
+    const logs = await executeQuery(query, queryParams);
+
+    // Buscar total de registros para paginação
+    let countQuery = 'SELECT COUNT(*) as total FROM crop_processing_logs';
+    const countParams = [];
     
+    if (status !== 'all') {
+      countQuery += ' WHERE status = ?';
+      countParams.push(status);
+    }
+
+    const countResult = await executeQuery(countQuery, countParams);
+    const total = (countResult as any[])[0]?.total || 0;
+
+    console.log('📊 Logs encontrados:', logs);
+    console.log('📊 Total de registros:', total);
+
     return NextResponse.json({
       success: true,
-      logs: [
-        { id: 1, product_id: 18062, status: 'completed' },
-        { id: 2, product_id: 18063, status: 'completed' }
-      ],
+      logs: logs || [],
       pagination: {
-        total: 2,
-        limit: 10,
-        offset: 0,
-        hasMore: false
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
       }
     });
 

@@ -160,9 +160,9 @@ export class StockImportModule {
         try {
           // PASSO 3A: Verificar se o estoque já existe na nossa base de dados
           // Tabela: stock_vtex
-          // Campos de busca: sku_id + warehouse_id
+          // Campos de busca: id_sku_vtex + warehouse_id
           const existingStock = await executeQuery(`
-            SELECT id FROM stock_vtex WHERE sku_id = ? AND warehouse_id = ?
+            SELECT id_stock_vtex FROM stock_vtex WHERE id_sku_vtex = ? AND warehouse_id = ?
           `, [skuId, balance.warehouseId]);
 
           if (existingStock && existingStock.length > 0) {
@@ -173,21 +173,11 @@ export class StockImportModule {
               UPDATE stock_vtex SET
                 warehouse_name = ?,           -- Nome do warehouse
                 total_quantity = ?,           -- Quantidade total
-                reserved_quantity = ?,        -- Quantidade reservada
-                has_unlimited_quantity = ?,   -- Tem quantidade ilimitada
-                time_to_refill = ?,           -- Tempo para reabastecer
-                date_of_supply_utc = ?,       -- Data de fornecimento UTC
-                lead_time = ?,                -- Tempo de lead
                 updated_at = NOW()            -- Data de atualização
-              WHERE sku_id = ? AND warehouse_id = ?
+              WHERE id_sku_vtex = ? AND warehouse_id = ?
             `, [
               balance.warehouseName,
               balance.totalQuantity,
-              balance.reservedQuantity,
-              balance.hasUnlimitedQuantity,
-              balance.timeToRefill,
-              balance.dateOfSupplyUtc ? new Date(balance.dateOfSupplyUtc) : null,
-              balance.leadTime,
               skuId,
               balance.warehouseId
             ]);
@@ -200,30 +190,18 @@ export class StockImportModule {
             
             await executeQuery(`
               INSERT INTO stock_vtex (
-                sku_id,                       -- ID do SKU
-                vtex_sku_id,                  -- ID do SKU na VTEX
+                id_sku_vtex,                  -- ID do SKU VTEX
                 warehouse_id,                 -- ID do warehouse
                 warehouse_name,               -- Nome do warehouse
                 total_quantity,               -- Quantidade total
-                reserved_quantity,            -- Quantidade reservada
-                has_unlimited_quantity,       -- Tem quantidade ilimitada
-                time_to_refill,               -- Tempo para reabastecer
-                date_of_supply_utc,           -- Data de fornecimento UTC
-                lead_time,                    -- Tempo de lead
                 created_at,                   -- Data de criação
                 updated_at                    -- Data de atualização
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+              ) VALUES (?, ?, ?, ?, NOW(), NOW())
             `, [
-              skuId,                          // ID do SKU
-              skuId.toString(),               // ID do SKU na VTEX
+              skuId,                          // ID do SKU VTEX
               balance.warehouseId,            // ID do warehouse
               balance.warehouseName,          // Nome do warehouse
-              balance.totalQuantity,          // Quantidade total
-              balance.reservedQuantity,       // Quantidade reservada
-              balance.hasUnlimitedQuantity,   // Tem quantidade ilimitada
-              balance.timeToRefill,           // Tempo para reabastecer
-              balance.dateOfSupplyUtc ? new Date(balance.dateOfSupplyUtc) : null, // Data de fornecimento UTC
-              balance.leadTime                // Tempo de lead
+              balance.totalQuantity           // Quantidade total
             ]);
             
             importedCount++;
@@ -325,7 +303,7 @@ export class StockImportModule {
       console.log('🔍 Buscando todos os SKUs ativos da tabela skus_vtex...');
       
       const skus = await executeQuery(`
-        SELECT id FROM skus_vtex WHERE is_active = 1
+        SELECT id_sku_vtex FROM skus_vtex WHERE is_active = 1
       `);
 
       if (!skus || skus.length === 0) {
@@ -341,7 +319,7 @@ export class StockImportModule {
         };
       }
 
-      const skuIds = skus.map((row: any) => row.id);
+      const skuIds = skus.map((row: any) => row.id_sku_vtex);
       return await this.importStockForSkus(skuIds);
 
     } catch (error: any) {
@@ -365,7 +343,7 @@ export class StockImportModule {
   async checkStockExists(skuId: number, warehouseId: string): Promise<boolean> {
     try {
       const result = await executeQuery(`
-        SELECT id FROM stock_vtex WHERE sku_id = ? AND warehouse_id = ?
+        SELECT id_stock_vtex FROM stock_vtex WHERE id_sku_vtex = ? AND warehouse_id = ?
       `, [skuId, warehouseId]);
       
       return result && result.length > 0;
@@ -381,19 +359,18 @@ export class StockImportModule {
   async getStockBySkuId(skuId: number): Promise<VTEXStockBalance[]> {
     try {
       const result = await executeQuery(`
-        SELECT warehouse_id, warehouse_name, total_quantity, reserved_quantity, 
-               unlimited_stock, time_to_refill, date_utc_on_balance_system
-        FROM stock_vtex WHERE sku_id = ?
+        SELECT warehouse_id, warehouse_name, total_quantity
+        FROM stock_vtex WHERE id_sku_vtex = ?
       `, [skuId]);
       
       return result.map((row: any) => ({
         warehouseId: row.warehouse_id,
         warehouseName: row.warehouse_name,
         totalQuantity: row.total_quantity,
-        reservedQuantity: row.reserved_quantity,
-        hasUnlimitedQuantity: row.unlimited_stock,
-        timeToRefill: row.time_to_refill,
-        dateOfSupplyUtc: row.date_utc_on_balance_system,
+        reservedQuantity: 0, // Campo não existe na tabela atual
+        hasUnlimitedQuantity: false, // Campo não existe na tabela atual
+        timeToRefill: '', // Campo não existe na tabela atual
+        dateOfSupplyUtc: '', // Campo não existe na tabela atual
         leadTime: '' // Campo não existe na tabela atual
       }));
     } catch (error) {

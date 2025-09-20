@@ -13,14 +13,14 @@ export async function GET(request: NextRequest) {
 
     // Buscar produtos que têm mapeamento na tabela anymarket E data_sincronizacao preenchida
     const query = `
-      SELECT DISTINCT p.id, p.name, p.ref_id, a.id_produto_any, a.data_sincronizacao
+      SELECT DISTINCT p.id_produto_vtex as id, p.name, p.ref_produto as ref_id, a.id_produto_any, a.data_sincronizacao
       FROM products_vtex p
-      INNER JOIN anymarket a ON p.ref_id = a.ref_vtex
-      WHERE a.ref_vtex IS NOT NULL 
-        AND a.ref_vtex != '0'
+      INNER JOIN anymarket a ON p.ref_produto = a.ref_produto_vtex
+      WHERE a.ref_produto_vtex IS NOT NULL 
+        AND a.ref_produto_vtex != '0'
         AND a.id_produto_any IS NOT NULL
         AND a.data_sincronizacao IS NOT NULL
-      ORDER BY p.id
+      ORDER BY p.id_produto_vtex
     `;
 
     const products = await executeQuery(query, []);

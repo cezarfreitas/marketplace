@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
+            'gumgaToken': process.env.ANYMARKET || ''
           },
           body: JSON.stringify(uploadData)
         });
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
+                'gumgaToken': process.env.ANYMARKET || ''
               },
               payload: uploadData,
               curlCommand: `curl -X POST "https://api.anymarket.com.br/v2/products/${anymarketId}/images" \\

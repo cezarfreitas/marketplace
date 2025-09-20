@@ -115,13 +115,17 @@ export async function DELETE(
     const id = parseInt(params.id);
 
     console.log('🗑️ Deletando característica ID:', id);
+    console.log('🔍 Parâmetros recebidos:', { id, params });
 
     // Verificar se a característica existe
+    console.log('🔍 Verificando se característica existe...');
     const existing = await executeQuery(`
-      SELECT id FROM caracteristicas WHERE id = ?
+      SELECT id, caracteristica FROM caracteristicas WHERE id = ?
     `, [id]);
+    console.log('📊 Resultado da verificação:', existing);
 
     if (!existing || existing.length === 0) {
+      console.log('❌ Característica não encontrada');
       return NextResponse.json({
         success: false,
         message: 'Característica não encontrada'
@@ -129,28 +133,35 @@ export async function DELETE(
     }
 
     // Verificar se há respostas associadas
+    console.log('🔍 Verificando respostas associadas...');
     const responses = await executeQuery(`
-      SELECT COUNT(*) as count FROM respostas_caracteristicas WHERE caracteristica_id = ?
-    `, [id]);
+      SELECT COUNT(*) as count FROM respostas_caracteristicas WHERE caracteristica = ?
+    `, [existing[0].caracteristica]);
+    console.log('📊 Respostas encontradas:', responses);
 
     const responseCount = (responses[0] as any).count;
+    
+    // Deletar respostas associadas primeiro (se existirem)
     if (responseCount > 0) {
-      return NextResponse.json({
-        success: false,
-        message: `Não é possível deletar. Esta característica possui ${responseCount} resposta(s) associada(s).`
-      }, { status: 400 });
+      console.log(`🗑️ Deletando ${responseCount} resposta(s) associada(s)...`);
+      await executeQuery(`
+        DELETE FROM respostas_caracteristicas WHERE caracteristica = ?
+      `, [existing[0].caracteristica]);
+      console.log('✅ Respostas associadas deletadas com sucesso');
     }
 
     // Deletar característica
+    console.log('🗑️ Executando DELETE da característica...');
     await executeQuery(`
       DELETE FROM caracteristicas WHERE id = ?
     `, [id]);
-
     console.log('✅ Característica deletada com sucesso');
 
     return NextResponse.json({
       success: true,
-      message: 'Característica deletada com sucesso'
+      message: responseCount > 0 
+        ? `Característica e ${responseCount} resposta(s) associada(s) deletadas com sucesso`
+        : 'Característica deletada com sucesso'
     });
 
   } catch (error: any) {

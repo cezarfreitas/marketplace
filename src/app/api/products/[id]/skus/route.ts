@@ -18,7 +18,7 @@ export async function GET(
     console.log(`🔍 Buscando SKUs para produto ID: ${productId}`);
 
     // Verificar se o produto existe primeiro
-    const productCheck = await executeQuery('SELECT id, name, ref_id FROM products_vtex WHERE id = ?', [productId]);
+    const productCheck = await executeQuery('SELECT id_produto_vtex, name, ref_produto FROM products_vtex WHERE id_produto_vtex = ?', [productId]);
     console.log(`📋 Produto encontrado:`, productCheck);
 
     if (productCheck.length === 0) {
@@ -28,19 +28,19 @@ export async function GET(
       }, { status: 404 });
     }
 
-    // Query corrigida com as colunas corretas da tabela
+    // Query corrigida com as colunas corretas da tabela skus_vtex
     const query = `
       SELECT 
-        s.id,
+        s.id_sku_vtex as id,
         s.name as sku_name,
-        s.product_id,
+        s.id_produto_vtex as product_id,
         s.is_active,
-        s.ref_id,
+        s.ref_sku as ref_id,
         p.name as product_name
       FROM skus_vtex s
-      INNER JOIN products_vtex p ON s.product_id = p.id
-      WHERE s.product_id = ?
-      ORDER BY s.id ASC
+      INNER JOIN products_vtex p ON s.id_produto_vtex = p.id_produto_vtex
+      WHERE s.id_produto_vtex = ?
+      ORDER BY s.id_sku_vtex ASC
     `;
 
     console.log(`🔍 Executando query:`, query);

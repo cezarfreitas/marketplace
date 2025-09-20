@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     // Estatísticas por produto VTEX
     const vtexStatsResult = await executeQuery(`
       SELECT 
-        COUNT(DISTINCT ref_vtex) as unique_vtex_products,
+        COUNT(DISTINCT ref_produto_vtex) as unique_vtex_products,
         COUNT(DISTINCT id_produto_any) as unique_anymarket_products
       FROM anymarket
     `);
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const recentSyncsResult = await executeQuery(`
       SELECT 
         id,
-        ref_vtex,
+        ref_produto_vtex,
         id_produto_any,
         created_at,
         updated_at

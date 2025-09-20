@@ -108,7 +108,6 @@ export default function CategoriesPage() {
       if (success) {
         setShowDeleteModal(false);
         setCategoryToDelete(null);
-        console.log('Categoria excluída com sucesso!');
       } else {
         console.error('Erro ao excluir categoria');
       }

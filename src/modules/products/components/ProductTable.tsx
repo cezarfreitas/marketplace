@@ -28,16 +28,17 @@ interface ProductTableProps {
   onDeleteProduct: (product: Product) => void;
   onAnalyzeImages: (product: Product) => void;
   onGenerateTitle: (product: Product) => void;
-  onGenerateMarketplaceDescription: (product: Product) => void;
   onGenerateCharacteristics: (product: Product) => void;
+  onGenerateDescription: (product: Product) => void;
   onSyncAnymarketing: (product: Product) => void;
   onCropImages: (product: Product) => void;
-  productsWithAnalysis?: number[]; // IDs dos produtos que já têm análise
-  productsWithTitle?: number[]; // IDs dos produtos que já têm título gerado
-  productsWithMarketplace?: number[]; // IDs dos produtos que já têm descrição do Marketplace
-  productsWithCharacteristics?: number[]; // IDs dos produtos que já têm características
   productsWithAnymarketSync?: number[]; // IDs dos produtos que já foram sincronizados com Anymarket
   productsWithCroppedImages?: number[]; // IDs dos produtos que já têm imagens cropadas
+  productsWithTitle?: number[]; // IDs dos produtos que já têm título gerado
+  productsWithImageAnalysis?: number[]; // IDs dos produtos que já têm análise de imagem
+  productsWithOptimizedTitle?: number[]; // IDs dos produtos que já têm título otimizado
+  productsWithGeneratedDescription?: number[]; // IDs dos produtos que já têm descrição gerada
+  productsWithGeneratedCharacteristics?: number[]; // IDs dos produtos que já têm características geradas
   anymarketMappings?: Record<string, string>; // Mapeamentos ref_id -> id_produto_any
 }
 
@@ -59,26 +60,31 @@ export function ProductTable({
   onDeleteProduct,
   onAnalyzeImages,
   onGenerateTitle,
-  onGenerateMarketplaceDescription,
   onGenerateCharacteristics,
+  onGenerateDescription,
   onSyncAnymarketing,
   onCropImages,
-  productsWithAnalysis = [],
-  productsWithTitle = [],
-  productsWithMarketplace = [],
-  productsWithCharacteristics = [],
   productsWithAnymarketSync = [],
   productsWithCroppedImages = [],
+  productsWithTitle = [],
+  productsWithImageAnalysis = [],
+  productsWithOptimizedTitle = [],
+  productsWithGeneratedDescription = [],
+  productsWithGeneratedCharacteristics = [],
   anymarketMappings = {}
 }: ProductTableProps) {
-  // Debug temporário - removido
-  // console.log('🔍 [DEBUG] ProductTable renderizado');
-  // console.log('🔍 [DEBUG] productsWithAnalysis:', productsWithAnalysis);
-  // console.log('🔍 [DEBUG] products.length:', products.length);
-  // if (products.length > 0) {
-  //   console.log('🔍 [DEBUG] Primeiro produto ID:', products[0].id);
-  //   console.log('🔍 [DEBUG] Primeiro produto tem análise?', productsWithAnalysis.includes(products[0].id));
-  // }
+  
+  // Log para debug do campo has_generated_description
+  console.log('🔍 ProductTable - Produtos recebidos:', products.length);
+  const productsWithDescription = products.filter(p => p.has_generated_description === true);
+  console.log('📝 ProductTable - Produtos com descrição:', productsWithDescription.length);
+  if (productsWithDescription.length > 0) {
+    console.log('📋 ProductTable - Exemplos:', productsWithDescription.slice(0, 3).map(p => ({
+      id: p.id_produto_vtex,
+      name: p.name,
+      has_generated_description: p.has_generated_description
+    })));
+  }
 
   // Função para truncar texto
   const truncateText = (text: string, maxLength: number = 30): string => {
@@ -173,7 +179,13 @@ export function ProductTable({
                 </div>
               </th>
               <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">
-                RefId / ID_ANY
+                RefId
+              </th>
+              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">
+                ID Any
+              </th>
+              <th className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-64">
+                Título Otimizado
               </th>
               <th 
                 className="px-4 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-16 cursor-pointer hover:bg-gray-200 transition-colors"
@@ -193,8 +205,8 @@ export function ProductTable({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {products.map((product) => (
-              <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+            {products.map((product, index) => (
+              <tr key={`${product.id_produto_vtex}-${index}`} className="hover:bg-gray-50 transition-colors">
                 <td className="px-3 py-4 whitespace-nowrap">
                   <input
                     type="checkbox"
@@ -225,6 +237,11 @@ export function ProductTable({
                         <div className="text-sm font-medium text-gray-900 truncate" title={product.name}>
                           {truncateText(product.name, 40)}
                         </div>
+                        {productsWithTitle.includes(product.id_produto_vtex) && product.title && (
+                          <div className="text-xs text-blue-600 font-medium truncate mt-1" title="Título otimizado gerado com IA">
+                            {truncateText(product.title, 50)}
+                          </div>
+                        )}
                         <div className="flex items-center space-x-1">
                           {product.is_active ? (
                             <div className="w-2 h-2 bg-green-500 rounded-full" title="Ativo"></div>
@@ -238,13 +255,19 @@ export function ProductTable({
                           )}
                         </div>
                       </div>
-                      {product.ref_id && (
-                        <div className="text-xs text-blue-600 font-mono truncate" title={`RefId: ${product.ref_id}`}>
-                          {anymarketMappings && anymarketMappings[product.ref_id || ''] && (
-                            <span className="text-purple-600">{anymarketMappings[product.ref_id || '']}</span>
+                      {product.ref_produto && (
+                        <div className="text-xs text-blue-600 font-mono truncate" title={`Ref_Produto: ${product.ref_produto}`}>
+                          {product.ref_produto}
+                          {product.anymarket_id && (
+                            <span className="text-purple-600">
+                              {' - '}{product.anymarket_id}
+                            </span>
                           )}
-                          {anymarketMappings && anymarketMappings[product.ref_id || ''] && <span className="text-gray-400"> | </span>}
-                          {product.ref_id}
+                        </div>
+                      )}
+                      {product.ref_id && (
+                        <div className="text-xs text-blue-600 font-mono truncate" title={`Ref_Produto: ${product.ref_id}`}>
+                          Ref_Produto: {product.ref_id}
                         </div>
                       )}
                       {product.title && (
@@ -296,13 +319,27 @@ export function ProductTable({
                   <div className="flex items-center">
                     <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200 font-medium">
                       {product.ref_id || 'N/A'}
-                      {anymarketMappings[product.ref_id || ''] && (
-                        <span className="text-gray-500 mx-1">-</span>
-                      )}
-                      {anymarketMappings[product.ref_id || ''] && (
-                        <span className="text-purple-700">{anymarketMappings[product.ref_id || '']}</span>
-                      )}
                     </span>
+                  </div>
+                </td>
+                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
+                  <div className="flex items-center">
+                    <span className="font-mono text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded border border-purple-200 font-medium">
+                      {product.anymarket_id || 'N/A'}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-3 py-4 text-sm text-gray-900 w-64">
+                  <div className="flex items-center">
+                    {product.optimized_title ? (
+                      <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 font-medium truncate block w-full" title={product.optimized_title}>
+                        {product.optimized_title}
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-gray-50 text-gray-500 px-2 py-1 rounded border border-gray-200 font-medium">
+                        N/A
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-center">
@@ -316,132 +353,181 @@ export function ProductTable({
                   <div className="flex items-center justify-center space-x-2">
                     <button
                       onClick={() => {
-                        // Debug removido
-                        // if (product.id === 203723663) {
-                        //   console.log('🔍 [DEBUG] Botão câmera clicado - Produto 203723663');
-                        //   console.log('🔍 [DEBUG] productsWithAnalysis:', productsWithAnalysis);
-                        //   console.log('🔍 [DEBUG] Produto 203723663 tem análise?', productsWithAnalysis.includes(203723663));
-                        // }
                         onAnalyzeImages(product);
                       }}
-                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
-                        productsWithAnalysis.includes(product.id)
-                          ? 'border-blue-400 bg-blue-200 hover:bg-blue-300 !important'
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group ${
+                        product.has_image_analysis || productsWithImageAnalysis.includes(product.id)
+                          ? 'border-blue-500 hover:bg-blue-600 shadow-md' 
                           : 'border-gray-300 hover:bg-gray-50'
                       }`}
-                      style={productsWithAnalysis.includes(product.id) ? {
-                        backgroundColor: '#93c5fd',
-                        borderColor: '#60a5fa'
-                      } : {}}
-                      title={`Análise de Imagem${productsWithAnalysis.includes(product.id) ? ' (Concluída)' : ''}`}
+                      style={{
+                        backgroundColor: product.has_image_analysis || productsWithImageAnalysis.includes(product.id) 
+                          ? '#3b82f6' // blue-500
+                          : undefined
+                      }}
+                      title={product.has_image_analysis || productsWithImageAnalysis.includes(product.id) ? "Análise de Imagem (Já Processada)" : "Análise de Imagem"}
                     >
                       <Camera 
-                        className={`h-4 w-4 group-hover:text-gray-800 ${
-                          productsWithAnalysis.includes(product.id)
-                            ? 'text-blue-800'
-                            : 'text-gray-600'
+                        className={`h-4 w-4 transition-colors ${
+                          product.has_image_analysis || productsWithImageAnalysis.includes(product.id)
+                            ? 'text-white group-hover:text-blue-50' 
+                            : 'text-gray-500 group-hover:text-gray-700'
                         }`}
-                        style={productsWithAnalysis.includes(product.id) ? {
-                          color: '#1e40af'
-                        } : {}}
                       />
                     </button>
                     <button
                       onClick={() => {
                         onGenerateTitle(product);
                       }}
-                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
-                        productsWithTitle.includes(product.id)
-                          ? 'border-purple-400 bg-purple-200 hover:bg-purple-300'
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group ${
+                        product.has_optimized_title || productsWithOptimizedTitle.includes(product.id)
+                          ? 'border-pink-500 hover:bg-pink-600 shadow-md' 
                           : 'border-gray-300 hover:bg-gray-50'
                       }`}
-                      style={productsWithTitle.includes(product.id) ? {
-                        backgroundColor: '#c4b5fd',
-                        borderColor: '#a78bfa'
-                      } : {}}
-                      title={`Gerar Título${productsWithTitle.includes(product.id) ? ' (Gerado)' : ''}`}
+                      style={{
+                        backgroundColor: product.has_optimized_title || productsWithOptimizedTitle.includes(product.id) 
+                          ? '#ec4899' // pink-500
+                          : undefined
+                      }}
+                      title={product.has_optimized_title || productsWithOptimizedTitle.includes(product.id) ? "Gerar Título (Já Processado)" : "Gerar Título"}
                     >
                       <Type 
-                        className={`h-4 w-4 group-hover:text-gray-800 ${
-                          productsWithTitle.includes(product.id)
-                            ? 'text-purple-800'
-                            : 'text-gray-600'
+                        className={`h-4 w-4 ${
+                          product.has_optimized_title || productsWithOptimizedTitle.includes(product.id)
+                            ? 'text-white group-hover:text-pink-50' 
+                            : 'text-gray-600 group-hover:text-gray-800'
                         }`}
-                        style={productsWithTitle.includes(product.id) ? {
-                          color: '#6b21a8'
-                        } : {}}
                       />
                     </button>
                     <button
                       onClick={() => {
-                        // console.log(`🔍 Produto ${product.id} (${product.name}) - Tem marketplace:`, productsWithMarketplace.includes(product.id));
-                        onGenerateMarketplaceDescription(product);
+                        onGenerateDescription(product);
                       }}
-                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
-                        productsWithMarketplace.includes(product.id)
-                          ? 'border-yellow-400 bg-yellow-500 hover:bg-yellow-600'
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group ${
+                        product.has_generated_description || productsWithGeneratedDescription.includes(product.id)
+                          ? 'border-yellow-500 hover:bg-yellow-600 shadow-md' 
                           : 'border-gray-300 hover:bg-gray-50'
                       }`}
-                      title={`Gerar Descrição para Marketplace${productsWithMarketplace.includes(product.id) ? ' (Gerada)' : ''}`}
+                      style={{
+                        backgroundColor: product.has_generated_description || productsWithGeneratedDescription.includes(product.id) 
+                          ? '#eab308' // yellow-500
+                          : undefined
+                      }}
+                      onMouseEnter={() => {
+                        console.log('🔍 Botão Descrição - Produto:', {
+                          id: product.id_produto_vtex,
+                          name: product.name,
+                          has_generated_description: product.has_generated_description,
+                          productsWithGeneratedDescription: productsWithGeneratedDescription.includes(product.id),
+                          shouldBeYellow: product.has_generated_description || productsWithGeneratedDescription.includes(product.id),
+                          backgroundColor: product.has_generated_description || productsWithGeneratedDescription.includes(product.id) ? '#eab308' : 'undefined'
+                        });
+                      }}
+                      title={product.has_generated_description || productsWithGeneratedDescription.includes(product.id) ? "Descrição Gerada (Clique para ver/editar)" : "Gerar Descrição"}
                     >
-                      <span className={`h-4 w-4 flex items-center justify-center font-bold text-sm ${
-                        productsWithMarketplace.includes(product.id)
-                          ? 'text-gray-800'
-                          : 'text-gray-600 group-hover:text-gray-800'
-                      }`}>M</span>
+                      <span 
+                        className={`text-sm font-bold ${
+                          product.has_generated_description || productsWithGeneratedDescription.includes(product.id)
+                            ? 'text-white group-hover:text-yellow-50' 
+                            : 'text-gray-600 group-hover:text-gray-800'
+                        }`}
+                      >
+                        D
+                      </span>
                     </button>
                     <button
                       onClick={() => {
-                        // console.log(`🔍 Produto ${product.id} (${product.name}) - Tem características:`, productsWithCharacteristics.includes(product.id));
                         onGenerateCharacteristics(product);
                       }}
-                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
-                        productsWithCharacteristics.includes(product.id)
-                          ? 'border-green-400 bg-green-500 hover:bg-green-600'
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group ${
+                        product.has_generated_characteristics || productsWithGeneratedCharacteristics.includes(product.id)
+                          ? 'border-orange-500 hover:bg-orange-600 shadow-md' 
                           : 'border-gray-300 hover:bg-gray-50'
                       }`}
-                      title={`Gerar Características${productsWithCharacteristics.includes(product.id) ? ' (Geradas)' : ''}`}
+                      style={{
+                        backgroundColor: product.has_generated_characteristics || productsWithGeneratedCharacteristics.includes(product.id) 
+                          ? '#f97316' // orange-500
+                          : undefined
+                      }}
+                      onMouseEnter={() => {
+                        console.log('🔍 Botão Características - Produto:', {
+                          id: product.id_produto_vtex,
+                          name: product.name,
+                          has_generated_characteristics: product.has_generated_characteristics,
+                          productsWithGeneratedCharacteristics: productsWithGeneratedCharacteristics.includes(product.id),
+                          shouldBeOrange: product.has_generated_characteristics || productsWithGeneratedCharacteristics.includes(product.id)
+                        });
+                      }}
+                      title={product.has_generated_characteristics || productsWithGeneratedCharacteristics.includes(product.id) ? "Gerar Características (Já Processadas)" : "Gerar Características"}
                     >
                       <List 
-                        className={`h-4 w-4 group-hover:text-gray-800 ${
-                          productsWithCharacteristics.includes(product.id)
-                            ? 'text-gray-800'
-                            : 'text-gray-600'
+                        className={`h-4 w-4 ${
+                          product.has_generated_characteristics || productsWithGeneratedCharacteristics.includes(product.id)
+                            ? 'text-white group-hover:text-orange-50' 
+                            : 'text-gray-600 group-hover:text-gray-800'
                         }`}
                       />
                     </button>
                     <button
                       onClick={() => {
-                        // console.log(`🔍 Produto ${product.id} (${product.name}) - Tem sync Anymarket:`, productsWithAnymarketSync.includes(product.id));
-                        // console.log(`📋 Lista de produtos com sync:`, productsWithAnymarketSync);
                         onSyncAnymarketing(product);
                       }}
-                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative ${productsWithAnymarketSync.includes(product.id) ? 'border-orange-400 bg-orange-300 hover:bg-orange-400' : 'border-gray-300 hover:bg-gray-50'}`}
-                      title={`Sincronizar com Anymarket${productsWithAnymarketSync.includes(product.id) ? ' (Sincronizado)' : ''}`}
+                      onMouseEnter={() => {
+                        console.log('🔍 Botão Anymarket - Produto:', {
+                          id: product.id_produto_vtex,
+                          name: product.name,
+                          anymarket_enviado_any: product.anymarket_enviado_any,
+                          shouldBeGreen: !!product.anymarket_enviado_any
+                        });
+                      }}
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group ${
+                        product.anymarket_enviado_any
+                          ? 'border-green-500 hover:bg-green-600 shadow-md' 
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                      style={{
+                        backgroundColor: product.anymarket_enviado_any
+                          ? '#22c55e' // green-500
+                          : undefined
+                      }}
+                      title={
+                        product.anymarket_enviado_any 
+                          ? `Enviado para Anymarket em ${new Date(product.anymarket_enviado_any).toLocaleString('pt-BR')}`
+                          : "Sincronizar com Anymarket"
+                      }
                     >
-                      <RotateCcw className={`h-4 w-4 ${productsWithAnymarketSync.includes(product.id) ? 'text-orange-800 group-hover:text-orange-900' : 'text-gray-600 group-hover:text-gray-800'}`} />
+                      <RotateCcw 
+                        className={`h-4 w-4 ${
+                          product.anymarket_enviado_any
+                            ? 'text-white group-hover:text-green-50'
+                            : 'text-gray-600 group-hover:text-gray-800'
+                        }`}
+                      />
                     </button>
                     <button
                       onClick={() => {
-                        console.log('🔍 [DEBUG] Botão crop clicado:', {
-                          productId: product.id,
-                          productName: product.name,
-                          productsWithCroppedImages,
-                          isInList: productsWithCroppedImages.includes(product.id)
-                        });
                         onCropImages(product);
                       }}
-                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group relative z-0 ${
-                        productsWithCroppedImages.includes(product.id)
-                          ? 'border-purple-400 bg-purple-500 hover:bg-purple-600'
+                      className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group ${
+                        product.anymarket_imagem_cropada
+                          ? 'border-purple-500 hover:bg-purple-600 shadow-md'
                           : 'border-gray-300 hover:bg-gray-50'
                       }`}
-                      title={`Cropar Imagens${productsWithCroppedImages.includes(product.id) ? ' (Concluído)' : ''}`}
+                      style={{
+                        backgroundColor: product.anymarket_imagem_cropada
+                          ? '#a855f7' // purple-500
+                          : undefined
+                      }}
+                      title={
+                        product.anymarket_imagem_cropada 
+                          ? `Imagens Cropadas em ${new Date(product.anymarket_imagem_cropada).toLocaleString('pt-BR')}`
+                          : "Crop de Imagens"
+                      }
                     >
                       <Crop 
                         className={`h-4 w-4 ${
-                          productsWithCroppedImages.includes(product.id)
-                            ? 'text-purple-100 group-hover:text-purple-50'
+                          product.anymarket_imagem_cropada
+                            ? 'text-white group-hover:text-purple-50'
                             : 'text-gray-600 group-hover:text-gray-800'
                         }`}
                       />

@@ -20,7 +20,7 @@ export async function GET() {
 
     // Query para buscar total de estoque
     const totalStockQuery = `
-      SELECT COALESCE(SUM(st.total_quantity), 0) as totalStock
+      SELECT COALESCE(SUM(st.available_quantity), 0) as totalStock
       FROM skus_vtex s
       LEFT JOIN stock_vtex st ON s.id = st.sku_id
     `;
@@ -35,12 +35,11 @@ export async function GET() {
       totalStock = 0; // Valor padrão se houver erro no banco
     }
 
-    // Query para buscar produtos totalmente otimizados
+    // Query para buscar produtos totalmente otimizados (sem marketplace)
     const optimizedQuery = `
       SELECT COUNT(*) as totalOptimized
       FROM products_vtex p
       WHERE EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)
-        AND EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)
         AND EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)
         AND EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id)
         AND EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')

@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
         b.name as brand_name,
         c.name as category_name
       FROM products_vtex p
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      WHERE p.id = ?
+      LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+      LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+      WHERE p.id_produto_vtex = ?
     `;
 
     const products = await executeQuery(productQuery, [productId]);
@@ -256,47 +256,44 @@ ${imageAnalysis.contextual_analysis}
 
 IMPORTANTE: 
 - Crie um NOVO TÍTULO otimizado (não use o nome original do produto)
-- Na descrição, use o NOVO TÍTULO que você criou, não o nome original
 - O novo título deve ser mais atrativo e otimizado para SEO
+- NÃO mencione o nome do produto na primeira linha da descrição
+- NÃO use títulos ou cabeçalhos nas seções - comece diretamente com o conteúdo
 
 ESTRUTURA OBRIGATÓRIA DA DESCRIÇÃO:
-1. Parágrafo introdutório sobre o produto (use o novo título)
+1. Parágrafo introdutório sobre o produto (NÃO mencione o nome do produto)
 2. Informações sobre a marca e qualidade
 3. Detalhes técnicos e materiais
 4. Benefícios e características
-5. Seção "Destaques do produto" com bullet points
-6. Seção "Material e cuidados"
-7. Seção "Por que escolher" com vantagens
-8. Seção "FAQ - Perguntas frequentes" com 4-5 perguntas
+5. Destaques do produto com bullet points (sem título)
+6. Material e cuidados (sem título)
+7. Por que escolher com vantagens (sem título)
+8. FAQ com 4-5 perguntas (sem título)
 9. Call-to-action final
 
 EXEMPLO DE ESTRUTURA:
-"[Novo Título] foi desenvolvido para quem busca [benefício principal]... 
+"Desenvolvido para quem busca [benefício principal]... 
 
 A marca [Marca] é reconhecida por [características da marca]...
 
 Fabricado em [material], o produto oferece [benefícios técnicos]...
 
-Destaques do produto:
 • [Característica 1]: [benefício]
 • [Característica 2]: [benefício]
 
-Material e cuidados:
 Material principal: [material]
 Cuidados de limpeza: [instruções]
 
-Por que escolher [Novo Título]:
 • [Vantagem 1]
 • [Vantagem 2]
 
-FAQ – Perguntas frequentes:
 [Pergunta 1]?
 [Resposta 1]
 
 [Pergunta 2]?
 [Resposta 2]
 
-Garanta agora o [Novo Título] e [call-to-action]."
+Garanta agora este produto e [call-to-action]."
 
 Retorne APENAS o JSON com as informações solicitadas.`;
 

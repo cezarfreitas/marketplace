@@ -72,11 +72,8 @@ export class ImageImportModule {
    */
   async importImagesBySkuId(skuId: number): Promise<ImageImportResult> {
     try {
-      console.log(`🖼️ PASSO 1: Importando imagens por sku_id: ${skuId}`);
-
       // PASSO 1: Buscar imagens na VTEX usando o ID do SKU
       // Endpoint: /api/catalog/pvt/stockkeepingunit/{skuId}/file
-      console.log(`🔍 Buscando imagens na VTEX com sku_id: ${skuId}`);
       const imagesResponse = await fetch(`${this.baseUrl}/api/catalog/pvt/stockkeepingunit/${skuId}/file`, {
         method: 'GET',
         headers: this.headers
@@ -99,7 +96,6 @@ export class ImageImportModule {
 
       // Converter resposta para array de imagens
       const images: VTEXImage[] = await imagesResponse.json();
-      console.log(`✅ ${images.length} imagens encontradas na VTEX para o SKU ${skuId}`);
 
       if (images.length === 0) {
         return {
@@ -119,79 +115,76 @@ export class ImageImportModule {
       // PASSO 2: Processar cada imagem encontrada
       for (let i = 0; i < images.length; i++) {
         const vtexImage = images[i];
-        console.log(`🔍 Processando imagem ${i + 1}/${images.length}: ${vtexImage.Id} (${vtexImage.Name})`);
 
         // PASSO 2A: Verificar se a imagem já existe na nossa base de dados
         // Tabela: images_vtex
-        // Campo de busca: id (que corresponde ao Id da VTEX)
+        // Campo de busca: id_photo_vtex (que corresponde ao Id da VTEX)
         const existingImage = await executeQuery(`
-          SELECT id FROM images_vtex WHERE id = ?
+          SELECT id_photo_vtex FROM images_vtex WHERE id_photo_vtex = ?
         `, [vtexImage.Id]);
 
         if (existingImage && existingImage.length > 0) {
           // PASSO 2B: Imagem já existe - ATUALIZAR dados
-          console.log(`📝 Imagem já existe, atualizando dados...`);
           
+          // Construir file_location com sufixo do domínio
+          const fileLocationWithDomain = vtexImage.FileLocation 
+            ? `https://projetoinfluencer.${vtexImage.FileLocation}`
+            : vtexImage.FileLocation;
+
           await executeQuery(`
             UPDATE images_vtex SET
-              archive_id = ?,               -- ID do arquivo
-              sku_id = ?,                   -- ID do SKU
+              id_sku_vtex = ?,              -- ID do SKU
               name = ?,                     -- Nome da imagem
               is_main = ?,                  -- Se é imagem principal
               text = ?,                     -- Texto da imagem
               label = ?,                    -- Label da imagem
               url = ?,                      -- URL da imagem
-              file_location = ?,            -- Localização do arquivo
-              position = ?,                 -- Posição da imagem
+              file_location = ?,            -- Localização do arquivo com domínio
               updated_at = NOW()            -- Data de atualização
-            WHERE id = ?
+            WHERE id_photo_vtex = ?
           `, [
-            vtexImage.ArchiveId,
             vtexImage.SkuId,
             vtexImage.Name,
             vtexImage.IsMain,
             vtexImage.Text,
             vtexImage.Label,
             vtexImage.Url,
-            vtexImage.FileLocation,
-            vtexImage.Position,
+            fileLocationWithDomain,
             vtexImage.Id
           ]);
           
           updatedCount++;
-          console.log(`✅ Imagem atualizada: ${vtexImage.Name}`);
         } else {
           // PASSO 2C: Imagem não existe - INSERIR novo registro
-          console.log(`📝 Imagem não existe, inserindo novo registro...`);
           
+          // Construir file_location com sufixo do domínio
+          const fileLocationWithDomain = vtexImage.FileLocation 
+            ? `https://projetoinfluencer.${vtexImage.FileLocation}`
+            : vtexImage.FileLocation;
+
           await executeQuery(`
             INSERT INTO images_vtex (
-              id,                           -- ID da VTEX (único)
-              archive_id,                   -- ID do arquivo
-              sku_id,                       -- ID do SKU
+              id_photo_vtex,                -- ID da VTEX (único)
+              id_sku_vtex,                  -- ID do SKU
               name,                         -- Nome da imagem
               is_main,                      -- Se é imagem principal
               text,                         -- Texto da imagem
               label,                        -- Label da imagem
               url,                          -- URL da imagem
-              file_location,                -- Localização do arquivo
-              position                      -- Posição da imagem
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              file_location                 -- Localização do arquivo com domínio
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `, [
             vtexImage.Id,                   // ID da VTEX
-            vtexImage.ArchiveId,            // ID do arquivo
             vtexImage.SkuId,                // ID do SKU
             vtexImage.Name,                 // Nome
             vtexImage.IsMain,               // É principal
             vtexImage.Text,                 // Texto
             vtexImage.Label,                // Label
             vtexImage.Url,                  // URL
-            vtexImage.FileLocation,         // Localização do arquivo
-            vtexImage.Position              // Posição
+            fileLocationWithDomain          // Localização do arquivo com domínio
           ]);
           
           importedCount++;
-          console.log(`✅ Imagem inserida: ${vtexImage.Name} (ID: ${vtexImage.Id})`);
         }
       }
 
@@ -207,7 +200,6 @@ export class ImageImportModule {
       };
 
     } catch (error: any) {
-      console.error(`❌ Erro ao importar imagens para SKU ${skuId}:`, error);
       return {
         success: false,
         message: `❌ Erro ao importar imagens: ${error.message}`
@@ -221,12 +213,11 @@ export class ImageImportModule {
   async checkImageExists(vtexId: number): Promise<boolean> {
     try {
       const result = await executeQuery(`
-        SELECT id FROM images_vtex WHERE id = ?
+        SELECT id_photo_vtex FROM images_vtex WHERE id_photo_vtex = ?
       `, [vtexId]);
       
       return result && result.length > 0;
     } catch (error) {
-      console.error('Erro ao verificar imagem:', error);
       return false;
     }
   }
@@ -237,29 +228,28 @@ export class ImageImportModule {
   async getImageByVtexId(vtexId: number): Promise<VTEXImage | null> {
     try {
       const result = await executeQuery(`
-        SELECT id, archive_id, sku_id, name, is_main, text, label, url, file_location, position
-        FROM images_vtex WHERE id = ?
+        SELECT id_photo_vtex, id_sku_vtex, name, is_main, text, label, url, file_location
+        FROM images_vtex WHERE id_photo_vtex = ?
       `, [vtexId]);
       
       if (result && result.length > 0) {
         const image = result[0];
         return {
-          Id: image.id,
-          ArchiveId: image.archive_id,
-          SkuId: image.sku_id,
+          Id: image.id_photo_vtex,
+          ArchiveId: 0, // Campo não existe na tabela atual
+          SkuId: image.id_sku_vtex,
           Name: image.name,
           IsMain: image.is_main,
           Label: image.label,
           Text: image.text,
           Url: image.url,
-          FileLocation: image.file_location,
-          Position: image.position
+          FileLocation: image.file_location, // Já vem com domínio do banco
+          Position: 0 // Campo não existe na tabela atual
         };
       }
       
       return null;
     } catch (error) {
-      console.error('Erro ao buscar imagem:', error);
       return null;
     }
   }
@@ -270,25 +260,24 @@ export class ImageImportModule {
   async getImagesBySkuId(skuId: number): Promise<VTEXImage[]> {
     try {
       const result = await executeQuery(`
-        SELECT id, archive_id, sku_id, name, is_main, text, label, url, file_location, position
-        FROM images_vtex WHERE sku_id = ?
-        ORDER BY position ASC
+        SELECT id_photo_vtex, id_sku_vtex, name, is_main, text, label, url, file_location
+        FROM images_vtex WHERE id_sku_vtex = ?
+        ORDER BY id_photo_vtex ASC
       `, [skuId]);
       
       return result.map((image: any) => ({
-        Id: image.id,
-        ArchiveId: image.archive_id,
-        SkuId: image.sku_id,
+        Id: image.id_photo_vtex,
+        ArchiveId: 0, // Campo não existe na tabela atual
+        SkuId: image.id_sku_vtex,
         Name: image.name,
         IsMain: image.is_main,
         Label: image.label,
         Text: image.text,
         Url: image.url,
-        FileLocation: image.file_location,
-        Position: image.position
+        FileLocation: image.file_location, // Já vem com domínio do banco
+        Position: 0 // Campo não existe na tabela atual
       }));
     } catch (error) {
-      console.error('Erro ao buscar imagens do SKU:', error);
       return [];
     }
   }

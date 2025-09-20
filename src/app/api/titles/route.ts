@@ -20,24 +20,15 @@ export async function GET(request: NextRequest) {
 
     let query = `
       SELECT 
-        t.*,
-        p.name as product_name,
-        p.ref_id as product_ref_id,
-        b.name as brand_name,
-        c.name as category_name,
-        a.name as agent_name
+        t.*
       FROM titles t
-      LEFT JOIN products_vtex p ON t.product_id = p.id
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
-      LEFT JOIN agents a ON t.agent_id = a.id
       WHERE 1=1
     `;
     
     const params: any[] = [];
 
     if (productId) {
-      query += ' AND t.product_id = ?';
+      query += ' AND t.id_product_vtex = ?';
       params.push(parseInt(productId));
     }
 
@@ -85,10 +76,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      product_id,
+      id_product_vtex,
       title,
       original_title,
-      agent_id,
       openai_model,
       openai_tokens_used,
       openai_tokens_prompt,
@@ -104,30 +94,29 @@ export async function POST(request: NextRequest) {
       status
     } = body;
 
-    if (!product_id || !title) {
+    if (!id_product_vtex || !title) {
       return NextResponse.json({
         success: false,
-        message: 'product_id e title são obrigatórios'
+        message: 'id_product_vtex e title são obrigatórios'
       }, { status: 400 });
     }
 
-    console.log('💾 Criando novo título...', { product_id, title });
+    console.log('💾 Criando novo título...', { id_product_vtex, title });
 
     const insertQuery = `
       INSERT INTO titles (
-        product_id, title, original_title, agent_id, openai_model,
+        id_product_vtex, title, original_title, openai_model,
         openai_tokens_used, openai_tokens_prompt, openai_tokens_completion,
         openai_cost, openai_request_id, openai_response_time_ms,
         openai_max_tokens, openai_temperature, generation_attempts,
         is_unique, validation_passed, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = await executeQuery(insertQuery, [
-      product_id,
+      id_product_vtex,
       title,
       original_title || null,
-      agent_id || null,
       openai_model || 'gpt-4o-mini',
       openai_tokens_used || 0,
       openai_tokens_prompt || 0,
@@ -148,8 +137,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        id: (result as any).insertId,
-        product_id,
+        id_product_vtex,
         title
       }
     });
@@ -173,16 +161,16 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, ...updateData } = body;
+    const { id_product_vtex, ...updateData } = body;
 
-    if (!id) {
+    if (!id_product_vtex) {
       return NextResponse.json({
         success: false,
-        message: 'ID do título é obrigatório'
+        message: 'id_product_vtex é obrigatório'
       }, { status: 400 });
     }
 
-    console.log('🔄 Atualizando título...', { id, updateData });
+    console.log('🔄 Atualizando título...', { id_product_vtex, updateData });
 
     // Construir query dinamicamente baseada nos campos fornecidos
     const fields = Object.keys(updateData);
@@ -195,12 +183,12 @@ export async function PUT(request: NextRequest) {
 
     const setClause = fields.map(field => `${field} = ?`).join(', ');
     const values = fields.map(field => updateData[field]);
-    values.push(id); // Para o WHERE
+    values.push(id_product_vtex); // Para o WHERE
 
     const updateQuery = `
       UPDATE titles 
       SET ${setClause}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id_product_vtex = ?
     `;
 
     await executeQuery(updateQuery, values);
@@ -231,28 +219,19 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
     const productId = searchParams.get('productId');
 
-    if (!id && !productId) {
+    if (!productId) {
       return NextResponse.json({
         success: false,
-        message: 'ID do título ou productId é obrigatório'
+        message: 'productId é obrigatório'
       }, { status: 400 });
     }
 
-    console.log('🗑️ Deletando título...', { id, productId });
+    console.log('🗑️ Deletando título...', { productId });
 
-    let deleteQuery: string;
-    let params: any[];
-
-    if (id) {
-      deleteQuery = 'DELETE FROM titles WHERE id = ?';
-      params = [parseInt(id)];
-    } else {
-      deleteQuery = 'DELETE FROM titles WHERE product_id = ?';
-      params = [parseInt(productId!)];
-    }
+    const deleteQuery = 'DELETE FROM titles WHERE id_product_vtex = ?';
+    const params = [parseInt(productId)];
 
     await executeQuery(deleteQuery, params);
 

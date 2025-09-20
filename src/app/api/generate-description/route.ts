@@ -39,22 +39,8 @@ async function generateDescriptionWithAgent(
       
       const startTime = Date.now();
       
-      // Buscar agente se não fornecido
-      let currentAgent = agent;
-      if (!currentAgent) {
-        const agentQuery = `
-          SELECT * FROM agents 
-          WHERE function_type = 'product_description' 
-          AND is_active = 1 
-          ORDER BY created_at DESC 
-          LIMIT 1
-        `;
-        const agents = await executeQuery(agentQuery);
-        if (agents.length === 0) {
-          return { success: false, error: 'Agente para geração de descrições não encontrado' };
-        }
-        currentAgent = agents[0];
-      }
+      // Usar agente hardcoded (não buscar na tabela agents)
+      const currentAgent = agent;
 
       const systemPrompt = currentAgent.system_prompt || `Você é um ESPECIALISTA em marketing e copywriting para e-commerce, focado na criação de descrições PERFEITAS e ESTRUTURADAS que maximizem conversão.
 
@@ -107,6 +93,7 @@ Criar descrições que sigam EXATAMENTE a estrutura ideal para maximizar engajam
 - Seja persuasivo mas honesto
 - Foque nos benefícios para o cliente
 - Use palavras-chave relevantes naturalmente
+- ⚠️ NUNCA use "<b>Descrição do Produto</b>" ou qualquer título genérico no início. O texto deve sempre começar diretamente com um parágrafo introdutório.
 
 📝 FORMATO DE SAÍDA:
 APRESENTAÇÃO:
@@ -145,6 +132,7 @@ CHAMADA PARA COMPRA:
         userPrompt = currentAgent.guidelines_template
           .replace('{title}', title)
           .replace('{imageAnalysis}', imageAnalysis ? imageAnalysis.contextualizacao || imageAnalysis : 'Nenhuma análise de imagem disponível')
+          .replace('{brandContext}', productData?.brand_context || 'Nenhum contexto da marca disponível')
           .replace('{productName}', productData?.name || 'N/A')
           .replace('{brandName}', productData?.brand_name || 'N/A')
           .replace('{categoryName}', productData?.category_name || 'N/A');
@@ -155,24 +143,29 @@ TÍTULO DO PRODUTO: ${title}
 
 ANÁLISE DA IMAGEM: ${imageAnalysis ? imageAnalysis.contextualizacao || imageAnalysis : 'Nenhuma análise de imagem disponível'}
 
+CONTEXTO DA MARCA: ${productData?.brand_context || 'Nenhum contexto da marca disponível'}
+
 DADOS ADICIONAIS DO PRODUTO:
 - Nome Original: ${productData?.name || 'N/A'}
 - Marca: ${productData?.brand_name || 'N/A'}
 - Categoria: ${productData?.category_name || 'N/A'}
 
-Use PRINCIPALMENTE a análise da imagem para criar uma descrição completa e persuasiva seguindo a estrutura:
-1. Apresentação (baseada na análise visual)
-2. Características (observadas na imagem)
-3. Benefícios (baseados no que se vê)
-4. Como cuidar do produto (específico para o material/tipo)
-5. FAQ (relevante para este produto específico)
-6. Chamada para compra (baseada nas características)
+ESTRUTURA OBRIGATÓRIA:
+1. Apresentação atrativa do produto
+2. SOBRE A MARCA - USAR EXCLUSIVAMENTE o contexto da marca fornecido (não inventar informações)
+3. CARACTERÍSTICAS DO PRODUTO - Baseado na análise da imagem
+4. COMO CUIDAR DO SEU PRODUTO - Instruções práticas de cuidado
+5. PERGUNTAS FREQUENTES - FAQ relevante para o produto
+6. CHAMADA FINAL - Call-to-action persuasivo
 
 IMPORTANTE:
-- Use a análise da imagem como base principal
+- Use a análise da imagem como base para as características do produto
+- USE EXCLUSIVAMENTE o contexto da marca na seção "SOBRE A MARCA" (não invente informações)
+- Se não houver contexto da marca, escreva "Informações sobre a marca não disponíveis"
 - NÃO invente características não observadas
 - Seja específico sobre o que se vê na foto
-- Crie uma descrição pronta para aplicação direta`;
+- Crie uma descrição pronta para aplicação direta
+- SEMPRE use o formato "<b>PERGUNTAS FREQUENTES</b>" para o título da seção FAQ`;
       }
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -206,13 +199,49 @@ IMPORTANTE:
         continue;
       }
 
-      const content = data.choices[0]?.message?.content;
+      let content = data.choices[0]?.message?.content;
       if (!content) {
         console.error(`❌ Resposta vazia da OpenAI (tentativa ${attempt})`);
         if (attempt === maxAttempts) {
           return { success: false, error: 'Resposta vazia da OpenAI' };
         }
         continue;
+      }
+
+      // Limpar fences (```html, ```) se aparecerem
+      content = content
+        .replace(/^```html\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      // Limpar títulos genéricos no início (proteção extra em runtime)
+      const originalContent = content;
+      content = content
+        .replace(/^<b>\s*Descrição do Produto\s*<\/b><br>?/gi, '')
+        .replace(/^<b>\s*Descrição\s*<\/b><br>?/gi, '')
+        .replace(/^<b>\s*Produto\s*<\/b><br>?/gi, '')
+        .replace(/^<b>\s*Apresentação\s*<\/b><br>?/gi, '')
+        .replace(/^<b>\s*Introdução\s*<\/b><br>?/gi, '')
+        .trim();
+      
+      // Log se algum título genérico foi removido
+      if (originalContent !== content) {
+        console.log('🧹 Título genérico removido em runtime:', originalContent.substring(0, 100) + '...');
+      }
+
+      // Limpar apenas títulos HTML separados no início (proteção extra)
+      const beforeProductNameCleanup = content;
+      content = content
+        .replace(/^<h[1-6]><strong>.*?<\/strong><\/h[1-6]>\s*/gi, '')
+        .replace(/^<h[1-6]>.*?<\/h[1-6]>\s*/gi, '')
+        .replace(/^<strong>.*?<\/strong>\s*$/gm, '') // Só remove se for linha inteira
+        .replace(/^<b>.*?<\/b>\s*$/gm, '') // Só remove se for linha inteira
+        .trim();
+      
+      // Log se algum título HTML foi removido
+      if (beforeProductNameCleanup !== content) {
+        console.log('🧹 Título HTML removido em runtime:', beforeProductNameCleanup.substring(0, 100) + '...');
       }
 
       // Separar descrição e FAQ
@@ -252,11 +281,11 @@ IMPORTANTE:
       // Salvar na tabela descriptions
       const insertQuery = `
         INSERT INTO descriptions (
-          product_id, description,
+          id_product_vtex, description,
           openai_model, openai_tokens_used, openai_tokens_prompt, openai_tokens_completion,
           openai_temperature, openai_max_tokens, openai_response_time_ms, openai_cost,
-          openai_request_id, agent_id, agent_name, generation_duration_ms, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          openai_request_id, generation_duration_ms, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const generationDuration = Date.now() - startTime;
@@ -273,8 +302,6 @@ IMPORTANTE:
         responseTime,
         cost,
         data.id || null,
-        currentAgent.id,
-        currentAgent.name,
         generationDuration,
         'generated'
       ]);
@@ -325,34 +352,26 @@ export async function POST(request: NextRequest) {
       
       const createTableSQL = `
         CREATE TABLE IF NOT EXISTS descriptions (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          product_id INT NOT NULL,
-          title VARCHAR(500) NOT NULL COMMENT 'Título gerado para o produto',
-          description TEXT NOT NULL COMMENT 'Descrição principal do produto',
-          faq TEXT COMMENT 'Perguntas e respostas frequentes em formato JSON',
-          openai_model VARCHAR(100) COMMENT 'Modelo OpenAI utilizado',
-          openai_tokens_used INT COMMENT 'Total de tokens utilizados',
-          openai_tokens_prompt INT COMMENT 'Tokens usados no prompt',
-          openai_tokens_completion INT COMMENT 'Tokens usados na resposta',
-          openai_temperature DECIMAL(3,2) COMMENT 'Temperatura do modelo',
-          openai_max_tokens INT COMMENT 'Máximo de tokens configurado',
-          openai_response_time_ms INT COMMENT 'Tempo de resposta da OpenAI em ms',
-          openai_cost DECIMAL(10,6) COMMENT 'Custo da requisição em USD',
-          openai_request_id VARCHAR(255) COMMENT 'ID da requisição OpenAI',
-          agent_id INT COMMENT 'ID do agente utilizado',
-          agent_name VARCHAR(255) COMMENT 'Nome do agente',
-          generation_duration_ms INT COMMENT 'Duração total da geração em ms',
-          status VARCHAR(50) DEFAULT 'generated' COMMENT 'Status da descrição: generated, validated, error',
-          error_message TEXT COMMENT 'Mensagem de erro se houver',
+          id_product_vtex INT PRIMARY KEY,
+          description TEXT NOT NULL,
+          openai_model VARCHAR(100) DEFAULT 'gpt-4o-mini',
+          openai_tokens_used INT DEFAULT 0,
+          openai_tokens_prompt INT DEFAULT 0,
+          openai_tokens_completion INT DEFAULT 0,
+          openai_temperature DECIMAL(3,2) DEFAULT 0.30,
+          openai_max_tokens INT DEFAULT 100,
+          openai_response_time_ms INT DEFAULT 0,
+          openai_cost DECIMAL(10,6) DEFAULT 0.000000,
+          openai_request_id VARCHAR(255),
+          generation_duration_ms INT DEFAULT 0,
+          status ENUM('pending', 'generated', 'error') DEFAULT 'generated',
+          error_message TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           
-          INDEX idx_product_id (product_id),
           INDEX idx_status (status),
-          INDEX idx_agent_id (agent_id),
-          INDEX idx_created_at (created_at),
-          INDEX idx_openai_request_id (openai_request_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Descrições de produtos geradas por IA'
+          INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `;
       
       await executeQuery(createTableSQL);
@@ -382,7 +401,7 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Buscando título gerado...');
     const titleQuery = `
       SELECT title FROM titles 
-      WHERE product_id = ? AND status = 'validated'
+      WHERE id_product_vtex = ? AND status = 'validated'
       ORDER BY created_at DESC 
       LIMIT 1
     `;
@@ -401,7 +420,7 @@ export async function POST(request: NextRequest) {
     // 2. Verificar se já existe descrição
     const existingQuery = `
       SELECT * FROM descriptions 
-      WHERE product_id = ? AND status = 'generated'
+      WHERE id_product_vtex = ? AND status = 'generated'
       ORDER BY created_at DESC 
       LIMIT 1
     `;
@@ -421,7 +440,7 @@ export async function POST(request: NextRequest) {
       } else {
         console.log('🔄 Regeneração forçada - removendo descrições existentes...');
         try {
-          const deleteQuery = `DELETE FROM descriptions WHERE product_id = ?`;
+          const deleteQuery = `DELETE FROM descriptions WHERE id_product_vtex = ?`;
           await executeQuery(deleteQuery, [numericProductId]);
           console.log('🗑️ Descrições existentes removidas para regeneração');
         } catch (error) {
@@ -430,93 +449,191 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Buscar agente para descrições
-    console.log('🤖 Buscando agente para descrições...');
-    const agentQuery = `
-      SELECT * FROM agents 
-      WHERE function_type = 'product_description' 
-      AND is_active = 1 
-      ORDER BY created_at DESC 
-      LIMIT 1
-    `;
-    const agents = await executeQuery(agentQuery);
-    
-    if (agents.length === 0) {
-      console.log('🤖 Agente não encontrado, criando agente padrão...');
-      
-      const createAgentSQL = `
-        INSERT INTO agents (
-          name, function_type, system_prompt, guidelines_template, 
-          model, temperature, max_tokens, is_active, created_at
-        ) VALUES (
-          'Descrição de Produto',
-          'product_description',
-          'Você é um especialista em marketing e copywriting para e-commerce, focado na criação de descrições persuasivas e informativas para produtos.
+    // 3. Configurações do agente para descrições (hardcoded)
+    console.log('🤖 Configurando agente para descrições...');
+    const agent = {
+      id: 1,
+      name: 'Descrição de Produto',
+      function_type: 'product_description',
+      system_prompt: `Você é um especialista em marketing e copywriting para e-commerce, focado na criação de descrições persuasivas e informativas para produtos.
 
-MISSÃO: Criar uma descrição completa e atrativa do produto, seguida de um FAQ relevante.
+MISSÃO: Criar uma descrição completa e atrativa do produto usando HTML básico com tags <br> para quebras de linha, seguida de um FAQ relevante.
+
+⚠️ REGRA CRÍTICA: NUNCA use fences (código com crases) no início ou fim da resposta. Gere APENAS o conteúdo HTML puro, sem qualquer formatação de código.
 
 ESTRUTURA OBRIGATÓRIA:
-1. DESCRIÇÃO PRINCIPAL (2-3 parágrafos)
+1. Apresentação do produto (2-3 parágrafos)
    - Apresentar o produto de forma atrativa
    - Destacar benefícios e características principais
    - Usar linguagem persuasiva e profissional
    - Incluir call-to-action sutil
+   - USAR APENAS HTML BÁSICO: <b>, <br>, <ul>, <li>
 
-2. FAQ (3-5 perguntas e respostas)
-   - Perguntas que clientes realmente fazem
-   - Respostas claras e úteis
-   - Formato: "P: Pergunta" / "R: Resposta"
+2. SOBRE A MARCA (1 parágrafo)
+   - USAR EXCLUSIVAMENTE o contexto da marca fornecido
+   - NÃO inventar informações sobre a marca
+   - Destacar valores, história e diferencial mencionados no contexto
+   - Criar conexão emocional baseada no que está no contexto
+   - USAR APENAS HTML BÁSICO: <b>, <br>, <ul>, <li>
+
+3. CARACTERÍSTICAS DO PRODUTO (lista detalhada)
+   - Baseado na análise da imagem e dados do produto
+   - Características técnicas e visuais observadas
+   - Materiais, dimensões, funcionalidades
+   - Formato em lista HTML com <ul> e <li>
+   - USAR APENAS HTML BÁSICO: <b>, <br>, <ul>, <li>
+
+4. COMO CUIDAR DO SEU PRODUTO (instruções práticas)
+   - Instruções específicas de cuidado e limpeza
+   - Baseadas no tipo de material e produto
+   - Dicas de manutenção e preservação
+   - USAR APENAS HTML BÁSICO: <b>, <br>, <ul>, <li>
+
+5. PERGUNTAS FREQUENTES (gerar as melhores perguntas baseadas no produto)
+   - Analise o produto e gere as perguntas mais relevantes
+   - Perguntas que clientes realmente fariam sobre este produto específico
+   - Respostas claras e úteis baseadas no contexto do produto
+   - Formato: Lista HTML com <ul> e <li>
+   - SEMPRE usar o título "<b>PERGUNTAS FREQUENTES</b>" para a seção
+   - USAR APENAS HTML BÁSICO: <b>, <br>, <ul>, <li>
+   - Foque nas dúvidas mais importantes para este produto
+   - Gerar entre 3-5 perguntas (quantidade ideal para o produto)
+   - SEMPRE usar <b> para destacar as perguntas
+
+6. CHAMADA FINAL (1 parágrafo)
+   - Criar senso de exclusividade emocional
+   - Gerar urgência para a compra
+   - Usar linguagem persuasiva e emocional
+   - Incluir call-to-action forte
+   - USAR APENAS HTML BÁSICO: <b>, <br>, <ul>, <li>
+
+TAGS HTML PERMITIDAS (APENAS ESTAS):
+- <b>texto</b> - para texto em negrito
+- <br> - para quebra de linha (OBRIGATÓRIO para separar parágrafos)
+- <ul> - para lista não ordenada
+- <li> - para itens de lista
 
 REGRAS CRÍTICAS:
-- Use apenas o título fornecido como base
+
 - Seja criativo mas mantenha credibilidade
 - Linguagem clara e acessível
 - Foque nos benefícios para o cliente
-- FAQ deve ser prático e útil
+- PERGUNTAS E RESPOSTAS deve ser prático e útil
 - Máximo 800 palavras no total
+- SEMPRE use <br> para quebrar linhas entre parágrafos
+- Use <b> para destacar características principais
+- Use <ul><li> para listar benefícios ou características
+- A seção SOBRE A MARCA é OBRIGATÓRIA (USAR EXCLUSIVAMENTE o contexto da marca fornecido)
+- A seção CARACTERÍSTICAS DO PRODUTO é OBRIGATÓRIA (baseada na análise da imagem)
+- A seção COMO CUIDAR DO SEU PRODUTO é OBRIGATÓRIA (instruções práticas)
+- A seção PERGUNTAS FREQUENTES é OBRIGATÓRIA
+- ⚠️ NUNCA use "<b>Descrição do Produto</b>" ou qualquer título genérico no início. O texto deve sempre começar diretamente com um parágrafo introdutório.
+- SEMPRE usar o título "<b>PERGUNTAS FREQUENTES</b>" para a seção FAQ
+- ANALISE o produto e gere as perguntas mais relevantes e inteligentes
+- Gerar entre 3-5 perguntas (quantidade ideal baseada no produto)
+- SEMPRE usar formato de lista HTML: <ul><li><b>Pergunta?</b><br>Resposta.</li></ul>
+- Foque nas dúvidas mais importantes e específicas para este produto
+- Seja criativo e pense como um cliente real faria
+- A seção CHAMADA FINAL é OBRIGATÓRIA
+- SEMPRE incluir senso de exclusividade emocional e urgência
+- Use linguagem persuasiva e emocional na chamada final
+- SEMPRE separe as seções com <br><br> para melhor organização
+- SEMPRE separe cada pergunta e resposta com <br> para melhor legibilidade
+- SEMPRE use títulos para as seções para melhor organização
+- SEMPRE use o formato "TÍTULO<br>" para os títulos das seções
 
-FORMATO DE SAÍDA:
-DESCRIÇÃO:
-[Descrição principal do produto]
+FORMATO DE SAÍDA (HTML BÁSICO COM <br>):
+[texto principal do produto começando com o nome do produto de forma natural e fluida, incluindo o nome do produto 2-3 vezes na descrição para SEO, com tags HTML básicas]
 
-FAQ:
-P: [Pergunta 1]
-R: [Resposta 1]
+<br><br>
 
-P: [Pergunta 2]
-R: [Resposta 2]
+<b>SOBRE A MARCA</b><br>
+[Seção sobre a marca usando EXCLUSIVAMENTE o contexto da marca fornecido, sem inventar informações adicionais]
 
-P: [Pergunta 3]
-R: [Resposta 3]',
-          'Crie uma descrição completa e FAQ para este produto:
+<br><br>
+
+<b>CARACTERÍSTICAS DO PRODUTO</b><br>
+[Seção detalhada das características técnicas e visuais do produto, baseada na análise da imagem, incluindo o nome do produto quando relevante para SEO]
+
+<br><br>
+
+<b>COMO CUIDAR DO SEU PRODUTO</b><br>
+[Instruções específicas de cuidado, limpeza e manutenção baseadas no tipo de material e produto]
+
+<br><br>
+
+<b>PERGUNTAS FREQUENTES</b><br><br>
+<ul>
+  <li><b>[Pergunta mais relevante 1?]</b><br>[Resposta inteligente baseada no produto.]</li><br>
+  <li><b>[Pergunta mais relevante 2?]</b><br>[Resposta inteligente baseada no produto.]</li><br>
+  <li><b>[Pergunta mais relevante 3?]</b><br>[Resposta inteligente baseada no produto.]</li><br>
+  [Adicione mais perguntas se necessário, entre 3-5 total]
+</ul>
+
+<br><br>
+
+<b>Não perca esta oportunidade única!</b><br>
+[Chamada final persuasiva com urgência, escassez e benefícios exclusivos. Use linguagem emocional, mencione estoques limitados, crie senso de comunidade e inclua call-to-action claro como "Adquira já", "Garanta agora" ou "Não perca esta chance". Mencione o nome do produto e seus benefícios únicos para motivar a compra imediata.]`,
+      guidelines_template: `Crie uma descrição completa e estruturada para este produto com formatação HTML:
 
 TÍTULO: {title}
+CONTEXTO DA MARCA: {brandContext}
+ANÁLISE DA IMAGEM: {imageAnalysis}
 
-Gere uma descrição persuasiva e um FAQ útil baseado apenas no título fornecido.',
-          'gpt-4o-mini',
-          0.7,
-          2000,
-          1,
-          NOW()
-        )
-      `;
-      
-      await executeQuery(createAgentSQL);
-      console.log('✅ Agente padrão criado com sucesso!');
-      
-      // Buscar o agente recém-criado
-      const newAgents = await executeQuery(agentQuery);
-      if (newAgents.length === 0) {
-        return NextResponse.json({ 
-          success: false, 
-          message: 'Erro ao criar agente padrão' 
-        }, { status: 500 });
-      }
-      agents.push(newAgents[0]);
-    }
+ESTRUTURA OBRIGATÓRIA:
+1. Descrição apresentando o  produto com um texto empoderador.
+2. SOBRE A MARCA - USAR EXCLUSIVAMENTE o contexto da marca fornecido (não inventar informações)
+3. CARACTERÍSTICAS DO PRODUTO - Baseado na análise da imagem
+4. COMO CUIDAR DO SEU PRODUTO - Instruções práticas de cuidado
+5. PERGUNTAS FREQUENTES - FAQ relevante para o produto
+6. CHAMADA FINAL - Call-to-action persuasivo
 
-    const agent = agents[0];
-    console.log('🤖 Agente encontrado:', agent.name);
+IMPORTANTE: 
+- Use APENAS HTML básico: <b>, <br>, <ul>, <li> para destacar informações importantes
+- SEMPRE use <br> para quebrar linhas entre parágrafos
+- Inclua o nome do produto naturalmente no início da descrição para melhor SEO
+- Comece a descrição com o nome do produto de forma fluida e natural
+- USE EXCLUSIVAMENTE o contexto da marca na seção "SOBRE A MARCA" (não invente informações)
+- Se não houver contexto da marca, escreva "Informações sobre a marca não disponíveis"
+- Use a análise da imagem para as "CARACTERÍSTICAS DO PRODUTO"
+- A seção SOBRE A MARCA é OBRIGATÓRIA
+- A seção CARACTERÍSTICAS DO PRODUTO é OBRIGATÓRIA  
+- A seção COMO CUIDAR DO SEU PRODUTO é OBRIGATÓRIA
+- A seção PERGUNTAS FREQUENTES é OBRIGATÓRIA
+- SEMPRE usar o título "<b>PERGUNTAS FREQUENTES</b>" para a seção FAQ
+- ANALISE o produto e gere as perguntas mais relevantes e inteligentes
+- Gerar entre 3-5 perguntas (quantidade ideal baseada no produto)
+- SEMPRE usar formato de lista HTML: <ul><li><b>Pergunta?</b><br>Resposta.</li></ul>
+- Foque nas dúvidas mais importantes e específicas para este produto
+- Seja criativo e pense como um cliente real faria
+- A seção CHAMADA FINAL é OBRIGATÓRIA
+- SEMPRE incluir senso de exclusividade emocional e urgência
+
+SEO E OTIMIZAÇÃO:
+- Inclua o nome do produto naturalmente 2-3 vezes na descrição (não no início)
+- Use palavras-chave relevantes do produto de forma natural
+- Crie conteúdo único e valioso para o cliente
+- Use linguagem persuasiva mas autêntica
+- Foque nos benefícios e não apenas nas características
+
+CTA FINAL PERSUASIVO:
+- Crie urgência e escassez ("Estoques limitados", "Oferta por tempo limitado")
+- Use linguagem emocional e motivacional
+- Inclua call-to-action claro ("Adquira já", "Garanta agora", "Não perca")
+- Mencione benefícios exclusivos do produto
+- Crie senso de comunidade ("Faça parte", "Junte-se aos fãs")
+- Use linguagem persuasiva e emocional na chamada final
+- SEMPRE separe as seções com <br><br> para melhor organização
+- SEMPRE use títulos para as seções para melhor organização
+- SEMPRE use o formato "TÍTULO<br>" para os títulos das seções
+
+FORMATO DE SAÍDA (HTML BÁSICO COM <br>):
+[Descrição completa em HTML básico usando APENAS tags <b>, <br>, <ul>, <li> seguindo exatamente a estrutura definida com quebras de linha <br>]`,
+      model: 'gpt-4o-mini',
+      temperature: 0.7,
+      max_tokens: 2000
+    };
+    console.log('🤖 Agente configurado:', agent.name);
 
     // 4. Verificar chave da OpenAI
     const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -538,11 +655,12 @@ Gere uma descrição persuasiva e um FAQ útil baseado apenas no título forneci
         SELECT 
           p.*,
           b.name as brand_name,
+          b.contexto as brand_context,
           c.name as category_name
         FROM products_vtex p
-        LEFT JOIN brands b ON p.brand_id = b.id
-        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
-        WHERE p.id = ?
+        LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+        LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+        WHERE p.id_produto_vtex = ?
       `;
       const productResult = await executeQuery(productQuery, [numericProductId]);
       productData = productResult && productResult.length > 0 ? productResult[0] : null;
@@ -550,8 +668,8 @@ Gere uma descrição persuasiva e um FAQ útil baseado apenas no título forneci
       // Buscar análise de imagem se disponível
       const imageQuery = `
         SELECT contextualizacao 
-        FROM image_analysis 
-        WHERE product_id = ? 
+        FROM analise_imagens 
+        WHERE id_produto_vtex = ? 
         ORDER BY created_at DESC 
         LIMIT 1
       `;

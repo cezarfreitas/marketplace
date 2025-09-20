@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const anymarketResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
       method: 'GET',
       headers: {
-        'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==',
+        'gumgaToken': process.env.ANYMARKET || '',
         'Content-Type': 'application/json',
         'User-Agent': 'Meli-Integration/1.0',
         'Accept': 'application/json'
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
           const deleteResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images/${image.id}`, {
             method: 'DELETE',
             headers: {
-              'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg==',
+              'gumgaToken': process.env.ANYMARKET || '',
               'Content-Type': 'application/json',
               'User-Agent': 'Meli-Integration/1.0'
             }
@@ -246,6 +246,21 @@ export async function POST(request: NextRequest) {
 
         // Atualizar skuImages com os resultados do processamento
         skuImages = processedImages;
+
+        // 5. Atualizar campo imagem_cropada na tabela anymarket se houve sucessos
+        if (processedImages.length > 0 && anymarketId) {
+          try {
+            await executeQuery(`
+              UPDATE anymarket 
+              SET imagem_cropada = CURRENT_TIMESTAMP,
+                  updated_at = CURRENT_TIMESTAMP 
+              WHERE id_produto_any = ?
+            `, [anymarketId]);
+            console.log(`📅 Campo imagem_cropada atualizado para produto ${anymarketId}`);
+          } catch (updateError) {
+            console.error(`⚠️ Erro ao atualizar imagem_cropada para produto ${anymarketId} (não crítico):`, updateError);
+          }
+        }
       } catch (skuError: any) {
         console.error('❌ Erro ao buscar imagens dos SKUs:', skuError);
       }

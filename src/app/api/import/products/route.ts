@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     // Verificar se o produto já existe na products_vtex
     console.log(`🔍 Verificando se produto já existe na products_vtex...`);
     const existingProductVtex = await executeQuery(
-      'SELECT vtex_id, category_id, brand_id FROM products_vtex WHERE vtex_id = ?',
+      'SELECT id_produto_vtex, id_category_vtex, id_brand_vtex FROM products_vtex WHERE id_produto_vtex = ?',
       [product.Id]
     );
     
@@ -97,8 +97,8 @@ export async function POST(request: NextRequest) {
     if (existingProductVtex && Array.isArray(existingProductVtex) && existingProductVtex.length > 0) {
       // Produto já existe na products_vtex, usar os IDs existentes
       console.log(`✅ Produto já existe na products_vtex`);
-      categoryId = (existingProductVtex[0] as any).category_id;
-      brandId = (existingProductVtex[0] as any).brand_id;
+      categoryId = (existingProductVtex[0] as any).id_category_vtex;
+      brandId = (existingProductVtex[0] as any).id_brand_vtex;
       console.log(`📂 Usando category_id existente: ${categoryId}`);
       console.log(`🏷️ Usando brand_id existente: ${brandId}`);
       
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
       
       // Salvar produto na products_vtex
       await executeQuery(
-        `INSERT INTO products_vtex (vtex_id, name, department_id, category_id, brand_id, ref_id, is_visible, description, title, is_active, created_at, updated_at)
+        `INSERT INTO products_vtex (vtex_id, name, department_id, id_category_vtex, id_brand_vtex, ref_produto, is_visible, description, title, is_active, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE 
          name = VALUES(name), description = VALUES(description), updated_at = NOW()`,

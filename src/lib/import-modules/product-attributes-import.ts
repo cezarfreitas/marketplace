@@ -28,7 +28,7 @@ export class ProductAttributesImportModule {
 
       // Verificar se o produto existe
       const productExists = await executeQuery(
-        'SELECT id FROM products_vtex WHERE id = ?',
+        'SELECT id_produto_vtex FROM products_vtex WHERE id_produto_vtex = ?',
         [productId]
       );
 

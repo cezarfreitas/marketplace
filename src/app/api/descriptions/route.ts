@@ -1,174 +1,128 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 
 export async function GET(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get('productId');
-    const status = searchParams.get('status') || 'generated';
-    const limit = parseInt(searchParams.get('limit') || '1000');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const status = searchParams.get('status');
+    const limit = searchParams.get('limit');
 
-    let query = `
-      SELECT 
-        d.*,
-        p.name as product_name,
-        p.ref_id as product_ref_id,
-        b.name as brand_name,
-        c.name as category_name
-      FROM descriptions d
-      LEFT JOIN products_vtex p ON d.product_id = p.id
-      LEFT JOIN brands b ON p.brand_id = b.id
-      LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
-      WHERE 1=1
-    `;
-    
-    const params: any[] = [];
+    // Se não tem productId mas tem status, buscar por status
+    if (!productId && status) {
+      console.log('🔍 Buscando produtos com descrições por status:', status);
+      
+      const limitNum = limit ? parseInt(limit) : 1000;
+      
+      try {
+        // Primeiro verificar se a tabela existe e sua estrutura
+        const tableCheck = await executeQuery('SHOW TABLES LIKE "descriptions"');
+        
+        if (!tableCheck || tableCheck.length === 0) {
+          console.log('📋 Tabela descriptions não existe, retornando array vazio');
+          return NextResponse.json({
+            success: true,
+            data: [],
+            count: 0
+          });
+        }
 
-    if (productId) {
-      query += ` AND d.product_id = ?`;
-      params.push(parseInt(productId));
-    }
+        // Verificar estrutura da tabela para usar o campo correto
+        const columns = await executeQuery('DESCRIBE descriptions');
+        console.log('📋 Colunas da tabela descriptions:', columns);
+        
+        // Verificar se há registros na tabela
+        const [allRecords] = await executeQuery('SELECT * FROM descriptions LIMIT 5');
+        console.log('📊 Registros na tabela descriptions:', allRecords);
+        
+        // Determinar o campo correto baseado na estrutura
+        // Priorizar id_product_vtex pois é o usado pelo código de geração
+        const productIdField = columns.some((col: any) => col.Field === 'id_product_vtex') ? 'id_product_vtex' : 'product_id';
+        
+        // Buscar produtos que têm descrições com o status especificado
+        // Usar a mesma lógica que funcionou no debug
+        const [statusRecords] = await executeQuery('SELECT * FROM descriptions WHERE status = "generated" LIMIT 10');
+        console.log('📊 Registros com status generated:', statusRecords);
+        
+        // Extrair apenas os product_id dos registros
+        const productIds = Array.isArray(statusRecords) ? 
+          statusRecords.map(record => ({ product_id: record.id_product_vtex })) : 
+          (statusRecords ? [{ product_id: statusRecords.id_product_vtex }] : []);
 
-    if (status) {
-      query += ` AND d.status = ?`;
-      params.push(status);
-    }
+        console.log('📊 Product IDs extraídos:', productIds);
 
-    query += ` ORDER BY d.created_at DESC`;
-
-    if (limit > 0) {
-      query += ` LIMIT ${limit}`;
-    }
-    if (offset > 0) {
-      query += ` OFFSET ${offset}`;
-    }
-
-    console.log('🔍 Buscando descrições:', { productId, status, limit, offset });
-    
-    const descriptions = await executeQuery(query, params);
-    
-    // Processar FAQ se existir
-    const processedDescriptions = descriptions.map((desc: any) => ({
-      ...desc,
-      faq: desc.faq ? JSON.parse(desc.faq) : []
-    }));
-
-    console.log(`✅ Encontradas ${processedDescriptions.length} descrições`);
-
-    return NextResponse.json({
-      success: true,
-      data: processedDescriptions,
-      pagination: {
-        total: processedDescriptions.length,
-        limit,
-        offset
+        return NextResponse.json({
+          success: true,
+          data: productIds,
+          count: productIds.length
+        });
+      } catch (error) {
+        console.error('❌ Erro ao verificar tabela descriptions:', error);
+        return NextResponse.json({
+          success: true,
+          data: [],
+          count: 0
+        });
       }
-    });
+    }
 
-  } catch (error) {
+    // Busca por productId específico
+    if (!productId) {
+      return NextResponse.json({
+        success: false,
+        message: 'productId é obrigatório para busca específica'
+      }, { status: 400 });
+    }
+
+    const numericProductId = parseInt(productId);
+    if (isNaN(numericProductId)) {
+      return NextResponse.json({
+        success: false,
+        message: 'productId deve ser um número válido'
+      }, { status: 400 });
+    }
+
+    console.log('🔍 Buscando descrições para produto ID:', numericProductId);
+
+    // Buscar descrições existentes
+    try {
+      // Usar a mesma consulta que funcionou no debug
+      const [descriptions] = await executeQuery(
+        'SELECT * FROM descriptions WHERE id_product_vtex = ? ORDER BY created_at DESC',
+        [numericProductId]
+      );
+      
+      console.log('📊 Descrições encontradas para produto', numericProductId, ':', descriptions);
+
+      // Garantir que descriptions seja sempre um array
+      const descriptionsArray = Array.isArray(descriptions) ? descriptions : (descriptions ? [descriptions] : []);
+
+      return NextResponse.json({
+        success: true,
+        data: descriptionsArray
+      });
+    } catch (error) {
+      console.error('❌ Erro ao buscar descrições específicas:', error);
+      return NextResponse.json({
+        success: false,
+        message: 'Erro ao buscar descrições',
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      }, { status: 500 });
+    }
+
+  } catch (error: any) {
     console.error('❌ Erro ao buscar descrições:', error);
-    return NextResponse.json({ 
-      success: false, 
-      message: 'Erro interno do servidor' 
-    }, { status: 500 });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const { productId, title, description, faq, status = 'generated' } = await request.json();
-
-    if (!productId || !title || !description) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'productId, title e description são obrigatórios' 
-      }, { status: 400 });
-    }
-
-    const faqJson = faq ? JSON.stringify(faq) : null;
-
-    const query = `
-      INSERT INTO descriptions (product_id, title, description, faq, status)
-      VALUES (?, ?, ?, ?, ?)
-    `;
-
-    const result = await executeQuery(query, [productId, title, description, faqJson, status]);
-
+    
     return NextResponse.json({
-      success: true,
-      data: { id: (result as any).insertId }
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao criar descrição:', error);
-    return NextResponse.json({ 
-      success: false, 
-      message: 'Erro interno do servidor' 
-    }, { status: 500 });
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const { id, title, description, faq, status } = await request.json();
-
-    if (!id) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'ID é obrigatório' 
-      }, { status: 400 });
-    }
-
-    const faqJson = faq ? JSON.stringify(faq) : null;
-
-    const query = `
-      UPDATE descriptions 
-      SET title = ?, description = ?, faq = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `;
-
-    await executeQuery(query, [title, description, faqJson, status, id]);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Descrição atualizada com sucesso'
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao atualizar descrição:', error);
-    return NextResponse.json({ 
-      success: false, 
-      message: 'Erro interno do servidor' 
-    }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'ID é obrigatório' 
-      }, { status: 400 });
-    }
-
-    const query = `DELETE FROM descriptions WHERE id = ?`;
-    await executeQuery(query, [id]);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Descrição removida com sucesso'
-    });
-
-  } catch (error) {
-    console.error('❌ Erro ao remover descrição:', error);
-    return NextResponse.json({ 
-      success: false, 
-      message: 'Erro interno do servidor' 
+      success: false,
+      message: 'Erro interno do servidor ao buscar descrições',
+      error: error.message
     }, { status: 500 });
   }
 }

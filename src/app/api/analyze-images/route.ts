@@ -1,11 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
-import { config } from 'dotenv';
-import { resolve } from 'path';
 
-// Carregar variáveis de ambiente do arquivo .env
-config({ path: resolve(process.cwd(), '.env') });
+export async function GET(request: NextRequest) {
+  try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const productId = searchParams.get('productId');
+
+    if (!productId) {
+      return NextResponse.json({
+        success: false,
+        message: 'ID do produto é obrigatório'
+      }, { status: 400 });
+    }
+
+    // Buscar análise existente
+    const analysis = await executeQuery(`
+      SELECT 
+        ai.*,
+        p.name as product_name,
+        p.title as product_title
+      FROM analise_imagens ai
+      INNER JOIN products_vtex p ON ai.id_produto_vtex = p.id_produto_vtex
+      WHERE ai.id_produto_vtex = ?
+      ORDER BY ai.created_at DESC
+      LIMIT 1
+    `, [productId]);
+
+    if (!analysis || analysis.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Nenhuma análise encontrada para este produto'
+      }, { status: 404 });
+    }
+
+    const analysisData = analysis[0];
+    
+    console.log('🔍 Dados da análise carregada:', {
+      total_images: analysisData.total_images,
+      valid_images: analysisData.valid_images,
+      image_count: analysisData.image_count
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: analysisData.id,
+        productId: analysisData.id_produto_vtex,
+        productName: analysisData.product_name,
+        productTitle: analysisData.product_title,
+        description: analysisData.contextualizacao || analysisData.descricao,
+        characteristics: analysisData.caracteristicas ? JSON.parse(analysisData.caracteristicas) : null,
+        imagesAnalyzed: analysisData.imagens_analisadas ? JSON.parse(analysisData.imagens_analisadas) : [],
+        createdAt: analysisData.created_at,
+        updatedAt: analysisData.updated_at,
+        processingTime: analysisData.tempo_processamento,
+        model: analysisData.openai_model || analysisData.modelo_ia,
+        agentId: analysisData.agent_id,
+        analysis: {
+          image_count: analysisData.total_images || analysisData.valid_images || 0,
+          total_images: analysisData.total_images || analysisData.valid_images || 0,
+          contextual_analysis: analysisData.contextualizacao || analysisData.descricao
+        }
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar análise existente:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Erro interno do servidor',
+      error: error.message
+    }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -16,10 +89,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
     }
 
-    console.log('🧪 API de análise iniciada');
-    
+
     const { productId, timestamp, forceNewAnalysis, categoryVtexId } = await request.json();
-    console.log('📦 ProductId recebido:', productId);
 
     if (!productId) {
       return NextResponse.json({
@@ -35,35 +106,100 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`🖼️ Iniciando análise de imagens para produto ID: ${productId}`);
+    // Configurações do agente de análise de imagem (hardcoded)
+    const agent = {
+      id: 1,
+      name: 'Image Analysis Agent',
+      system_prompt: `Você é um especialista em moda, design têxtil e análise de vestuário com mais de 15 anos de experiência. Sua tarefa é analisar imagens de roupas e produzir uma descrição técnica detalhada e contextualizada, como se estivesse explicando cada elemento do produto a um comprador profissional ou a uma equipe de cadastro de e-commerce. Você deve atuar como um consultor técnico especializado em análise de produtos têxteis.`,
+      guidelines_template: `⚠️ INSTRUÇÕES CRÍTICAS PARA ANÁLISE TÉCNICA:
 
-    // Buscar o agente de análise de imagem
-    const agents = await executeQuery(`
-      SELECT id, name, system_prompt, guidelines_template, model, max_tokens, temperature, 
-             function_type, is_active, created_at, updated_at
-      FROM agents 
-      WHERE function_type = 'image_analysis' AND is_active = TRUE
-      LIMIT 1
-    `);
+**FORMATO OBRIGATÓRIO:**
+- Use EXCLUSIVAMENTE linguagem técnica, objetiva e clara, sem apelos de venda
+- Escreva em parágrafos corridos e fluidos (NUNCA use bullets, listas ou JSON)
+- Mantenha tom profissional de relatório técnico de moda
+- Se algum detalhe não for visível, contextualize com "não identificado na imagem"
 
-    if (!agents || agents.length === 0) {
-      return NextResponse.json({
-        success: false,
-        message: 'Agente de análise de imagem não encontrado'
-      }, { status: 404 });
-    }
+**ORDEM DE ANÁLISE OBRIGATÓRIA (SEGUIR EXATAMENTE):**
+1. Visão geral → tecido → cores → modelagem → gola/manga/comprimento → bolsos/fechamentos → recortes/costuras → estampas/logos → aviamentos → acabamentos → caimento geral
 
-    const agent = agents[0];
-    console.log(`✅ Agente encontrado: ${agent.name}`);
+**ESTRUTURA TÉCNICA DETALHADA (9 PONTOS OBRIGATÓRIOS):**
 
-    // Buscar imagens do produto através dos SKUs (limitado a 3 imagens)
+1. **VISÃO GERAL TÉCNICA**
+   - Identifique o tipo exato de peça (camiseta, blusa, vestido, etc.)
+   - Determine o gênero aparente (masculino, feminino, unissex)
+   - Classifique a categoria/estilo (casual, formal, esportivo, etc.)
+   - Analise o público-alvo e ocasião de uso
+
+2. **ANÁLISE DE MATERIAL E CORES**
+   - Identifique o tipo de tecido (algodão, poliéster, viscose, etc.)
+   - Descreva a textura e peso do material
+   - Especifique a cor principal e cores secundárias
+   - Analise acabamentos de superfície (brilho, fosco, texturizado)
+
+3. **MODELAGEM E CONSTRUÇÃO**
+   - Descreva o corte e silhueta (justo, solto, oversized, etc.)
+   - Analise o comprimento e proporções
+   - Identifique linhas de construção e dardos
+   - Avalie a estruturação da peça
+
+4. **DETALHES ESTRUTURAIS**
+   - Analise gola, decote e acabamentos de pescoço
+   - Descreva mangas (tipo, comprimento, acabamento)
+   - Identifique bolsos (tipo, localização, funcionalidade)
+   - Analise fechamentos (zíper, botões, elástico, etc.)
+
+5. **RECORTES, COSTURAS E ACABAMENTOS**
+   - Descreva linhas de recorte e costuras aparentes
+   - Analise barras, punhos e acabamentos de bordas
+   - Identifique técnicas de costura e acabamento
+   - Avalie qualidade de construção
+
+6. **ESTAMPAS, LOGOS E APLICAÇÕES**
+   - Identifique tipo de estampa (silk-screen, sublimação, bordado, etc.)
+   - Localize logos, patches e aplicações
+   - Descreva técnicas de impressão e acabamento
+   - Analise posicionamento e proporções
+
+7. **AVIAMENTOS E ELEMENTOS ADICIONAIS**
+   - Inventarie botões, zíperes, cordões e reguladores
+   - Descreva materiais e cores dos aviamentos
+   - Analise funcionalidade e durabilidade
+   - Identifique elementos decorativos
+
+8. **CAIMENTO E APARÊNCIA FINAL**
+   - Avalie ajuste ao corpo (solto, justo, estruturado, fluido)
+   - Descreva movimento e drapeado do tecido
+   - Analise proporções e silhueta final
+   - Avalie adequação para diferentes tipos corporais
+
+9. **OBSERVAÇÕES TÉCNICAS ADICIONAIS**
+   - Detalhes funcionais ou decorativos extras
+   - Características especiais de design
+   - Considerações de cuidado e manutenção
+   - Aspectos de qualidade e durabilidade
+
+**EXEMPLO DE QUALIDADE ESPERADA:**
+"Esta peça apresenta-se como uma camiseta de gênero unissex, categorizada no segmento casual contemporâneo, adequada para uso diário e ocasional. O material identificado é algodão penteado de gramatura média, apresentando textura suave e toque macio característico desta fibra natural. A cor predominante é azul marinho sólido, sem variações tonais visíveis na imagem, conferindo versatilidade de combinação. A modelagem segue um corte reto com leve ajuste ao corpo, proporcionando silhueta equilibrada entre conforto e elegância. O comprimento atinge aproximadamente a altura do quadril, seguindo proporções clássicas para este tipo de peça..."
+
+**IMPORTANTE:** 
+- Seja extremamente detalhado e técnico
+- Use terminologia específica da moda e têxtil
+- Mantenha consistência na análise
+- Priorize precisão sobre brevidade
+- Contextualize cada observação com base visual`,
+      model: 'gpt-4o',
+      max_tokens: 8000,
+      temperature: 0.3
+    };
+
+    // Buscar imagens do produto através dos SKUs (máximo 2 imagens - apenas as duas primeiras)
     const images = await executeQuery(`
-      SELECT i.id, i.file_location, i.text as alt_text, i.is_main as is_primary, i.sku_id, i.name, i.label
+      SELECT i.id_photo_vtex as id, i.file_location, i.text as alt_text, i.is_main as is_primary, i.id_sku_vtex as sku_id, i.name, i.label
       FROM images_vtex i
-      INNER JOIN skus_vtex s ON i.sku_id = s.id
-      WHERE s.product_id = ?
-      ORDER BY i.is_main DESC, i.position ASC, i.id ASC
-      LIMIT 3
+      INNER JOIN skus_vtex s ON i.id_sku_vtex = s.id_sku_vtex
+      WHERE s.id_produto_vtex = ?
+      ORDER BY i.is_main DESC, i.id_photo_vtex ASC
+      LIMIT 2
     `, [productId]);
 
     if (!images || images.length === 0) {
@@ -73,16 +209,20 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
-    console.log(`📸 Encontradas ${images.length} imagens para análise (limitado a 3 imagens)`);
+    // Log da quantidade de imagens encontradas (máximo 2 para análise)
+    console.log(`📊 Imagens encontradas para análise: ${images.length} (máximo 2 imagens processadas)`);
 
     // Processar URLs das imagens (sem validação)
     const validImages = images.map(img => ({
       ...img,
-      url: `https://projetoinfluencer.${img.file_location}`,
+      url: img.file_location.startsWith('https://') 
+        ? img.file_location 
+        : img.file_location,
       valid: true
     }));
 
-    console.log(`📸 Processadas ${validImages.length} imagens para análise`);
+    console.log(`📊 ValidImages.length que será salvo: ${validImages.length}`);
+
 
     // Função para analisar imagens com OpenAI
     const analyzeImagesWithOpenAI = async (images: any[], productInfo: any, characteristics: any[], attributes: any[]) => {
@@ -95,29 +235,37 @@ export async function POST(request: NextRequest) {
           return null;
         }
         
-        console.log('🔑 Chave da OpenAI encontrada, enviando para análise...');
-        console.log('🔑 Chave API (primeiros 10 chars):', openaiApiKey.substring(0, 10) + '...');
-        console.log('🔑 Tamanho da chave:', openaiApiKey.length);
         
         // Preparar perguntas das características ativas
         let characteristicsQuestions = '';
         if (characteristics && characteristics.length > 0) {
           characteristicsQuestions = `
 
-**PERGUNTAS ADICIONAIS PARA ANÁLISE:**
+**CARACTERÍSTICAS ESPECÍFICAS PARA IDENTIFICAR:**
 ${characteristics.map((c, index) => {
-  let question = `${index + 1}. ${c.caracteristica}: ${c.pergunta_ia}`;
+  let question = `\n**${index + 1}. ${c.caracteristica}:**\n`;
+  question += `   ${c.pergunta_ia}\n`;
   if (c.valores_possiveis) {
-    question += `\n   Valores possíveis: ${c.valores_possiveis}`;
+    question += `   \n   **INSTRUÇÃO OBRIGATÓRIA:**\n   ${c.valores_possiveis}\n`;
   }
+  question += `   \n   **RESPOSTA REQUERIDA:**\n`;
+  question += `   - Analise as imagens e responda DIRETAMENTE a pergunta\n`;
+  question += `   - Siga EXATAMENTE a instrução fornecida\n`;
+  question += `   - Seja OBJETIVO e DIRETO na resposta\n`;
+  question += `   - NÃO faça descrições longas ou explicações desnecessárias\n`;
   return question;
 }).join('\n')}
 
-**INSTRUÇÕES IMPORTANTES:**
-- Responda essas perguntas no final da sua análise, após a contextualização principal
-- Se você NÃO conseguir identificar ou determinar uma característica específica com certeza, NÃO inclua essa característica na resposta
-- Apenas inclua características que você pode identificar claramente nas imagens ou dados do produto
-- Não use "N/A", "Não identificado" ou respostas genéricas - simplesmente omita a característica`;
+**INSTRUÇÕES FINAIS PARA CARACTERÍSTICAS:**
+- Após sua análise contextual principal, responda DIRETAMENTE cada característica acima
+- Para cada característica, dê uma resposta OBJETIVA e DIRETA
+- Siga EXATAMENTE as instruções fornecidas na coluna "valores_possiveis"
+- NÃO faça descrições longas ou explicações técnicas desnecessárias
+- Seja CONCISO e DIRETO nas respostas
+- Use formato markdown para as características: "### Características Específicas"
+- Para cada característica, responda apenas: "**Nome da Característica:** Resposta direta"
+- NÃO adicione frases de conclusão, resumo ou comentários gerais no final
+- Termine diretamente após responder todas as características`;
         }
 
         // Preparar lista de atributos do produto
@@ -127,14 +275,15 @@ ${characteristics.map((c, index) => {
 
 **ATRIBUTOS TÉCNICOS DO PRODUTO:**
 ${attributes.map(attr => {
-  const values = typeof attr.attribute_values === 'string' 
-    ? JSON.parse(attr.attribute_values) 
-    : attr.attribute_values;
-  const valuesList = Array.isArray(values) ? values.join(', ') : values;
-  return `• ${attr.attribute_name}: ${valuesList}`;
+  return `• ${attr.attribute_name}: ${attr.attribute_value}`;
 }).join('\n')}
 
-Use essas informações técnicas para complementar sua análise visual e dar respostas mais precisas sobre as características do produto.`;
+**INSTRUÇÕES PARA ATRIBUTOS TÉCNICOS:**
+- Use essas informações técnicas para validar e complementar sua análise visual
+- Correlacione os atributos técnicos com os detalhes visíveis nas imagens
+- Se houver discrepância entre atributos e análise visual, priorize o que é visível nas imagens
+- Use os atributos para dar respostas mais precisas sobre características do produto
+- Combine análise visual com dados técnicos para máxima precisão`;
         }
 
         // Preparar mensagens para a API da OpenAI (otimizado para velocidade)
@@ -144,7 +293,7 @@ Use essas informações técnicas para complementar sua análise visual e dar re
             content: [
               {
                 type: "text",
-                text: `${agent.guidelines_template || 'Analise esta peça de vestuário e crie uma descrição técnica concisa.'}
+                text: `${agent.guidelines_template}
 
 **DADOS COMPLETOS DO PRODUTO:**
 Nome do Produto: ${productInfo.name}
@@ -155,7 +304,18 @@ Título: ${productInfo.title || 'N/A'}
 Palavras-chave: ${productInfo.keywords || 'N/A'}
 REF_ID: ${productInfo.ref_id || 'N/A'}${attributesInfo}
 
-Analise as imagens considerando TODOS estes dados do produto para dar respostas consistentes e que façam sentido.${characteristicsQuestions}`
+**INSTRUÇÃO FINAL CRÍTICA:**
+Você DEVE produzir uma análise técnica EXTREMAMENTE DETALHADA seguindo RIGOROSAMENTE a estrutura de 9 pontos especificada. Você receberá até 2 imagens do produto para análise. Cada seção deve ser um parágrafo corrido e fluido, usando terminologia técnica específica da moda e têxtil. NÃO use bullets, listas ou formatação JSON. Seja um especialista técnico analisando cada detalhe visível nas imagens fornecidas.
+
+**ESTRUTURA OBRIGATÓRIA DA RESPOSTA:**
+1. **ANÁLISE TÉCNICA PRINCIPAL**: Produza uma descrição técnica completa seguindo EXATAMENTE os 9 pontos especificados, cada um em parágrafo corrido detalhado
+2. **RESPOSTAS TÉCNICAS**: Responda DIRETAMENTE cada característica listada abaixo com precisão técnica
+3. **TOM OBRIGATÓRIO**: Mantenha linguagem de relatório técnico de moda profissional
+4. **FORMATO OBRIGATÓRIO**: Use EXCLUSIVAMENTE parágrafos corridos para análise principal
+
+**LEMBRE-SE**: Você é um especialista com 15+ anos de experiência. Seja extremamente detalhado, técnico e preciso. Priorize qualidade técnica sobre brevidade.
+
+${characteristicsQuestions}`
               },
               ...images.map(img => ({
                 type: "image_url",
@@ -178,10 +338,10 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
             'Authorization': `Bearer ${openaiApiKey}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o', // Modelo mais avançado para análise de imagem
+            model: agent.model, // Modelo configurado no agente
             messages: messages,
-            max_tokens: 4000, // Mais tokens para análises detalhadas
-            temperature: 0.2, // Temperatura mais baixa para consistência
+            max_tokens: agent.max_tokens, // Tokens configurados no agente
+            temperature: agent.temperature, // Temperatura configurada no agente
             top_p: 0.9,
             frequency_penalty: 0.1,
             presence_penalty: 0.1
@@ -202,7 +362,6 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
         const analysis = result.choices[0]?.message?.content;
 
         if (analysis) {
-          console.log('✅ Análise da OpenAI concluída');
           
           // Calcular custo baseado no modelo e tokens
           const calculateOpenAICost = (tokens: number, model: string): number => {
@@ -223,7 +382,7 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
             return inputCost + outputCost;
           };
           
-          const modelUsed = agent.model || 'gpt-4o-mini';
+          const modelUsed = agent.model;
           const totalTokens = result.usage?.total_tokens || 0;
           const promptTokens = result.usage?.prompt_tokens || Math.floor(totalTokens * 0.7);
           const completionTokens = result.usage?.completion_tokens || Math.floor(totalTokens * 0.3);
@@ -251,18 +410,16 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
     // Buscar informações completas do produto
     const products = await executeQuery(`
       SELECT 
-        p.id, p.name, p.title, p.description, p.brand_id, p.category_id, p.ref_id, p.keywords,
-        b.name as brand_name
+        p.id_produto_vtex as id, p.name, p.title, p.description, p.id_brand_vtex as brand_id, p.id_category_vtex as category_id, p.ref_produto as ref_id, p.keywords
       FROM products_vtex p
-      LEFT JOIN brands b ON p.brand_id = b.id
-      WHERE p.id = ?
+      WHERE p.id_produto_vtex = ?
     `, [productId]);
 
     // Buscar atributos do produto
     const productAttributes = await executeQuery(`
-      SELECT attribute_name, attribute_values
-      FROM product_attributes
-      WHERE product_id = ?
+      SELECT attribute_name, attribute_value
+      FROM product_attributes_vtex
+      WHERE id_product_vtex = ?
       ORDER BY attribute_name
     `, [productId]);
 
@@ -274,8 +431,6 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
     }
 
     const product = products[0];
-    console.log(`📋 Usando categoryVtexId do payload: ${categoryVtexId}`);
-    console.log(`📋 ${productAttributes?.length || 0} atributos encontrados para o produto`);
 
     // Buscar características ativas que se aplicam à categoria do produto
     const characteristics = await executeQuery(`
@@ -289,11 +444,8 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
       ORDER BY caracteristica
     `, [categoryVtexId]);
 
-    console.log(`📋 ${characteristics?.length || 0} características ativas encontradas para categoryVtexId: ${categoryVtexId}`);
-
     // Verificar se existem características configuradas para esta categoria
     if (!characteristics || characteristics.length === 0) {
-      console.log('⚠️ Nenhuma característica configurada para esta categoria');
       return NextResponse.json({
         success: false,
         message: `Nenhuma característica está configurada para a categoria "ID: ${categoryVtexId}". Configure as características para esta categoria primeiro.`
@@ -301,7 +453,6 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
     }
 
     // Analisar imagens com OpenAI (obrigatório)
-    console.log('🤖 Iniciando análise com OpenAI...');
     const openaiAnalysis = await analyzeImagesWithOpenAI(validImages, product, characteristics, productAttributes);
 
     // Verificar se a análise da OpenAI foi bem-sucedida
@@ -364,9 +515,9 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
       contextual_analysis: finalAnalysis,
       analysis_quality: analysisQuality,
       agent_configuration: {
-        model: agent.model || 'gpt-4o-mini',
-        max_tokens: parseInt(agent.max_tokens) || 800,
-        temperature: parseFloat(agent.temperature) || 0.5,
+        model: agent.model,
+        max_tokens: agent.max_tokens,
+        temperature: agent.temperature,
         quality_level: analysisQuality.level,
         quality_description: analysisQuality.description
       },
@@ -383,52 +534,48 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
       }
     };
 
-    console.log(`✅ Análise concluída para produto ${product.name}`);
-
     // Salvar dados da análise na tabela de logs (simplificado)
     const endTime = Date.now();
     const totalDuration = endTime - startTime;
     
-    try {
-      console.log('💾 Tentando salvar logs da análise...');
-      await executeQuery(`
-        INSERT INTO image_analysis_logs (
-          product_id, product_ref_id, agent_id, analysis_type, model_used, tokens_used, max_tokens, temperature,
-          analysis_quality, total_images, valid_images, invalid_images, product_type,
-          analysis_duration_ms, openai_response_time_ms, success, analysis_text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        productId,
-        product.ref_id || null,
-        agent.id,
-        'openai',
-        'gpt-4o-mini',
-        openaiAnalysis.tokens_used,
-        parseInt(agent.max_tokens) || 2000,
-        parseFloat(agent.temperature) || 0.7,
-        analysisQuality.level,
-        validImages.length,
-        validImages.length,
-        0,
-        productType,
-        totalDuration,
-        openaiAnalysis.response_time_ms,
-        true,
-        finalAnalysis
-      ]);
-      console.log(`💾 Dados da análise salvos na tabela de logs`);
-    } catch (logError) {
-      console.error('⚠️ Erro ao salvar logs da análise:', logError);
-      // Não falhar a análise por erro de log
-    }
+    // Comentado temporariamente até verificar estrutura da tabela image_analysis_logs
+    // try {
+    //   await executeQuery(`
+    //     INSERT INTO image_analysis_logs (
+    //       id_produto_vtex, product_ref_id, agent_id, analysis_type, model_used, tokens_used, max_tokens, temperature,
+    //       analysis_quality, total_images, valid_images, invalid_images, product_type,
+    //       analysis_duration_ms, openai_response_time_ms, success, analysis_text
+    //     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    //   `, [
+    //     productId,
+    //     product.ref_id || null,
+    //     agent.id,
+    //     'openai',
+    //     'gpt-4o-mini',
+    //     openaiAnalysis.tokens_used,
+    //     parseInt(agent.max_tokens) || 2000,
+    //     parseFloat(agent.temperature) || 0.7,
+    //     analysisQuality.level,
+    //     validImages.length,
+    //     validImages.length,
+    //     0,
+    //     productType,
+    //     totalDuration,
+    //     openaiAnalysis.response_time_ms,
+    //     true,
+    //     finalAnalysis
+    //   ]);
+    // } catch (logError) {
+    //   console.error('⚠️ Erro ao salvar logs da análise:', logError);
+    //   // Não falhar a análise por erro de log
+    // }
 
     // Salvar contextualização e logs da OpenAI na tabela analise_imagens
     try {
-      console.log('💾 Salvando contextualização e logs da OpenAI na tabela analise_imagens...');
       
       // Verificar se já existe uma análise para este produto
       const existingAnalysis = await executeQuery(`
-        SELECT id_produto FROM analise_imagens WHERE id_produto = ?
+        SELECT id_produto_vtex FROM analise_imagens WHERE id_produto_vtex = ?
       `, [productId]);
       
       if (existingAnalysis && existingAnalysis.length > 0) {
@@ -457,7 +604,7 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
             status = ?,
             generated_at = ?,
             updated_at = NOW()
-          WHERE id_produto = ?
+          WHERE id_produto_vtex = ?
         `, [
           finalAnalysis,
           openaiAnalysis.model_used,
@@ -466,8 +613,8 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
           openaiAnalysis.tokens_completion || Math.floor(openaiAnalysis.tokens_used * 0.3),
           openaiAnalysis.cost || 0,
           openaiAnalysis.request_id || '',
-          parseInt(agent.max_tokens) || 800,
-          parseFloat(agent.temperature) || 0.5,
+          agent.max_tokens,
+          agent.temperature,
           openaiAnalysis.response_time_ms,
           totalDuration,
           agent.id,
@@ -481,12 +628,11 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
           new Date(),
           productId
         ]);
-        console.log(`💾 Análise e logs atualizados para produto ${productId}`);
       } else {
         // Inserir nova análise com todos os dados
         await executeQuery(`
           INSERT INTO analise_imagens (
-            id_produto, contextualizacao, openai_model, openai_tokens_used, 
+            id_produto_vtex, contextualizacao, openai_model, openai_tokens_used, 
             openai_tokens_prompt, openai_tokens_completion, openai_cost,
             openai_request_id, openai_max_tokens, openai_temperature, 
             openai_response_time_ms, analysis_duration_ms, agent_id, agent_name, 
@@ -502,8 +648,8 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
           openaiAnalysis.tokens_completion || Math.floor(openaiAnalysis.tokens_used * 0.3),
           openaiAnalysis.cost || 0,
           openaiAnalysis.request_id || '',
-          parseInt(agent.max_tokens) || 800,
-          parseFloat(agent.temperature) || 0.5,
+          agent.max_tokens,
+          agent.temperature,
           openaiAnalysis.response_time_ms,
           totalDuration,
           agent.id,
@@ -516,7 +662,6 @@ Analise as imagens considerando TODOS estes dados do produto para dar respostas 
           'generated',
           new Date()
         ]);
-        console.log(`💾 Nova análise e logs salvos para produto ${productId}`);
       }
     } catch (analysisError) {
       console.error('⚠️ Erro ao salvar na tabela analise_imagens:', analysisError);

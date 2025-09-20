@@ -37,16 +37,16 @@ export interface AuthToken {
 
 // Função para gerar token JWT
 export const generateToken = (userId: number, email: string, role: string): string => {
-  return jwt.sign(
-    { 
-      userId, 
-      email,
-      role,
-      iat: Math.floor(Date.now() / 1000)
-    },
-    JWT_SECRET,
-    { expiresIn: '24h' }
-  );
+  const payload = { 
+    userId, 
+    email,
+    role,
+    iat: Math.floor(Date.now() / 1000)
+  };
+  
+  return jwt.sign(payload, JWT_SECRET, { 
+    expiresIn: JWT_EXPIRES_IN || '7d' 
+  } as jwt.SignOptions);
 };
 
 // Função para verificar token JWT
@@ -58,8 +58,13 @@ export const verifyToken = (token: string): { userId: number; email: string; rol
       email: decoded.email,
       role: decoded.role
     };
-  } catch (error) {
-    console.error('Erro ao verificar token:', error);
+  } catch (error: any) {
+    // Log específico para tokens expirados
+    if (error.name === 'TokenExpiredError') {
+      console.log('⏰ Token expirado em:', error.expiredAt);
+    } else {
+      console.error('Erro ao verificar token:', error);
+    }
     return null;
   }
 };
@@ -274,7 +279,7 @@ export const deactivateUser = async (userId: number): Promise<boolean> => {
   }
 };
 
-export default {
+const authService = {
   generateToken,
   verifyToken,
   hashPassword,
@@ -287,3 +292,5 @@ export default {
   changePassword,
   deactivateUser
 };
+
+export default authService;

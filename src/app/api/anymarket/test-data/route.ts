@@ -7,24 +7,24 @@ export async function POST() {
 
     // Inserir alguns dados de teste
     const testData = [
-      { ref_vtex: '203716023', id_produto_any: 'ANY001' },
-      { ref_vtex: '203716024', id_produto_any: 'ANY002' },
-      { ref_vtex: '203716025', id_produto_any: 'ANY003' },
-      { ref_vtex: '203716026', id_produto_any: 'ANY004' },
-      { ref_vtex: '203716027', id_produto_any: 'ANY005' }
+      { ref_produto_vtex: '203716023', id_produto_any: 'ANY001' },
+      { ref_produto_vtex: '203716024', id_produto_any: 'ANY002' },
+      { ref_produto_vtex: '203716025', id_produto_any: 'ANY003' },
+      { ref_produto_vtex: '203716026', id_produto_any: 'ANY004' },
+      { ref_produto_vtex: '203716027', id_produto_any: 'ANY005' }
     ];
 
     let insertedCount = 0;
     for (const data of testData) {
       try {
         await executeQuery(`
-          INSERT INTO anymarket (ref_vtex, id_produto_any)
+          INSERT INTO anymarket (ref_produto_vtex, id_produto_any)
           VALUES (?, ?)
-        `, [data.ref_vtex, data.id_produto_any]);
+        `, [data.ref_produto_vtex, data.id_produto_any]);
         insertedCount++;
-        console.log(`✅ Inserido: VTEX ${data.ref_vtex} -> Anymarket ${data.id_produto_any}`);
+        console.log(`✅ Inserido: VTEX ${data.ref_produto_vtex} -> Anymarket ${data.id_produto_any}`);
       } catch (error) {
-        console.log(`⚠️ Erro ao inserir ${data.ref_vtex}:`, error);
+        console.log(`⚠️ Erro ao inserir ${data.ref_produto_vtex}:`, error);
       }
     }
 
@@ -58,7 +58,7 @@ export async function DELETE() {
     for (const id of testIds) {
       try {
         const result = await executeQuery(`
-          DELETE FROM anymarket WHERE ref_vtex = ?
+          DELETE FROM anymarket WHERE ref_produto_vtex = ?
         `, [id]);
         deletedCount++;
         console.log(`✅ Removido: VTEX ${id}`);

@@ -54,7 +54,7 @@ export default function DashboardPage() {
         )}
 
         {/* Cards em grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {/* Card de Total de Produtos */}
           <div>
             <div className="bg-orange-500 hover:shadow-lg transition-shadow rounded-lg shadow-md border border-orange-200 p-6">

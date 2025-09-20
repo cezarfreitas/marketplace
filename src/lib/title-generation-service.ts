@@ -127,7 +127,7 @@ Extraia os elementos essenciais seguindo as regras definidas.`;
 [TIPO DE PRODUTO] + [MARCA OU LICENÇA] + [MODELO/ESTILO] + [CARACTERÍSTICA PRINCIPAL] + [COR] + [PÚBLICO]
 
 📐 REGRAS CRÍTICAS (NUNCA QUEBRAR):
-1. MÁXIMO 60 caracteres
+1. MÁXIMO 60 caracteres (LIMITE ABSOLUTO - TÍTULOS MAIORES SERÃO REJEITADOS)
 2. SEMPRE incluir: Tipo + Marca + Modelo + Característica + Cor + Público
 3. Ordem importa: termo mais buscado vem primeiro
 4. Cor sempre no singular: "Preto", "Branco", "Vermelho"
@@ -135,18 +135,36 @@ Extraia os elementos essenciais seguindo as regras definidas.`;
 6. SEM palavras promocionais proibidas: "Top", "Promoção", "Mais Barata", "Frete Grátis"
 7. SEM repetições desnecessárias
 8. Otimizar para filtros da plataforma
+9. NUNCA cortar ou truncar palavras - use sinônimos mais curtos se necessário
+10. Se não couber em 60 chars, priorize: Tipo + Marca + Público + Cor
 
-✅ EXEMPLOS PERFEITOS:
-- "Camiseta NFL Masculina Estampada Bordô Original Oficial"
-- "Boné Ecko Aba Curva Preto Snapback Unissex Original"
-- "Moletom Onbongo Canguru Masculino Cinza Mescla Casual"
-- "Tênis Nike Air Max Masculino Preto e Branco Original"
+✅ EXEMPLOS PERFEITOS COM CONTAGEM:
+- "Camiseta NFL Masculina Estampada Bordô Original" (47 chars) ✓
+- "Boné Ecko Aba Curva Preto Snapback Unissex" (42 chars) ✓
+- "Moletom Onbongo Canguru Masculino Cinza Casual" (45 chars) ✓
+- "Tênis Nike Air Max Masculino Preto Branco" (38 chars) ✓
+- "Jaqueta Adidas Feminina Preta Esportiva" (36 chars) ✓
 
-🚀 DICAS AVANÇADAS:
-- Se oficial/licenciado, SEMPRE incluir "Original" ou "Oficial"
-- Use características específicas que diferenciem o produto
-- Mantenha clareza e objetividade
-- Foque em palavras-chave que as pessoas realmente buscam
+❌ EXEMPLOS RUINS (MUITO LONGOS):
+- "Camiseta Nike Masculina Estampada Bordô Original Oficial Premium" (58 chars - muito próximo do limite)
+- "Boné Ecko Aba Curva Preto Snapback Unissex Original Premium" (55 chars - muito próximo do limite)
+
+🚀 DICAS AVANÇADAS PARA ECONOMIZAR CARACTERES:
+- Use "Camiseta" em vez de "Camiseta de Algodão"
+- Use "Boné" em vez de "Boné de Baseball"
+- Use "Tênis" em vez de "Tênis Esportivo"
+- Use "Moletom" em vez de "Moletom com Capuz"
+- Use "Unissex" em vez de "Masculino e Feminino"
+- Se oficial/licenciado, use "Original" (8 chars) em vez de "Oficial" (7 chars)
+- Use cores simples: "Preto", "Branco", "Azul" em vez de "Preto Clássico", "Branco Puro"
+
+🎯 PRIORIDADE DE ELEMENTOS (se não couber tudo):
+1. Tipo de Produto (obrigatório)
+2. Marca (obrigatório se conhecida)
+3. Público (obrigatório)
+4. Cor (obrigatório)
+5. Característica (se couber)
+6. Modelo/Estilo (se couber)
 
 Responda APENAS com o título otimizado, sem explicações.`;
 
@@ -167,12 +185,16 @@ Público: ${elements.targetAudience}
 Nome Original: ${product.name || 'N/A'}
 Categoria: ${product.category_name || 'N/A'}
 
-=== INSTRUÇÕES ===
+=== INSTRUÇÕES CRÍTICAS ===
 - Siga EXATAMENTE a estrutura: [TIPO] + [MARCA] + [MODELO] + [CARACTERÍSTICA] + [COR] + [PÚBLICO]
-- Máximo 60 caracteres
-- Sem hífens
+- MÁXIMO 60 CARACTERES (LIMITE ABSOLUTO - TÍTULOS MAIORES SERÃO REJEITADOS)
+- Sem hífens (-)
 - Se for oficial, incluir "Original" ou "Oficial"
+- NUNCA cortar ou truncar palavras - use sinônimos mais curtos se necessário
+- Se não couber em 60 chars, priorize: Tipo + Marca + Público + Cor
 - Tentativa ${attempt} de ${maxAttempts} - seja criativo e único!
+
+IMPORTANTE: Conte mentalmente os caracteres antes de responder. O título deve ter EXATAMENTE 60 caracteres ou menos.
 
 Título:`;
 
@@ -223,10 +245,17 @@ Título:`;
     const errors: string[] = [];
     let confidence = 1.0;
 
-    // Verificar tamanho
+    // Verificar tamanho - CRÍTICO: deve ser exatamente 60 ou menos
     if (title.length > 60) {
-      errors.push(`Título muito longo: ${title.length} caracteres (máximo 60)`);
-      confidence -= 0.3;
+      errors.push(`Título muito longo: ${title.length} caracteres (máximo 60) - REJEITADO`);
+      confidence = 0; // Falha crítica
+      return { isValid: false, confidence, errors };
+    }
+
+    // Verificar se está muito próximo do limite (aviso)
+    if (title.length > 55) {
+      errors.push(`Título próximo do limite: ${title.length} caracteres (recomendado máximo 55)`);
+      confidence -= 0.1;
     }
 
     // Verificar hífens
@@ -236,7 +265,7 @@ Título:`;
     }
 
     // Verificar palavras proibidas
-    const forbiddenWords = ['Top', 'Promoção', 'Mais Barata', 'Frete Grátis', 'Oferta', 'Liquidação'];
+    const forbiddenWords = ['Top', 'Promoção', 'Mais Barata', 'Frete Grátis', 'Oferta', 'Liquidação', 'Desconto', 'Grátis'];
     const hasForbiddenWord = forbiddenWords.some(word => 
       title.toLowerCase().includes(word.toLowerCase())
     );
@@ -245,27 +274,47 @@ Título:`;
       confidence -= 0.4;
     }
 
-    // Verificar elementos essenciais
-    const hasProductType = /camiseta|boné|jaqueta|tênis|moletom|calça|short|blusa/i.test(title);
-    const hasBrand = /nike|adidas|nfl|nba|ecko|onbongo|lacoste/i.test(title);
-    const hasColor = /preto|branco|azul|vermelho|verde|amarelo|rosa|cinza|marrom/i.test(title);
+    // Verificar se há palavras cortadas (terminam com hífen ou são muito curtas)
+    const words = title.split(' ');
+    const suspiciousWords = words.filter(word => 
+      word.length < 2 || 
+      word.endsWith('-') || 
+      word.startsWith('-') ||
+      /^[A-Z]{1,2}$/.test(word) // Palavras muito curtas em maiúscula
+    );
+    if (suspiciousWords.length > 0) {
+      errors.push(`Possíveis palavras cortadas detectadas: ${suspiciousWords.join(', ')}`);
+      confidence -= 0.3;
+    }
+
+    // Verificar elementos essenciais (opcionais - não são mais obrigatórios)
+    const hasProductType = /camiseta|boné|jaqueta|tênis|moletom|calça|short|blusa|polo|regata/i.test(title);
+    const hasBrand = /nike|adidas|nfl|nba|ecko|onbongo|lacoste|puma|reebok|converse/i.test(title);
+    const hasColor = /preto|branco|azul|vermelho|verde|amarelo|rosa|cinza|marrom|bordô|roxo|laranja/i.test(title);
     const hasAudience = /masculin|feminin|unissex|juvenil|infantil/i.test(title);
 
+    // Removidas as validações obrigatórias - agora são apenas informativas
     if (!hasProductType) {
-      errors.push('Título não contém tipo de produto claro');
-      confidence -= 0.2;
+      // Apenas log, não adiciona erro
+      console.log('Aviso: Título não contém tipo de produto claro');
     }
     if (!hasBrand) {
-      errors.push('Título não contém marca identificável');
-      confidence -= 0.1;
+      // Apenas log, não adiciona erro
+      console.log('Aviso: Título não contém marca identificável');
     }
     if (!hasColor) {
-      errors.push('Título não contém cor');
-      confidence -= 0.2;
+      // Apenas log, não adiciona erro
+      console.log('Aviso: Título não contém cor');
     }
     if (!hasAudience) {
-      errors.push('Título não contém público-alvo');
-      confidence -= 0.2;
+      // Apenas log, não adiciona erro
+      console.log('Aviso: Título não contém público-alvo');
+    }
+
+    // Verificar se o título tem pelo menos 20 caracteres (muito curto pode ser problemático)
+    if (title.length < 20) {
+      errors.push(`Título muito curto: ${title.length} caracteres (mínimo recomendado 20)`);
+      confidence -= 0.1;
     }
 
     return {
@@ -290,7 +339,60 @@ Título:`;
       parts.push('Original');
     }
 
-    return parts.join(' ').substring(0, 60);
+    const title = parts.join(' ');
+    
+    // Se o título for muito longo, trunca de forma inteligente
+    if (title.length > 60) {
+      return this.truncateTitleIntelligently(title, 60);
+    }
+
+    return title;
+  }
+
+  /**
+   * Trunca título de forma inteligente, removendo palavras menos importantes
+   */
+  private truncateTitleIntelligently(title: string, maxLength: number): string {
+    if (title.length <= maxLength) {
+      return title;
+    }
+
+    const words = title.split(' ');
+    const priorityWords = ['camiseta', 'boné', 'jaqueta', 'tênis', 'moletom', 'calça', 'short', 'blusa', 'polo'];
+    const brandWords = ['nike', 'adidas', 'nfl', 'nba', 'ecko', 'onbongo', 'lacoste', 'puma', 'reebok'];
+    const audienceWords = ['masculino', 'feminino', 'unissex', 'juvenil', 'infantil'];
+    const colorWords = ['preto', 'branco', 'azul', 'vermelho', 'verde', 'amarelo', 'rosa', 'cinza', 'marrom', 'bordô'];
+
+    // Priorizar palavras importantes
+    const importantWords = [];
+    const otherWords = [];
+
+    for (const word of words) {
+      const lowerWord = word.toLowerCase();
+      if (priorityWords.includes(lowerWord) || 
+          brandWords.includes(lowerWord) || 
+          audienceWords.includes(lowerWord) || 
+          colorWords.includes(lowerWord)) {
+        importantWords.push(word);
+      } else {
+        otherWords.push(word);
+      }
+    }
+
+    // Construir título priorizando palavras importantes
+    let result = importantWords.join(' ');
+    
+    // Adicionar outras palavras se couber
+    for (const word of otherWords) {
+      const testTitle = result + ' ' + word;
+      if (testTitle.length <= maxLength) {
+        result = testTitle;
+      } else {
+        break;
+      }
+    }
+
+    return result;
   }
 
   /**

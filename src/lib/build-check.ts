@@ -6,6 +6,11 @@ export function checkBuildEnvironment() {
   // Verificar se estamos em um ambiente de build específico
   // Apenas bloquear se estivermos claramente em um processo de build
   
+  // Em desenvolvimento, nunca bloquear as APIs
+  if (process.env.NODE_ENV === 'development') {
+    return false;
+  }
+  
   const isBuildTime = 
     process.env.NEXT_PHASE === 'phase-production-build' ||
     process.env.NEXT_PHASE === 'phase-development-build' ||

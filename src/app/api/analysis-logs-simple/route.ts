@@ -9,22 +9,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
     }
 
-    console.log('🔍 API simples de logs chamada');
     
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get('productId');
     const limit = parseInt(searchParams.get('limit') || '10');
     
-    console.log('📋 Parâmetros:', { productId, limit });
 
     let logs;
     
     if (productId) {
-      console.log('🔍 Buscando logs para produto:', productId);
       logs = await executeQuery(`
         SELECT 
-          id_produto as product_id, 
-          COALESCE((SELECT ref_id FROM products_vtex WHERE id = id_produto), 'N/A') as product_ref_id,
+          id_produto_vtex as product_id, 
+          COALESCE((SELECT ref_produto FROM products_vtex WHERE id_produto_vtex = analise_imagens.id_produto_vtex), 'N/A') as product_ref_id,
           'image_analysis' as analysis_type, 
           openai_model as model_used, 
           openai_tokens_used as tokens_used, 
@@ -41,16 +38,30 @@ export async function GET(request: NextRequest) {
           openai_max_tokens as max_tokens,
           COALESCE(agent_name, 'Agente de Imagens') as agent_name
         FROM analise_imagens
-        WHERE id_produto = ?
+        WHERE id_produto_vtex = ?
         ORDER BY created_at DESC 
         LIMIT ?
       `, [productId, limit.toString()]);
+
+      // Buscar atributos do produto se existir análise
+      if (logs && logs.length > 0) {
+        const productAttributes = await executeQuery(`
+          SELECT attribute_name, attribute_value
+          FROM product_attributes_vtex
+          WHERE id_product_vtex = ?
+          ORDER BY attribute_name
+        `, [productId]);
+
+        // Adicionar atributos ao primeiro log (mais recente)
+        if (logs.length > 0) {
+          logs[0].product_attributes = productAttributes || [];
+        }
+      }
     } else {
-      console.log('🔍 Buscando todos os logs');
       logs = await executeQuery(`
         SELECT 
-          id_produto as product_id, 
-          COALESCE((SELECT ref_id FROM products_vtex WHERE id = id_produto), 'N/A') as product_ref_id,
+          id_produto_vtex as product_id, 
+          COALESCE((SELECT ref_produto FROM products_vtex WHERE id_produto_vtex = analise_imagens.id_produto_vtex), 'N/A') as product_ref_id,
           'image_analysis' as analysis_type, 
           openai_model as model_used, 
           openai_tokens_used as tokens_used, 
@@ -72,8 +83,6 @@ export async function GET(request: NextRequest) {
       `, [limit.toString()]);
     }
 
-    console.log('✅ Query executada com sucesso');
-    console.log('📊 Logs encontrados:', logs.length);
 
     return NextResponse.json({
       success: true,

@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
 
     let query = `
       SELECT 
-        vtex_id as id,
-        vtex_id,
+        id_category_vtex as id,
+        id_category_vtex,
         name,
         father_category_id,
         title,

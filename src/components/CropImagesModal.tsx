@@ -224,46 +224,51 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
       anymarketId: product.anymarket_id
     });
 
-    // Criar log de processamento
+    // Criar log de processamento (apenas se anymarketId estiver disponível)
     let logId: number | null = null;
-    try {
-      const logResponse = await fetch('/api/crop-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: product.id,
-          anymarketId: product.anymarket_id,
-          productName: product.name,
-          status: 'processing'
-        })
-      });
-      
-      const logResult = await logResponse.json();
-      if (logResult.success) {
-        logId = logResult.data.logId;
-        setProcessingLogId(logId);
-        addLog('info', '📝 Log de processamento criado', { logId });
+    if (product.anymarket_id) {
+      try {
+        const logResponse = await fetch('/api/crop-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: product.id,
+            anymarketId: product.anymarket_id,
+            productName: product.name,
+            status: 'processing'
+          })
+        });
+        
+        const logResult = await logResponse.json();
+        if (logResult.success) {
+          logId = logResult.data.logId;
+          setProcessingLogId(logId);
+          addLog('info', '📝 Log de processamento criado', { logId });
+        }
+      } catch (error) {
+        addLog('warning', '⚠️ Erro ao criar log de processamento', { error });
       }
-    } catch (error) {
-      addLog('warning', '⚠️ Erro ao criar log de processamento', { error });
+    } else {
+      addLog('info', 'ℹ️ Produto sem anymarketId - processando apenas imagens VTEX', { productId: product.id });
     }
 
     try {
-      // ETAPA 1: Deletar imagens antigas do Anymarket
-      setCurrentStep('Etapa 1: Deletando imagens antigas do Anymarket...');
-      addLog('info', '🗑️ ETAPA 1: Deletando imagens antigas do Anymarket...');
+      // ETAPA 1: Deletar imagens antigas do Anymarket (apenas se anymarketId estiver disponível)
+      if (product.anymarket_id) {
+        setCurrentStep('Etapa 1: Deletando imagens antigas do Anymarket...');
+        addLog('info', '🗑️ ETAPA 1: Deletando imagens antigas do Anymarket...');
 
-      try {
-        // Primeiro, buscar as imagens existentes no Anymarket
-        addLog('info', '🔍 Buscando imagens existentes no Anymarket...');
-        
-        const existingImagesResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
-          }
-        });
+        try {
+          // Primeiro, buscar as imagens existentes no Anymarket
+          addLog('info', '🔍 Buscando imagens existentes no Anymarket...');
+          
+          const existingImagesResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'gumgaToken': process.env.NEXT_PUBLIC_ANYMARKET || ''
+            }
+          });
 
         if (existingImagesResponse.ok) {
           const existingImages = await existingImagesResponse.json();
@@ -285,7 +290,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
                   method: 'DELETE',
                   headers: {
                     'Content-Type': 'application/json',
-                    'gumgaToken': 'MjU5MDYwMTI2Lg==.VUKD1GexT37TSdrKxLvKI7/lhLXBG+WN3vKbTq4n0sQLL6p0m62amTpp3BXjhFToKYfXraWbZOL556bHkCPnFg=='
+                    'gumgaToken': process.env.NEXT_PUBLIC_ANYMARKET || ''
                   }
                 });
 
@@ -334,6 +339,9 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
           message: error.message
         });
       }
+      } else {
+        addLog('info', '⏭️ ETAPA 1: Pulada - produto sem anymarketId');
+      }
 
       // ETAPA 2: Buscar imagens da VTEX
       setCurrentStep('Etapa 2: Buscando imagens da VTEX...');
@@ -346,7 +354,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
         },
         body: JSON.stringify({ 
           productId: product.id,
-          anymarketId: product.anymarket_id
+          anymarketId: product.anymarket_id || null
         })
       });
 
@@ -648,18 +656,56 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-7xl w-full max-h-[95vh] overflow-hidden flex flex-col relative">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
               {processedProduct ? (
-                <History className="w-6 h-6 mr-3 text-orange-600" />
+                <History className="w-5 h-5 text-white" />
               ) : (
-                <ImageIcon className="w-6 h-6 mr-3 text-blue-600" />
+                <ImageIcon className="w-5 h-5 text-white" />
               )}
-              {processedProduct ? 'Produto Processado' : 'Processar Imagens'}
-            </h2>
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {processedProduct ? 'Produto Processado' : 'Processar Imagens'}
+                </h2>
+                {processedProduct && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Processado
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-600">{product?.name}</p>
+              {product?.anymarket_id && (
+                <p className="text-xs text-gray-500 mt-1">ID: {product.anymarket_id}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            {!processedProduct && (
+              <button
+                onClick={handleProcessImages}
+                disabled={isProcessing || !product}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Processando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>Processar Imagens</span>
+                  </>
+                )}
+              </button>
+            )}
             <button
               onClick={() => {
                 if (!isProcessing) {
@@ -669,24 +715,37 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
               className="text-gray-400 hover:text-gray-600 transition-colors"
               disabled={isProcessing}
             >
-              <X className="h-6 w-6" />
+              <X className="h-5 w-5" />
             </button>
           </div>
+        </div>
 
-          {/* Informações do Produto */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-gray-900 mb-3">Informações do Produto</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-medium text-gray-700">Nome:</span>
-                <p className="text-gray-600">{product.name}</p>
+        {/* Loading Overlay */}
+        {isProcessing && (
+          <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full mx-4">
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto">
+                  <Loader2 className="w-8 h-8 text-white animate-spin" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Processando Imagens</h3>
+                  <p className="text-sm text-gray-600">{currentStep}</p>
+                </div>
               </div>
-              <div>
-                <span className="font-medium text-gray-700">ID Anymarket:</span>
-                <p className="text-gray-600 font-mono">{product.anymarket_id}</p>
-              </div>
-              {processedProduct && (
-                <>
+            </div>
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="flex-1 overflow-hidden flex">
+          <div className="flex-1 p-6 overflow-y-auto">
+
+            {/* Informações do Produto - Apenas se processado */}
+            {processedProduct && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                <h3 className="font-semibold text-gray-900 mb-3">Histórico de Processamento</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div>
                     <span className="font-medium text-gray-700">Status:</span>
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 ml-2">
@@ -697,74 +756,57 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
                     <span className="font-medium text-gray-700">Último Processamento:</span>
                     <p className="text-gray-600">{new Date(processedProduct.lastProcessedAt).toLocaleString('pt-BR')}</p>
                   </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Progress Bar */}
-          {isProcessing && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-                  <span className="font-medium text-gray-900">{currentStep}</span>
-                </div>
-                <span className="text-sm text-gray-600">
-                  {progress.current}/{progress.total}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
-                ></div>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-6">
-            {/* Ações */}
-            {!isProcessing && logs.length === 0 && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">
-                  {processedProduct ? 'Reprocessar Imagens' : 'Processar Imagens'}
-                </h3>
-                
-                {processedProduct && (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-                    <p className="text-sm text-orange-800">
-                      Este produto já foi processado {processedProduct.totalProcessingCount} vez(es). 
-                      Última vez: {new Date(processedProduct.lastProcessedAt).toLocaleDateString('pt-BR')}
-                    </p>
+                  <div>
+                    <span className="font-medium text-gray-700">Produto:</span>
+                    <p className="text-gray-600">{processedProduct.productName}</p>
                   </div>
-                )}
-                
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleProcessImages}
-                    className={`px-6 py-2 text-white rounded-lg flex items-center gap-2 font-medium ${
-                      processedProduct 
-                        ? 'bg-orange-600 hover:bg-orange-700'
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
-                  >
-                    <Play className="h-4 w-4" />
-                    {processedProduct ? 'Reprocessar' : 'Processar'}
-                  </button>
-                  
-                  {processedProduct && (
+                </div>
+              </div>
+            )}
+
+
+            <div className="space-y-6">
+              {/* Ações - Apenas se não processado */}
+              {!processedProduct && !isProcessing && logs.length === 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ImageIcon className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Pronto para Processar</h3>
+                  <p className="text-gray-600 mb-6">
+                    Clique no botão &quot;Processar Imagens&quot; no cabeçalho para iniciar o processamento das imagens do produto.
+                  </p>
+                </div>
+              )}
+
+              {/* Ações para produto processado */}
+              {processedProduct && !isProcessing && logs.length === 0 && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center">
+                  <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <History className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Produto Já Processado</h3>
+                  <p className="text-gray-600 mb-4">
+                    Este produto já foi processado {processedProduct.totalProcessingCount} vez(es).
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      onClick={handleProcessImages}
+                      className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 font-medium"
+                    >
+                      <Play className="h-4 w-4" />
+                      Reprocessar
+                    </button>
                     <button
                       onClick={() => setShowLogsModal(true)}
-                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2 text-sm"
+                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
                     >
                       <History className="h-4 w-4" />
                       Ver Histórico
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Logs de Processamento */}
             {logs.length > 0 && (
@@ -831,6 +873,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
                 </button>
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>

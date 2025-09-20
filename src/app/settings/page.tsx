@@ -96,7 +96,7 @@ export default function SettingsPage() {
 
   return (
     <Layout title="Configurações" subtitle="Visualizar configurações do arquivo .env">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="space-y-6">
         {/* Configurações do Arquivo .env */}
         <Card>
           <div className="flex items-center justify-between mb-6">

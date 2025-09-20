@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // Campos permitidos para ordenação
-    const allowedSortFields = ['name', 'created_at', 'updated_at', 'vtex_id', 'product_count'];
+    const allowedSortFields = ['name', 'created_at', 'updated_at', 'id', 'id_category_vtex', 'product_count'];
     const sortField = allowedSortFields.includes(sort) ? sort : 'name';
     const sortDirection = order === 'desc' ? 'DESC' : 'ASC';
 
@@ -58,41 +58,31 @@ export async function GET(request: Request) {
     const countResult = await executeQuery(countQuery, queryParams);
     const total = countResult[0]?.total || 0;
 
-    console.log(`📊 Total de categorias encontradas: ${total}`);
 
-    // Buscar categorias com contagem de produtos
+    // Buscar categorias
     const categoriesQuery = `
       SELECT 
-        c.vtex_id as id, 
-        c.vtex_id, 
+        c.id_category_vtex as id, 
+        c.id_category_vtex, 
         c.name, 
         c.father_category_id,
         c.title,
         c.description,
-        c.keywords,
         c.is_active,
-        c.lomadee_campaign_code,
-        c.adwords_remarketing_code,
-        c.show_in_store_front,
-        c.show_brand_filter,
-        c.active_store_front_link,
-        c.global_category_id,
-        c.stock_keeping_unit_selection_mode,
-        c.score,
-        c.link_id,
         c.has_children,
-        c.contexto,
         c.created_at,
         c.updated_at,
         COALESCE(p.product_count, 0) as product_count,
         parent.name as parent_name
       FROM categories_vtex c
-      LEFT JOIN categories_vtex parent ON c.father_category_id = parent.vtex_id
+      LEFT JOIN categories_vtex parent ON c.father_category_id = parent.id_category_vtex
       LEFT JOIN (
-        SELECT category_id, COUNT(*) as product_count 
-        FROM products_vtex 
-        GROUP BY category_id
-      ) p ON c.vtex_id = p.category_id
+        SELECT 
+          p.id_category_vtex,
+          COUNT(*) as product_count
+        FROM products_vtex p
+        GROUP BY p.id_category_vtex
+      ) p ON c.id_category_vtex = p.id_category_vtex
       ${whereClause}
       ORDER BY ${sortField === 'product_count' ? 'COALESCE(p.product_count, 0)' : `c.${sortField}`} ${sortDirection}
       LIMIT ${limit} OFFSET ${offset}
@@ -100,7 +90,6 @@ export async function GET(request: Request) {
 
     const categories = await executeQuery(categoriesQuery, queryParams);
 
-    console.log(`✅ Retornando ${categories.length} categorias`);
 
     return NextResponse.json({
       success: true,
@@ -147,7 +136,7 @@ export async function DELETE(request: Request) {
 
     // Verificar se a categoria existe
     const existingCategories = await executeQuery(
-      'SELECT vtex_id FROM categories_vtex WHERE vtex_id = ?',
+      'SELECT id_category_vtex FROM categories_vtex WHERE id_category_vtex = ?',
       [id]
     );
 
@@ -160,7 +149,7 @@ export async function DELETE(request: Request) {
 
     // Verificar se a categoria tem produtos associados
     const productsCount = await executeQuery(
-      'SELECT COUNT(*) as count FROM products_vtex WHERE category_id = ?',
+      'SELECT COUNT(*) as count FROM products_vtex WHERE id_category_vtex = ?',
       [id]
     );
 
@@ -172,7 +161,7 @@ export async function DELETE(request: Request) {
     }
 
     // Deletar a categoria
-    await executeQuery('DELETE FROM categories_vtex WHERE vtex_id = ?', [id]);
+    await executeQuery('DELETE FROM categories_vtex WHERE id_category_vtex = ?', [id]);
 
     return NextResponse.json({
       success: true,

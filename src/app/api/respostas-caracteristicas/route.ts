@@ -30,10 +30,10 @@ export async function GET(request: NextRequest) {
     if (productId) {
       // Buscar o vtex_id da categoria do produto
       const productQuery = `
-        SELECT p.category_id, cv.vtex_id as category_vtex_id
+        SELECT p.id_category_vtex as category_id, cv.id_category_vtex as category_vtex_id
         FROM products_vtex p
-        LEFT JOIN categories_vtex cv ON p.category_id = cv.vtex_id
-        WHERE p.id = ?
+        LEFT JOIN categories_vtex cv ON p.id_category_vtex = cv.id_category_vtex
+        WHERE p.id_produto_vtex = ?
       `;
       
       const productResult = await executeQuery(productQuery, [parseInt(productId)]);

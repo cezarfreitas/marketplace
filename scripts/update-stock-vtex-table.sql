@@ -1,46 +1,38 @@
--- Script para ajustar a tabela stock_vtex conforme o JSON da API VTEX
--- Campos necessários baseados no JSON:
--- {
---   "warehouseId": "1",
---   "warehouseName": "eStyle", 
---   "totalQuantity": 0,
---   "reservedQuantity": 0,
---   "hasUnlimitedQuantity": false,
---   "timeToRefill": null,
---   "dateOfSupplyUtc": null,
---   "leadTime": "00:00:00"
--- }
+-- Script para atualizar a estrutura da tabela stock_vtex
+-- Baseado na estrutura fornecida pelo usuário
 
--- 1. Adicionar campo hasUnlimitedQuantity (se não existir)
-ALTER TABLE stock_vtex 
-ADD COLUMN IF NOT EXISTS has_unlimited_quantity TINYINT(1) DEFAULT 0 
-COMMENT 'Indica se o estoque é ilimitado';
+-- Verificar se a coluna id existe e renomear para id_stock_vtex
+-- Se a coluna id existe, vamos renomeá-la para id_stock_vtex
+ALTER TABLE stock_vtex CHANGE COLUMN id id_stock_vtex INT NOT NULL AUTO_INCREMENT COMMENT 'ID único do estoque VTEX';
 
--- 2. Adicionar campo dateOfSupplyUtc (se não existir)
-ALTER TABLE stock_vtex 
-ADD COLUMN IF NOT EXISTS date_of_supply_utc DATETIME NULL 
-COMMENT 'Data de fornecimento em UTC';
+-- Verificar se a coluna sku_id existe e renomear para id_sku_vtex
+-- Se a coluna sku_id existe, vamos renomeá-la para id_sku_vtex
+ALTER TABLE stock_vtex CHANGE COLUMN sku_id id_sku_vtex INT NOT NULL COMMENT 'ID do SKU VTEX';
 
--- 3. Adicionar campo leadTime (se não existir)
-ALTER TABLE stock_vtex 
-ADD COLUMN IF NOT EXISTS lead_time TIME NULL 
-COMMENT 'Tempo de lead para reabastecimento';
+-- Verificar se a coluna vtex_sku_id existe, se existir, remover (redundante)
+-- Se a coluna vtex_sku_id existe, vamos removê-la pois é redundante
+ALTER TABLE stock_vtex DROP COLUMN IF EXISTS vtex_sku_id;
 
--- 4. Adicionar campo vtex_sku_id para referência (se não existir)
-ALTER TABLE stock_vtex 
-ADD COLUMN IF NOT EXISTS vtex_sku_id VARCHAR(50) NULL 
-COMMENT 'ID do SKU na VTEX';
+-- Remover outras colunas que não fazem parte da estrutura atual
+ALTER TABLE stock_vtex DROP COLUMN IF EXISTS reserved_quantity;
+ALTER TABLE stock_vtex DROP COLUMN IF EXISTS has_unlimited_quantity;
+ALTER TABLE stock_vtex DROP COLUMN IF EXISTS unlimited_stock;
+ALTER TABLE stock_vtex DROP COLUMN IF EXISTS time_to_refill;
+ALTER TABLE stock_vtex DROP COLUMN IF EXISTS date_of_supply_utc;
+ALTER TABLE stock_vtex DROP COLUMN IF EXISTS date_utc_on_balance_system;
+ALTER TABLE stock_vtex DROP COLUMN IF EXISTS lead_time;
 
--- 5. Criar índice para vtex_sku_id (se não existir)
-CREATE INDEX IF NOT EXISTS idx_stock_vtex_vtex_sku_id ON stock_vtex(vtex_sku_id);
-
--- 6. Atualizar comentários dos campos existentes
-ALTER TABLE stock_vtex 
-MODIFY COLUMN warehouse_id VARCHAR(50) NOT NULL COMMENT 'ID do warehouse na VTEX',
-MODIFY COLUMN warehouse_name VARCHAR(255) NULL COMMENT 'Nome do warehouse',
-MODIFY COLUMN total_quantity INT DEFAULT 0 COMMENT 'Quantidade total disponível',
-MODIFY COLUMN reserved_quantity INT DEFAULT 0 COMMENT 'Quantidade reservada',
-MODIFY COLUMN time_to_refill INT DEFAULT 0 COMMENT 'Tempo para reabastecimento em dias';
-
--- 7. Verificar estrutura final
+-- Verificar a estrutura atual da tabela
 DESCRIBE stock_vtex;
+
+-- Exemplo de consulta com a nova estrutura
+SELECT 
+  id_stock_vtex,
+  id_sku_vtex,
+  warehouse_id,
+  warehouse_name,
+  total_quantity,
+  created_at,
+  updated_at
+FROM stock_vtex 
+LIMIT 5;

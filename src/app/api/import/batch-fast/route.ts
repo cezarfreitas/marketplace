@@ -2,12 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FastBatchImportModule } from '@/lib/import-modules/fast-batch-import';
 import { progressStore } from '@/lib/progress-store';
 import { checkBuildEnvironment } from '@/lib/build-check';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export async function POST(request: NextRequest) {
   try {
     // Evitar execução durante o build do Next.js
     if (checkBuildEnvironment()) {
       return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
+    // Verificar rate limit (200 requisições por minuto)
+    const rateLimitCheck = checkRateLimit(request);
+    if (!rateLimitCheck.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Rate limit excedido',
+          message: 'Máximo de 200 requisições por minuto. Aguarde antes de tentar novamente.',
+          retryAfter: 60
+        },
+        { 
+          status: 429,
+          headers: {
+            ...rateLimitCheck.headers,
+            'Retry-After': '60'
+          }
+        }
+      );
     }
 
     console.log('🚀 API de importação em lote RÁPIDA chamada');
@@ -25,8 +45,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validar limite máximo de produtos
+    if (refIds.length > 200) {
+      return NextResponse.json(
+        { error: 'Máximo de 200 produtos por importação. Use múltiplas chamadas para mais produtos. Você enviou ' + refIds.length + ' produtos.' },
+        { status: 400 }
+      );
+    }
+
     // Limitar batch size para processamento otimizado
-    const maxBatchSize = Math.min(batchSize, 10); // Ajustado para 10
+    const maxBatchSize = Math.min(batchSize, 20); // Aumentado para 20
 
     // Configuração padrão otimizada
     const importConfig = {
@@ -37,7 +65,6 @@ export async function POST(request: NextRequest) {
       importImages: true,
       importStock: true,
       importAttributes: true, // Importar atributos do produto
-      skipExisting: true, // Pular existentes para ser mais rápido
       parallelProcessing: true, // Ativar processamento paralelo
       ...config
     };
@@ -72,8 +99,20 @@ export async function POST(request: NextRequest) {
     const progressId = `batch_fast_${Date.now()}`;
     
     // Inicializar progresso
+    console.log('🔄 Criando progresso para ID:', progressId, 'com', refIds.length, 'produtos');
     progressStore.createProgress(progressId, refIds.length);
-    progressStore.updateProgress(progressId, 'running', 0, 'Iniciando importação rápida...');
+    progressStore.updateProgress(progressId, 'running', 0, 'Iniciando importação...');
+    
+    // Verificar se foi criado corretamente
+    const createdProgress = progressStore.getProgress(progressId);
+    console.log('✅ Progresso criado:', {
+      id: createdProgress?.id,
+      status: createdProgress?.status,
+      totalItems: createdProgress?.totalItems
+    });
+    
+    // Atualizar com mensagem de contagem
+    progressStore.updateProgress(progressId, 'running', 0, 'Contando produtos e SKUs...');
 
     // Retornar imediatamente com o progressId
     const response = NextResponse.json({
@@ -82,13 +121,18 @@ export async function POST(request: NextRequest) {
       data: {
         progressId,
         totalProducts: refIds.length,
-        batchSize: maxBatchSize,
-        estimatedTime: `${Math.ceil(refIds.length / maxBatchSize) * 2} minutos`
+        batchSize: maxBatchSize
       }
+    }, {
+      headers: rateLimitCheck.headers
     });
 
     // Executar importação em background com processamento paralelo
     executeFastImportInBackground(progressId, refIds, importConfig, baseUrl, headers, maxBatchSize);
+
+    // Log para debug
+    console.log('🚀 Importação iniciada com progressId:', progressId);
+    console.log('📊 Configuração:', importConfig);
 
     return response;
 
@@ -119,32 +163,58 @@ async function executeFastImportInBackground(
 
     console.log(`🚀 Processando ${refIds.length} produtos com importação rápida`);
 
-    // Atualizar progresso inicial
+    // Inicializar progresso sem mensagem inicial
     progressStore.updateProgress(
       progressId, 
       'running', 
       0,
-      `Iniciando importação rápida de ${refIds.length} produtos...`
+      ''
     );
 
     // Executar importação rápida usando o FastBatchImportModule
     const results = await fastImporter.importMultipleProductsFast(refIds, {
       ...config,
       batchSize
+    }, (current: number, total: number, currentItem?: string) => {
+      // Atualizar progresso em tempo real - apenas mensagens de SKU
+      const progress = Math.round((current / total) * 100);
+      let message = '';
+      
+      if (currentItem && currentItem.includes('Processando SKU')) {
+        message = currentItem;
+      }
+      
+      progressStore.updateProgress(
+        progressId,
+        'running',
+        progress,
+        message,
+        undefined,
+        total,
+        current
+      );
     });
 
     // Processar resultados e atualizar progresso
+    console.log('📊 Processando resultados:', results.length);
+    
     results.forEach((result, index) => {
+      console.log(`📦 Processando resultado ${index + 1}:`, {
+        refId: result.refId,
+        success: result.success,
+        message: result.message
+      });
+      
       progressStore.addResult(progressId, result);
       
       if (result.success) {
         progressStore.incrementProgress(
           progressId,
-          `Produto ${result.data?.refId} importado com sucesso`,
-          result.data?.refId
+          `Produto ${result.refId} importado com sucesso`,
+          result.refId
         );
       } else {
-        progressStore.addError(progressId, `Erro ao importar ${result.data?.refId}: ${result.message}`);
+        progressStore.addError(progressId, `Erro ao importar ${result.refId}: ${result.message}`);
       }
     });
 
@@ -178,10 +248,32 @@ async function executeFastImportInBackground(
 }
 
 export async function GET(request: NextRequest) {
+  // Verificar rate limit (200 requisições por minuto)
+  const rateLimitCheck = checkRateLimit(request);
+  if (!rateLimitCheck.allowed) {
+    return NextResponse.json(
+      { 
+        error: 'Rate limit excedido',
+        message: 'Máximo de 200 requisições por minuto. Aguarde antes de tentar novamente.',
+        retryAfter: 60
+      },
+      { 
+        status: 429,
+        headers: {
+          ...rateLimitCheck.headers,
+          'Retry-After': '60'
+        }
+      }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const progressId = searchParams.get('progressId');
 
+  console.log('🔍 GET /api/import/batch-fast - progressId:', progressId);
+
   if (!progressId) {
+    console.log('❌ progressId não fornecido');
     return NextResponse.json(
       { error: 'progressId é obrigatório' },
       { status: 400 }
@@ -191,16 +283,31 @@ export async function GET(request: NextRequest) {
   try {
     const progress = progressStore.getProgress(progressId);
     
+    console.log('📊 Progresso encontrado:', {
+      id: progress?.id,
+      status: progress?.status,
+      progress: progress?.progress,
+      message: progress?.message,
+      totalItems: progress?.totalItems,
+      completedItems: progress?.completedItems
+    });
+    
     if (!progress) {
+      console.log('❌ Progresso não encontrado para ID:', progressId);
       return NextResponse.json(
         { error: 'Progresso não encontrado' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
+    const response = {
       success: true,
       data: progress
+    };
+
+    console.log('✅ Retornando progresso:', response);
+    return NextResponse.json(response, {
+      headers: rateLimitCheck.headers
     });
 
   } catch (error: any) {

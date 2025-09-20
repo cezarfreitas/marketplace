@@ -5,10 +5,10 @@ export async function POST(request: NextRequest) {
   try {
     const { productId, anymarketId } = await request.json();
 
-    if (!productId || !anymarketId) {
+    if (!productId) {
       return NextResponse.json({
         success: false,
-        message: 'productId e anymarketId são obrigatórios'
+        message: 'productId é obrigatório'
       }, { status: 400 });
     }
 
@@ -20,17 +20,17 @@ export async function POST(request: NextRequest) {
       const { executeQuery } = await import('@/lib/database');
       imagesData = await executeQuery(`
         SELECT 
-          i.id,
+          i.id_photo_vtex as id,
           i.file_location,
           i.text as alt_text,
           i.is_main as is_primary,
           i.position,
-          s.id as sku_id,
+          s.id_sku_vtex as sku_id,
           s.name as sku_name
         FROM images_vtex i
-        INNER JOIN skus_vtex s ON i.sku_id = s.id
-        WHERE s.product_id = ?
-        ORDER BY i.is_main DESC, i.position ASC, i.id ASC
+        INNER JOIN skus_vtex s ON i.id_sku_vtex = s.id_sku_vtex
+        WHERE s.id_produto_vtex = ?
+        ORDER BY i.is_main DESC, i.position ASC, i.id_photo_vtex ASC
       `, [productId]);
 
       console.log('✅ Imagens encontradas no banco:', imagesData.length);
@@ -55,7 +55,11 @@ export async function POST(request: NextRequest) {
 
     // Preparar URLs das imagens para processamento
     const imageUrls = imagesData.map(image => {
-      const imageUrl = `https://projetoinfluencer.${image.file_location}`;
+      // Se file_location já contém a URL completa, usar diretamente
+      // Caso contrário, adicionar o prefixo
+      const imageUrl = image.file_location.startsWith('http') 
+        ? image.file_location 
+        : `https://projetoinfluencer.${image.file_location}`;
       return {
         id: image.id,
         skuId: image.sku_id,

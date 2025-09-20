@@ -1,9 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database';
 import { checkBuildEnvironment } from '@/lib/build-check';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export async function GET(request: NextRequest) {
   try {
+    // Verificar rate limit (200 requisições por minuto)
+    const rateLimitCheck = checkRateLimit(request);
+    if (!rateLimitCheck.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Rate limit excedido',
+          message: 'Máximo de 200 requisições por minuto. Aguarde antes de tentar novamente.',
+          retryAfter: 60
+        },
+        { 
+          status: 429,
+          headers: {
+            ...rateLimitCheck.headers,
+            'Retry-After': '60'
+          }
+        }
+      );
+    }
+
     console.log('🔍 API de produtos chamada');
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -38,7 +58,7 @@ export async function GET(request: NextRequest) {
       const validBrandIds = brand_id.filter(id => id && id.trim() !== '');
       if (validBrandIds.length > 0) {
         const placeholders = validBrandIds.map(() => '?').join(',');
-        conditions.push(`p.brand_id IN (${placeholders})`);
+        conditions.push(`p.id_brand_vtex IN (${placeholders})`);
         searchParams_array.push(...validBrandIds);
       }
     }
@@ -48,7 +68,7 @@ export async function GET(request: NextRequest) {
       const validCategoryIds = category_id.filter(id => id && id.trim() !== '');
       if (validCategoryIds.length > 0) {
         const placeholders = validCategoryIds.map(() => '?').join(',');
-        conditions.push(`p.category_id IN (${placeholders})`);
+        conditions.push(`p.id_category_vtex IN (${placeholders})`);
         searchParams_array.push(...validCategoryIds);
       }
     }
@@ -82,15 +102,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filtro para descrição do marketplace
-    const has_marketplace_description = searchParams.get('has_marketplace_description');
-    if (has_marketplace_description) {
-      if (has_marketplace_description === 'true') {
-        conditions.push(`EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)`);
-      } else if (has_marketplace_description === 'false') {
-        conditions.push(`NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)`);
-      }
-    }
+    // Filtro para descrição do marketplace (removido - tabela não existe)
+    // const has_marketplace_description = searchParams.get('has_marketplace_description');
 
     // Filtro para referência Anymarket
     const has_anymarket_ref_id = searchParams.get('has_anymarket_ref_id');
@@ -145,7 +158,7 @@ export async function GET(request: NextRequest) {
           // Produtos sem nenhuma otimização
           conditions.push(`(
             NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
-            NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            -- NOT -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
             NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
             NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id) AND
             NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
@@ -156,19 +169,19 @@ export async function GET(request: NextRequest) {
           // Produtos que têm algumas otimizações, mas não todas
           conditions.push(`(
             (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
-             NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)) OR
-            (EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND 
+             -- NOT -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id)) OR
+            (-- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND 
              NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)) OR
             (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
-             EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+             -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
              NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)) OR
             (EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND 
-             EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+             -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
              EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
              NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id)) OR
             (EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed') AND
              NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
-             NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id))
+             -- NOT -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id))
           )`);
           break;
           
@@ -176,7 +189,7 @@ export async function GET(request: NextRequest) {
           // Produtos totalmente otimizados (todas as otimizações)
           conditions.push(`(
             EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
-            EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
             EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
             EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id) AND
             EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
@@ -187,7 +200,7 @@ export async function GET(request: NextRequest) {
           // Produtos que têm apenas análise de imagens
           conditions.push(`(
             EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
-            NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            -- NOT -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
             NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
             NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id) AND
             NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
@@ -198,7 +211,7 @@ export async function GET(request: NextRequest) {
           // Produtos que têm apenas descrição do marketplace
           conditions.push(`(
             NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
-            EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
             NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) AND
             NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id) AND
             NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
@@ -209,7 +222,7 @@ export async function GET(request: NextRequest) {
           // Produtos que têm apenas integração com Anymarket
           conditions.push(`(
             NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id) AND
-            NOT EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
+            -- NOT -- EXISTS (SELECT 1 FROM marketplace m WHERE m.product_id = p.id) AND
             (EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id) OR
              EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id)) AND
             NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')
@@ -223,7 +236,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Validar campos de ordenação
-    const allowedSortFields = ['name', 'created_at', 'updated_at', 'vtex_id', 'brand_name', 'category_name', 'total_stock'];
+    const allowedSortFields = ['name', 'created_at', 'updated_at', 'id_produto_vtex', 'brand_name', 'category_name', 'total_stock'];
     const validSortField = allowedSortFields.includes(sort) ? sort : 'created_at';
     const validOrder = order === 'asc' ? 'ASC' : 'DESC';
 
@@ -237,20 +250,44 @@ export async function GET(request: NextRequest) {
           p.*,
           b.name as brand_name,
           c.name as category_name,
-          c.vtex_id as category_vtex_id,
+          c.id_category_vtex as category_vtex_id,
+          a.id_produto_any as anymarket_id,
+          a.enviado_any as anymarket_enviado_any,
+          a.imagem_cropada as anymarket_imagem_cropada,
+          t.title as optimized_title,
           0 as sku_count,
-          COALESCE(stock.total_stock, 0) as total_stock
+          COALESCE(stock.total_stock, 0) as total_stock,
+          CASE WHEN ai.id_produto_vtex IS NOT NULL THEN 1 ELSE 0 END as has_image_analysis,
+          CASE WHEN t.id_product_vtex IS NOT NULL THEN 1 ELSE 0 END as has_optimized_title,
+          CASE WHEN d.id_product_vtex IS NOT NULL THEN 1 ELSE 0 END as has_generated_description,
+          CASE WHEN rc.produto_id IS NOT NULL THEN 1 ELSE 0 END as has_generated_characteristics,
+          CASE WHEN asl.product_id IS NOT NULL THEN 1 ELSE 0 END as has_anymarket_sync
         FROM products_vtex p
-        LEFT JOIN brands_vtex b ON p.brand_id = b.vtex_id
-        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
+        LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+        LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+        LEFT JOIN (
+          SELECT DISTINCT ref_produto_vtex, id_produto_any, enviado_any, imagem_cropada
+          FROM anymarket
+        ) a ON p.ref_produto = a.ref_produto_vtex
+        LEFT JOIN titles t ON p.id_produto_vtex = t.id_product_vtex
+        LEFT JOIN analise_imagens ai ON p.id_produto_vtex = ai.id_produto_vtex
+        LEFT JOIN descriptions d ON p.id_produto_vtex = d.id_product_vtex
+        LEFT JOIN (
+          SELECT DISTINCT produto_id
+          FROM respostas_caracteristicas
+          WHERE resposta IS NOT NULL 
+            AND resposta != ''
+            AND resposta != 'N/A'
+            AND LENGTH(TRIM(resposta)) > 2
+        ) rc ON p.id_produto_vtex = rc.produto_id
         LEFT JOIN (
           SELECT 
-            s.product_id,
+            s.id_produto_vtex,
             SUM(COALESCE(st.total_quantity, 0)) as total_stock
           FROM skus_vtex s
-          LEFT JOIN stock_vtex st ON s.id = st.sku_id
-          GROUP BY s.product_id
-        ) stock ON p.id = stock.product_id
+          LEFT JOIN stock_vtex st ON s.id_sku_vtex = st.id_sku_vtex
+          GROUP BY s.id_produto_vtex
+        ) stock ON p.id_produto_vtex = stock.id_produto_vtex
         ${whereClause}
         ORDER BY COALESCE(stock.total_stock, 0) ${validOrder}
         LIMIT ${limit} OFFSET ${offset}
@@ -262,12 +299,41 @@ export async function GET(request: NextRequest) {
           p.*,
           b.name as brand_name,
           c.name as category_name,
-          c.vtex_id as category_vtex_id,
+          c.id_category_vtex as category_vtex_id,
+          a.id_produto_any as anymarket_id,
+          a.enviado_any as anymarket_enviado_any,
+          a.imagem_cropada as anymarket_imagem_cropada,
+          t.title as optimized_title,
           0 as sku_count,
-          0 as total_stock
+          0 as total_stock,
+          CASE WHEN ai.id_produto_vtex IS NOT NULL THEN 1 ELSE 0 END as has_image_analysis,
+          CASE WHEN t.id_product_vtex IS NOT NULL THEN 1 ELSE 0 END as has_optimized_title,
+          CASE WHEN d.id_product_vtex IS NOT NULL THEN 1 ELSE 0 END as has_generated_description,
+          CASE WHEN rc.produto_id IS NOT NULL THEN 1 ELSE 0 END as has_generated_characteristics,
+          CASE WHEN asl.product_id IS NOT NULL THEN 1 ELSE 0 END as has_anymarket_sync
         FROM products_vtex p
-        LEFT JOIN brands_vtex b ON p.brand_id = b.vtex_id
-        LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
+        LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+        LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+        LEFT JOIN (
+          SELECT DISTINCT ref_produto_vtex, id_produto_any, enviado_any, imagem_cropada
+          FROM anymarket
+        ) a ON p.ref_produto = a.ref_produto_vtex
+        LEFT JOIN titles t ON p.id_produto_vtex = t.id_product_vtex
+        LEFT JOIN analise_imagens ai ON p.id_produto_vtex = ai.id_produto_vtex
+        LEFT JOIN descriptions d ON p.id_produto_vtex = d.id_product_vtex
+        LEFT JOIN (
+          SELECT DISTINCT produto_id
+          FROM respostas_caracteristicas
+          WHERE resposta IS NOT NULL 
+            AND resposta != ''
+            AND resposta != 'N/A'
+            AND LENGTH(TRIM(resposta)) > 2
+        ) rc ON p.id_produto_vtex = rc.produto_id
+        LEFT JOIN (
+          SELECT DISTINCT ref_produto_vtex as product_id
+          FROM anymarket
+          WHERE id_produto_any IS NOT NULL
+        ) asl ON p.id_produto_vtex = asl.product_id
         ${whereClause}
         ORDER BY p.${validSortField} ${validOrder}
         LIMIT ${limit} OFFSET ${offset}
@@ -278,30 +344,152 @@ export async function GET(request: NextRequest) {
     console.log('🔍 Query:', productsQuery.substring(0, 200) + '...');
     console.log('📊 Parâmetros:', searchParams_array);
     
-    const products = await executeQuery(productsQuery, searchParams_array);
+    // Log da query completa para debug
+    console.log('🔍 Query completa:', productsQuery);
+    
+    let products;
+    try {
+      // Tentar executar a query completa com anymarket_sync_logs
+      products = await executeQuery(productsQuery, searchParams_array);
+    } catch (error: any) {
+      // Se alguma tabela não existir, executar query sem ela
+      if (error.code === 'ER_NO_SUCH_TABLE') {
+        console.log('⚠️ Alguma tabela não existe, executando query com fallback...');
+        console.log('❌ Erro:', error.message);
+        
+        // Query de fallback que verifica se as tabelas existem
+        const fallbackQuery = `
+          SELECT 
+            p.*,
+            b.name as brand_name,
+            c.name as category_name,
+            c.id_category_vtex as category_vtex_id,
+            a.id_produto_any as anymarket_id,
+          a.enviado_any as anymarket_enviado_any,
+          a.imagem_cropada as anymarket_imagem_cropada,
+            t.title as optimized_title,
+            ${validSortField === 'total_stock' ? 'COALESCE(stock.total_stock, 0) as total_stock,' : '0 as sku_count, 0 as total_stock,'}
+            CASE WHEN ai.id_produto_vtex IS NOT NULL THEN 1 ELSE 0 END as has_image_analysis,
+            CASE WHEN t.id_product_vtex IS NOT NULL THEN 1 ELSE 0 END as has_optimized_title,
+            CASE WHEN d.id_product_vtex IS NOT NULL THEN 1 ELSE 0 END as has_generated_description,
+            CASE WHEN rc.produto_id IS NOT NULL THEN 1 ELSE 0 END as has_generated_characteristics,
+            0 as has_anymarket_sync
+          FROM products_vtex p
+          LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+          LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+          LEFT JOIN (
+            SELECT DISTINCT ref_produto_vtex, id_produto_any
+            FROM anymarket
+          ) a ON p.ref_produto = a.ref_produto_vtex
+          LEFT JOIN titles t ON p.id_produto_vtex = t.id_product_vtex
+          LEFT JOIN analise_imagens ai ON p.id_produto_vtex = ai.id_produto_vtex
+          LEFT JOIN descriptions d ON p.id_produto_vtex = d.id_product_vtex
+          LEFT JOIN (
+            SELECT DISTINCT produto_id
+            FROM respostas_caracteristicas
+            WHERE resposta IS NOT NULL 
+              AND resposta != ''
+              AND resposta != 'N/A'
+              AND LENGTH(TRIM(resposta)) > 2
+          ) rc ON p.id_produto_vtex = rc.produto_id
+          ${validSortField === 'total_stock' ? `
+          LEFT JOIN (
+            SELECT 
+              s.id_produto_vtex,
+              SUM(COALESCE(st.total_quantity, 0)) as total_stock
+            FROM skus_vtex s
+            LEFT JOIN stock_vtex st ON s.id_sku_vtex = st.id_sku_vtex
+            GROUP BY s.id_produto_vtex
+          ) stock ON p.id_produto_vtex = stock.id_produto_vtex
+          ` : ''}
+          ${whereClause}
+          ORDER BY p.${validSortField} ${validOrder}
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        
+        try {
+          products = await executeQuery(fallbackQuery, searchParams_array);
+        } catch (fallbackError: any) {
+          // Se ainda der erro, usar query mínima
+          console.log('⚠️ Query de fallback também falhou, usando query mínima...');
+          console.log('❌ Erro do fallback:', fallbackError.message);
+          
+          const minimalQuery = `
+            SELECT 
+              p.*,
+              b.name as brand_name,
+              c.name as category_name,
+              c.id_category_vtex as category_vtex_id,
+              a.id_produto_any as anymarket_id,
+          a.enviado_any as anymarket_enviado_any,
+          a.imagem_cropada as anymarket_imagem_cropada,
+              t.title as optimized_title,
+              0 as sku_count,
+              0 as total_stock,
+              CASE WHEN ai.id_produto_vtex IS NOT NULL THEN 1 ELSE 0 END as has_image_analysis,
+              CASE WHEN t.id_product_vtex IS NOT NULL THEN 1 ELSE 0 END as has_optimized_title,
+              CASE WHEN d.id_product_vtex IS NOT NULL THEN 1 ELSE 0 END as has_generated_description,
+              0 as has_generated_characteristics,
+              0 as has_anymarket_sync
+            FROM products_vtex p
+            LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+            LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+            LEFT JOIN (
+              SELECT DISTINCT ref_produto_vtex, id_produto_any
+              FROM anymarket
+            ) a ON p.ref_produto = a.ref_produto_vtex
+            LEFT JOIN titles t ON p.id_produto_vtex = t.id_product_vtex
+            LEFT JOIN analise_imagens ai ON p.id_produto_vtex = ai.id_produto_vtex
+            LEFT JOIN descriptions d ON p.id_produto_vtex = d.id_product_vtex
+            ${whereClause}
+            ORDER BY p.${validSortField} ${validOrder}
+            LIMIT ${limit} OFFSET ${offset}
+          `;
+          
+          products = await executeQuery(minimalQuery, searchParams_array);
+        }
+      } else {
+        // Se for outro erro, relançar
+        throw error;
+      }
+    }
     console.log('✅ Query executada com sucesso!');
+    console.log('📊 Total de produtos retornados:', products.length);
+    
+    // Log para verificar o campo has_generated_description
+    const productsWithDescription = products.filter(p => p.has_generated_description === 1);
+    console.log('📝 Produtos com descrição gerada:', productsWithDescription.length);
+    if (productsWithDescription.length > 0) {
+      console.log('📋 Exemplos de produtos com descrição:', productsWithDescription.slice(0, 3).map(p => ({
+        id: p.id_produto_vtex,
+        name: p.name,
+        has_generated_description: p.has_generated_description
+      })));
+    }
 
     // Adicionar contagem de SKUs e imagens para cada produto
     for (const product of products) {
       try {
+        // Mapear id para compatibilidade com o frontend
+        product.id = product.id_produto_vtex;
         // Contar SKUs
         const skuCountQuery = `
           SELECT COUNT(*) as sku_count
           FROM skus_vtex
-          WHERE product_id = ?
+          WHERE id_produto_vtex = ?
         `;
-        const skuCountResult = await executeQuery(skuCountQuery, [product.id]);
+        const skuCountResult = await executeQuery(skuCountQuery, [product.id_produto_vtex]);
         product.sku_count = skuCountResult[0]?.sku_count || 0;
 
         // Contar imagens (usando os IDs dos SKUs do produto)
         const imageCountQuery = `
           SELECT COUNT(*) as image_count
           FROM images_vtex
-          WHERE sku_id IN (
-            SELECT id FROM skus_vtex WHERE product_id = ?
+          WHERE id_sku_vtex IN (
+            SELECT id_sku_vtex FROM skus_vtex WHERE id_produto_vtex = ?
           )
         `;
-        const imageCountResult = await executeQuery(imageCountQuery, [product.id]);
+        const imageCountResult = await executeQuery(imageCountQuery, [product.id_produto_vtex]);
         product.image_count = imageCountResult[0]?.image_count || 0;
 
         // Contar estoque (usando os IDs dos SKUs do produto) - apenas se não foi calculado na query principal
@@ -309,10 +497,10 @@ export async function GET(request: NextRequest) {
           const stockCountQuery = `
             SELECT COALESCE(SUM(st.total_quantity), 0) as total_stock
             FROM skus_vtex s
-            LEFT JOIN stock_vtex st ON s.id = st.sku_id
-            WHERE s.product_id = ?
+            LEFT JOIN stock_vtex st ON s.id_sku_vtex = st.id_sku_vtex
+            WHERE s.id_produto_vtex = ?
           `;
-          const stockCountResult = await executeQuery(stockCountQuery, [product.id]);
+          const stockCountResult = await executeQuery(stockCountQuery, [product.id_produto_vtex]);
           product.total_stock = stockCountResult[0]?.total_stock || 0;
         }
 
@@ -320,12 +508,12 @@ export async function GET(request: NextRequest) {
         const imageQuery = `
           SELECT file_location, url
           FROM images_vtex
-          WHERE sku_id IN (
-            SELECT id FROM skus_vtex WHERE product_id = ?
+          WHERE id_sku_vtex IN (
+            SELECT id_sku_vtex FROM skus_vtex WHERE id_produto_vtex = ?
           ) AND is_main = 1
           LIMIT 1
         `;
-        const imageResult = await executeQuery(imageQuery, [product.id]);
+        const imageResult = await executeQuery(imageQuery, [product.id_produto_vtex]);
         if (imageResult && imageResult.length > 0) {
           product.main_image = imageResult[0].file_location || imageResult[0].url;
         } else {
@@ -333,12 +521,12 @@ export async function GET(request: NextRequest) {
           const anyImageQuery = `
             SELECT file_location, url
             FROM images_vtex
-            WHERE sku_id IN (
-              SELECT id FROM skus_vtex WHERE product_id = ?
+            WHERE id_sku_vtex IN (
+              SELECT id_sku_vtex FROM skus_vtex WHERE id_produto_vtex = ?
             )
             LIMIT 1
           `;
-          const anyImageResult = await executeQuery(anyImageQuery, [product.id]);
+          const anyImageResult = await executeQuery(anyImageQuery, [product.id_produto_vtex]);
           if (anyImageResult && anyImageResult.length > 0) {
             product.main_image = anyImageResult[0].file_location || anyImageResult[0].url;
           }
@@ -353,10 +541,14 @@ export async function GET(request: NextRequest) {
 
     // Query para contar total - simplificada
     const countQuery = `
-      SELECT COUNT(*) as total 
+      SELECT COUNT(DISTINCT p.id_produto_vtex) as total 
       FROM products_vtex p
-      LEFT JOIN brands_vtex b ON p.brand_id = b.vtex_id
-      LEFT JOIN categories_vtex c ON p.category_id = c.vtex_id
+      LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
+      LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
+      LEFT JOIN (
+        SELECT DISTINCT ref_produto_vtex, id_produto_any
+        FROM anymarket
+      ) a ON p.ref_produto = a.ref_produto_vtex
       ${whereClause}
     `;
     const countResult = await executeQuery(countQuery, searchParams_array);
@@ -373,14 +565,19 @@ export async function GET(request: NextRequest) {
         limit,
         search
       }
+    }, {
+      headers: rateLimitCheck.headers
     });
 
   } catch (error: any) {
     console.error('❌ Erro ao buscar produtos:', error);
+    console.error('❌ Stack trace:', error.stack);
     
     return NextResponse.json({
       success: false,
-      message: 'Erro interno do servidor ao buscar produtos'
+      message: 'Erro interno do servidor ao buscar produtos',
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     }, { status: 500 });
   }
 }

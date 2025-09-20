@@ -23,6 +23,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { BrandTable } from '@/modules/brands/components/BrandTable';
+import { BrandContextModal } from '@/components/BrandContextModal';
 import { Brand, BrandFilters, BrandSortOptions } from '@/modules/brands/types';
 import { useBrands } from '@/modules/brands/hooks/useBrands';
 import { 
@@ -41,6 +42,8 @@ export default function BrandsPage() {
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [brandToDelete, setBrandToDelete] = useState<Brand | null>(null);
+  const [showContextModal, setShowContextModal] = useState(false);
+  const [brandForContext, setBrandForContext] = useState<Brand | null>(null);
 
   // ⚠️ HOOK SIMPLIFICADO - NÃO ADICIONAR importFromVtex SEM AUTORIZAÇÃO ⚠️
   const {
@@ -65,10 +68,6 @@ export default function BrandsPage() {
     initialSort: { field: 'name', direction: 'asc' }
   });
 
-  // Debug: verificar se as marcas estão sendo carregadas
-  console.log('BrandsPage - brands:', brands);
-  console.log('BrandsPage - loading:', loading);
-  console.log('BrandsPage - error:', error);
 
   // ⚠️ HANDLERS SIMPLIFICADOS - NÃO ADICIONAR HANDLERS DE IMPORT SEM AUTORIZAÇÃO ⚠️
   // Handlers para seleção de marcas
@@ -99,39 +98,22 @@ export default function BrandsPage() {
     console.log('Editar marca:', brand);
   };
 
+  const handleGenerateContext = (brand: Brand) => {
+    setBrandForContext(brand);
+    setShowContextModal(true);
+  };
+
+  const handleContextGenerated = (brandId: number, context: string) => {
+    console.log('✅ Contexto gerado e salvo para marca ID:', brandId);
+    // Recarregar dados para mostrar o contexto atualizado
+    fetchBrands();
+  };
+
   const handleDeleteBrand = (brand: Brand) => {
     setBrandToDelete(brand);
     setShowDeleteModal(true);
   };
 
-  // ⚠️ HANDLER SIMPLIFICADO - NÃO ADICIONAR NOTIFICAÇÕES SEM AUTORIZAÇÃO ⚠️
-  const handleGenerateAuxiliary = async (brand: Brand) => {
-    try {
-      const response = await fetch('/api/brands/generate-auxiliary', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          brandId: brand.id,
-          guidelines: '',
-          saveData: true
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Recarregar marcas para atualizar o status
-        fetchBrands();
-        console.log('Dados auxiliares gerados com sucesso!');
-      } else {
-        console.error('Erro ao gerar dados auxiliares:', result.message || 'Erro ao gerar dados auxiliares');
-      }
-    } catch (error) {
-      console.error('Erro ao gerar dados auxiliares:', error);
-    }
-  };
 
 
   // ⚠️ HANDLER SIMPLIFICADO - NÃO ADICIONAR NOTIFICAÇÕES SEM AUTORIZAÇÃO ⚠️
@@ -181,7 +163,7 @@ export default function BrandsPage() {
         onViewBrand={handleViewBrand}
         onEditBrand={handleEditBrand}
         onDeleteBrand={handleDeleteBrand}
-        onGenerateAuxiliary={handleGenerateAuxiliary}
+        onGenerateContext={handleGenerateContext}
       />
 
       {/* Modal de Detalhes da Marca */}
@@ -327,6 +309,17 @@ export default function BrandsPage() {
           </div>
       </div>
       )}
+
+      {/* Modal de Contexto de Marca */}
+      <BrandContextModal
+        isOpen={showContextModal}
+        onClose={() => {
+          setShowContextModal(false);
+          setBrandForContext(null);
+        }}
+        brand={brandForContext}
+        onContextGenerated={handleContextGenerated}
+      />
     </Layout>
   );
 }

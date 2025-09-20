@@ -97,10 +97,10 @@ export class BrandImportModule {
 
       // PASSO 2: Verificar se a marca já existe na nossa base de dados
       // Tabela: brands_vtex
-      // Campo de busca: vtex_id (que corresponde ao id da VTEX)
+      // Campo de busca: id_brand_vtex (que corresponde ao id da VTEX)
       console.log(`🔍 Verificando se marca já existe na tabela brands_vtex...`);
       const existingBrand = await executeQuery(`
-        SELECT id, vtex_id FROM brands_vtex WHERE vtex_id = ?
+        SELECT id_brand_vtex FROM brands_vtex WHERE id_brand_vtex = ?
       `, [brand.id]);
 
       let brandDbId: number;
@@ -108,7 +108,7 @@ export class BrandImportModule {
       if (existingBrand && existingBrand.length > 0) {
         // PASSO 3A: Marca já existe - ATUALIZAR dados
         console.log(`📝 Marca já existe, atualizando dados...`);
-        brandDbId = existingBrand[0].id;
+        brandDbId = existingBrand[0].id_brand_vtex;
         
         await executeQuery(`
           UPDATE brands_vtex SET
@@ -117,8 +117,9 @@ export class BrandImportModule {
             title = ?,                   -- Título da marca
             meta_tag_description = ?,    -- Meta descrição para SEO
             image_url = ?,               -- URL da imagem
+            contexto = NULL,             -- Campo contexto (não disponível na API VTEX)
             updated_at = NOW()           -- Data de atualização
-          WHERE vtex_id = ?
+          WHERE id_brand_vtex = ?
         `, [
           brand.name,
           brand.isActive,
@@ -134,22 +135,24 @@ export class BrandImportModule {
         
         const insertResult = await executeQuery(`
           INSERT INTO brands_vtex (
-            vtex_id,                     -- ID da VTEX (único)
+            id_brand_vtex,               -- ID da VTEX (único)
             name,                        -- Nome da marca
             is_active,                   -- Se está ativa
             title,                       -- Título da marca
             meta_tag_description,        -- Meta descrição para SEO
             image_url,                   -- URL da imagem
+            contexto,                    -- Campo contexto (não disponível na API VTEX)
             created_at,                  -- Data de criação
             updated_at                   -- Data de atualização
-          ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         `, [
           brand.id,                      // ID da VTEX
           brand.name,                    // Nome
           brand.isActive,                // Ativa
           brand.title,                   // Título
           brand.metaTagDescription,      // Meta descrição
-          brand.imageUrl                 // URL da imagem
+          brand.imageUrl,                // URL da imagem
+          null                           // Contexto (não disponível na API VTEX)
         ]);
         brandDbId = (insertResult as any).insertId!;
         console.log(`✅ Marca inserida com sucesso: ${brand.name} (ID: ${brandDbId})`);
@@ -180,7 +183,7 @@ export class BrandImportModule {
   async checkBrandExists(brandId: number): Promise<boolean> {
     try {
       const result = await executeQuery(`
-        SELECT id FROM brands_vtex WHERE vtex_id = ?
+        SELECT id_brand_vtex FROM brands_vtex WHERE id_brand_vtex = ?
       `, [brandId]);
       
       return result && result.length > 0;
@@ -196,14 +199,14 @@ export class BrandImportModule {
   async getBrandById(brandId: number): Promise<VTEXBrand | null> {
     try {
       const result = await executeQuery(`
-        SELECT vtex_id, name, is_active, title, meta_tag_description, image_url
-        FROM brands_vtex WHERE vtex_id = ?
+        SELECT id_brand_vtex, name, is_active, title, meta_tag_description, image_url
+        FROM brands_vtex WHERE id_brand_vtex = ?
       `, [brandId]);
       
       if (result && result.length > 0) {
         const brand = result[0];
         return {
-          id: brand.vtex_id,
+          id: brand.id_brand_vtex,
           name: brand.name,
           isActive: brand.is_active,
           title: brand.title,

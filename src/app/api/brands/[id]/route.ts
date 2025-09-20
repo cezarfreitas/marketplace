@@ -19,7 +19,7 @@ export async function DELETE(
 
     // Verificar se a marca existe
     const existingBrand = await executeQuery(
-      'SELECT id, name FROM brands_vtex WHERE id = ?',
+      'SELECT id_brand_vtex as id, name FROM brands_vtex WHERE id_brand_vtex = ?',
       [brandId]
     );
 
@@ -35,7 +35,7 @@ export async function DELETE(
 
     // Verificar se há produtos associados
     const productsCount = await executeQuery(
-      'SELECT COUNT(*) as count FROM products_vtex WHERE brand_id = (SELECT vtex_id FROM brands_vtex WHERE id = ?)',
+      'SELECT COUNT(*) as count FROM products_vtex WHERE id_brand_vtex = ?',
       [brandId]
     );
 
@@ -50,7 +50,7 @@ export async function DELETE(
 
     // Deletar a marca
     await executeQuery(
-      'DELETE FROM brands_vtex WHERE id = ?',
+      'DELETE FROM brands_vtex WHERE id_brand_vtex = ?',
       [brandId]
     );
 
@@ -91,30 +91,23 @@ export async function GET(
     // Buscar marca com contagem de produtos
     const brandQuery = `
       SELECT 
-        b.id, 
-        b.vtex_id, 
+        b.id_brand_vtex as id, 
         b.name, 
         b.is_active, 
         b.title, 
         b.meta_tag_description, 
         b.image_url, 
-        b.brand_history, 
-        b.target_audience, 
-        b.language_type, 
-        b.consumption_behavior, 
-        b.visual_style, 
-        b.auxiliary_data_generated, 
-        b.brand_analysis, 
+        b.contexto,
         b.created_at,
         b.updated_at,
         COALESCE(p.product_count, 0) as product_count
       FROM brands_vtex b
       LEFT JOIN (
-        SELECT brand_id, COUNT(*) as product_count 
+        SELECT id_brand_vtex, COUNT(*) as product_count 
         FROM products_vtex 
-        GROUP BY brand_id
-      ) p ON b.vtex_id = p.brand_id
-      WHERE b.id = ?
+        GROUP BY id_brand_vtex
+      ) p ON b.id_brand_vtex = p.id_brand_vtex
+      WHERE b.id_brand_vtex = ?
     `;
 
     const brands = await executeQuery(brandQuery, [brandId]);
