@@ -1,9 +1,9 @@
 # Configurações do Banco de Dados
 DB_HOST=server.idenegociosdigitais.com.br
-DB_PORT=3342
-DB_USER=seo_data
-DB_PASSWORD=54779042baaa70be95c0
-DB_NAME=seo_data
+DB_PORT=3347
+DB_USER=seo_db
+DB_PASSWORD=ba473d7d7da1e8fb6e6a
+DB_NAME=seo_db
 
 # Configurações do Anymarket
 ANYMARKET=seu_token_anymarket_aqui

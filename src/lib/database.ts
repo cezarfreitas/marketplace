@@ -6,10 +6,10 @@ config();
 // Configuração do banco de dados
 const dbConfig = {
   host: process.env.DB_HOST || 'server.idenegociosdigitais.com.br',
-  port: parseInt(process.env.DB_PORT || '3342'),
-  user: process.env.DB_USER || 'seo_data',
-  password: process.env.DB_PASSWORD || '54779042baaa70be95c0',
-  database: process.env.DB_NAME || 'seo_data',
+  port: parseInt(process.env.DB_PORT || '3347'),
+  user: process.env.DB_USER || 'seo_db',
+  password: process.env.DB_PASSWORD || 'ba473d7d7da1e8fb6e6a',
+  database: process.env.DB_NAME || 'seo_db',
   waitForConnections: true,
   connectionLimit: 10, // Aumentado para suportar mais operações simultâneas
   queueLimit: 50, // Aumentado significativamente para importações em lote

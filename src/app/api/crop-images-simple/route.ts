@@ -16,16 +16,22 @@ export async function POST(request: NextRequest) {
 
     // 1. Buscar todas as imagens do Anymarket
     console.log('🔍 Buscando imagens do Anymarket...');
-    const anymarketResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
-      method: 'GET',
-      headers: {
-        'gumgaToken': process.env.ANYMARKET || '',
-        'Content-Type': 'application/json',
-        'User-Agent': 'Meli-Integration/1.0',
-        'Accept': 'application/json'
-      },
-      cache: 'no-store'
-    });
+    const anymarketToken = process.env.ANYMARKET || '';
+    console.log('🔑 Token Anymarket configurado:', anymarketToken ? 'Sim' : 'Não');
+    
+    if (!anymarketToken) {
+      console.log('⚠️ Token do Anymarket não configurado, pulando deleção de imagens antigas');
+    } else {
+      const anymarketResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
+        method: 'GET',
+        headers: {
+          'gumgaToken': anymarketToken,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Meli-Integration/1.0',
+          'Accept': 'application/json'
+        },
+        cache: 'no-store'
+      });
 
     let anymarketImages = [];
     const deletionResults = [];
