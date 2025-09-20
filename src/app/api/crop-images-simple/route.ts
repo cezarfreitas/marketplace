@@ -19,6 +19,10 @@ export async function POST(request: NextRequest) {
     const anymarketToken = process.env.ANYMARKET || '';
     console.log('🔑 Token Anymarket configurado:', anymarketToken ? 'Sim' : 'Não');
     
+    let anymarketImages = [];
+    const deletionResults = [];
+    const deletionErrors = [];
+
     if (!anymarketToken) {
       console.log('⚠️ Token do Anymarket não configurado, pulando deleção de imagens antigas');
     } else {
@@ -33,15 +37,12 @@ export async function POST(request: NextRequest) {
         cache: 'no-store'
       });
 
-    let anymarketImages = [];
-    const deletionResults = [];
-    const deletionErrors = [];
-
-    if (anymarketResponse.ok) {
-      anymarketImages = await anymarketResponse.json();
-      console.log(`📊 Encontradas ${anymarketImages.length} imagens no Anymarket para deletar`);
-    } else {
-      console.log('⚠️ Erro ao buscar imagens do Anymarket ou produto não encontrado, continuando para listar SKUs...');
+      if (anymarketResponse.ok) {
+        anymarketImages = await anymarketResponse.json();
+        console.log(`📊 Encontradas ${anymarketImages.length} imagens no Anymarket para deletar`);
+      } else {
+        console.log('⚠️ Erro ao buscar imagens do Anymarket ou produto não encontrado, continuando para listar SKUs...');
+      }
     }
 
     // Se não há imagens no Anymarket, pular para a segunda parte
