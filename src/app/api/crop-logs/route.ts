@@ -13,6 +13,27 @@ export async function GET(request: NextRequest) {
 
     console.log('📋 Parâmetros da busca:', { status, limit, offset });
 
+    // Verificar se a tabela existe
+    try {
+      await executeQuery('SELECT 1 FROM crop_processing_logs LIMIT 1');
+    } catch (tableError: any) {
+      if (tableError.code === 'ER_NO_SUCH_TABLE') {
+        console.log('⚠️ Tabela crop_processing_logs não existe, retornando array vazio');
+        return NextResponse.json({
+          success: true,
+          logs: [],
+          pagination: {
+            total: 0,
+            limit,
+            offset,
+            hasMore: false
+          },
+          message: 'Tabela de logs não configurada ainda'
+        });
+      }
+      throw tableError;
+    }
+
     // Construir query base
     let query = `
       SELECT 

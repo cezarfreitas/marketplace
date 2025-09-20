@@ -1,0 +1,21 @@
+# Configurações do Banco de Dados
+DB_HOST=server.idenegociosdigitais.com.br
+DB_PORT=3342
+DB_USER=seo_data
+DB_PASSWORD=54779042baaa70be95c0
+DB_NAME=seo_data
+
+# Configurações do Anymarket
+ANYMARKET=seu_token_anymarket_aqui
+
+# Configurações da VTEX
+VTEX_ACCOUNT=projetoinfluencer
+VTEX_ENVIRONMENT=vtexcommercestable
+VTEX_APP_KEY=seu_app_key_aqui
+VTEX_APP_TOKEN=seu_app_token_aqui
+
+# Configurações da OpenAI
+OPENAI_API_KEY=seu_openai_key_aqui
+
+# Configurações do Pixian
+PIXIAN_API_KEY=seu_pixian_key_aqui
