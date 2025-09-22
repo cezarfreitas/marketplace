@@ -389,9 +389,8 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
             try {
               addLog('info', `📤 Enviando imagem ${i + 1} para o servidor...`);
 
-              // Salvar imagem no servidor
-              const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-              const uploadResponse = await fetch(`${baseUrl}/api/upload-image`, {
+              // Usar endpoint interno para salvar imagem
+              const uploadResponse = await fetch('/api/upload-image', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -408,30 +407,37 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
                 
                 addLog('info', `📤 Enviando imagem ${i + 1} para Anymarket...`);
 
-                // Enviar para Anymarket
-                const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
+                // Enviar para Anymarket usando endpoint interno
+                const anymarketUploadResponse = await fetch('/api/anymarket/upload-image', {
                   method: 'POST',
                   headers: {
-                    'gumgaToken': process.env.ANYMARKET || '',
                     'Content-Type': 'application/json'
                   },
                   body: JSON.stringify({
+                    anymarketId: product.anymarket_id,
+                    imageUrl: newImageUrl,
                     index: i + 1, // Anymarket começa do 1
-                    main: i === 0, // Primeira imagem é principal
-                    url: newImageUrl
+                    main: i === 0 // Primeira imagem é principal
                   })
                 });
 
                 if (anymarketUploadResponse.ok) {
-                  addLog('success', `✅ Imagem ${i + 1} enviada para Anymarket com sucesso`);
-                  uploadedCount++;
+                  const result = await anymarketUploadResponse.json();
+                  if (result.success) {
+                    addLog('success', `✅ Imagem ${i + 1} enviada para Anymarket com sucesso`);
+                    uploadedCount++;
+                  } else {
+                    addLog('error', `❌ Erro ao enviar imagem ${i + 1} para Anymarket: ${result.message}`);
+                    uploadErrorCount++;
+                  }
                 } else {
-                  const errorText = await anymarketUploadResponse.text();
-                  addLog('error', `❌ Erro ao enviar imagem ${i + 1} para Anymarket: ${anymarketUploadResponse.status} - ${errorText}`);
+                  const errorResult = await anymarketUploadResponse.json();
+                  addLog('error', `❌ Erro ao enviar imagem ${i + 1} para Anymarket: ${errorResult.message || anymarketUploadResponse.status}`);
                   uploadErrorCount++;
                 }
               } else {
-                addLog('error', `❌ Erro ao salvar imagem ${i + 1} no servidor`);
+                const errorResult = await uploadResponse.json();
+                addLog('error', `❌ Erro ao salvar imagem ${i + 1} no servidor: ${errorResult.message || uploadResponse.status}`);
                 uploadErrorCount++;
               }
             } catch (error: any) {
