@@ -50,6 +50,9 @@ export async function PUT(request: NextRequest) {
     let anymarketPayload: any = {};
     
     try {
+      console.log('🌐 Fazendo GET para AnyMarket:', `https://api.anymarket.com.br/v2/products/${product.anymarket_id}`);
+      console.log('🔑 Token AnyMarket configurado:', process.env.ANYMARKET ? 'Sim' : 'Não');
+      
       const getResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}`, {
         method: 'GET',
         headers: {
@@ -60,21 +63,46 @@ export async function PUT(request: NextRequest) {
         },
         cache: 'no-store'
       });
+      
+      console.log('📡 Status da resposta AnyMarket:', getResponse.status);
+      console.log('📡 Headers da resposta:', Object.fromEntries(getResponse.headers.entries()));
 
       if (getResponse.ok) {
-        anymarketPayload = await getResponse.json();
-        console.log('✅ Payload completo recuperado com sucesso');
-        console.log('📊 Payload recuperado:', {
-          id: anymarketPayload.id,
-          title: anymarketPayload.title,
-          category: anymarketPayload.category,
-          priceFactor: anymarketPayload.priceFactor,
-          total_fields: Object.keys(anymarketPayload).length
-        });
+        const responseText = await getResponse.text();
+        console.log('📄 Resposta bruta do AnyMarket:', responseText);
         
-        // Mostrar o payload completo recuperado
-        console.log('🔍 PAYLOAD COMPLETO RECUPERADO DO ANYMARKET:');
-        console.log(JSON.stringify(anymarketPayload, null, 2));
+        if (!responseText || responseText.trim() === '') {
+          console.log('⚠️ Resposta vazia do AnyMarket');
+          return NextResponse.json({
+            success: false,
+            message: 'Resposta vazia do AnyMarket',
+            error: 'Empty response from AnyMarket API'
+          }, { status: 500 });
+        }
+        
+        try {
+          anymarketPayload = JSON.parse(responseText);
+          console.log('✅ Payload completo recuperado com sucesso');
+          console.log('📊 Payload recuperado:', {
+            id: anymarketPayload.id,
+            title: anymarketPayload.title,
+            category: anymarketPayload.category,
+            priceFactor: anymarketPayload.priceFactor,
+            total_fields: Object.keys(anymarketPayload).length
+          });
+          
+          // Mostrar o payload completo recuperado
+          console.log('🔍 PAYLOAD COMPLETO RECUPERADO DO ANYMARKET:');
+          console.log(JSON.stringify(anymarketPayload, null, 2));
+        } catch (parseError) {
+          console.error('❌ Erro ao fazer parse do JSON:', parseError);
+          console.log('📄 Conteúdo que causou erro:', responseText);
+          return NextResponse.json({
+            success: false,
+            message: 'Erro ao fazer parse da resposta do AnyMarket',
+            error: parseError instanceof Error ? parseError.message : 'Parse error'
+          }, { status: 500 });
+        }
       } else {
         console.log('❌ Erro ao recuperar payload:', getResponse.status);
         return NextResponse.json({
