@@ -204,13 +204,13 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
   try {
     console.log(`✂️ Executando crop de imagens para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/crop-images-batch`, {
+    const response = await fetch(`${getBaseUrl()}/api/crop-images`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ 
-        productIds: [productId]
+        productId: productId
       })
     });
 

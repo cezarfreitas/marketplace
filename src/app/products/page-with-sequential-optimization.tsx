@@ -271,10 +271,10 @@ export default function ProductsPageWithSequentialOptimization() {
     try {
       console.log('✂️ Fazendo crop de imagens para produto:', product.id);
       
-      const response = await fetch('/api/crop-images-batch', {
+      const response = await fetch('/api/crop-images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productIds: [product.id] })
+        body: JSON.stringify({ productId: product.id })
       });
       
       if (response.ok) {
