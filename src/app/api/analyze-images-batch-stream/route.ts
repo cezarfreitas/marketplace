@@ -204,7 +204,7 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
   try {
     console.log(`✂️ Executando crop de imagens para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/crop-images`, {
+    const response = await fetch(`${getBaseUrl()}/api/crop-images-vtex`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
