@@ -481,12 +481,22 @@ export default function CaracteristicasPage() {
 
       {/* Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+        <DialogContent 
+          className="max-w-2xl max-h-[90vh] overflow-hidden"
+          aria-describedby="caracteristicas-description"
+        >
           <DialogHeader>
             <DialogTitle>
               {editingCaracteristica ? 'Editar Característica' : 'Nova Característica'}
             </DialogTitle>
           </DialogHeader>
+
+          <p 
+            id="caracteristicas-description"
+            className="text-sm text-gray-600 px-6 pb-4"
+          >
+            {editingCaracteristica ? 'Edite as informações da característica' : 'Crie uma nova característica para produtos'}
+          </p>
 
           <div className="overflow-y-auto max-h-[calc(90vh-140px)]">
             <div className="space-y-4">

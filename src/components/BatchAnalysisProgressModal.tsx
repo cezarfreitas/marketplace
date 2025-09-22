@@ -360,7 +360,10 @@ export function BatchAnalysisProgressModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        aria-describedby="batch-analysis-description"
+      >
         <DialogHeader>
           <DialogTitle>Otimização em Lote</DialogTitle>
         </DialogHeader>
@@ -368,9 +371,12 @@ export function BatchAnalysisProgressModal({
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-                    <p className="text-gray-600 mt-1">
-                      Análise de imagens, geração de títulos, descrições, características, sincronização AnyMarket e crop de imagens para {selectedProducts.length} produto(s) selecionado(s)
-                    </p>
+              <p 
+                id="batch-analysis-description"
+                className="text-gray-600 mt-1"
+              >
+                Análise de imagens, geração de títulos, descrições, características, sincronização AnyMarket e crop de imagens para {selectedProducts.length} produto(s) selecionado(s)
+              </p>
             </div>
             <Button
               variant="outline"

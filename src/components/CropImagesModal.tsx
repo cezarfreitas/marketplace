@@ -476,7 +476,10 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-hidden"
+        aria-describedby="crop-images-description"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>🖼️ Crop de Imagens</span>
@@ -487,6 +490,13 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
             )}
           </DialogTitle>
         </DialogHeader>
+
+        <p 
+          id="crop-images-description"
+          className="text-sm text-gray-600 px-6 pb-4"
+        >
+          Processe e otimize as imagens do produto removendo fundos e ajustando dimensões
+        </p>
 
         <div className="space-y-4">
           {/* Informações do Produto */}
