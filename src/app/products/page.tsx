@@ -474,11 +474,7 @@ export default function ProductsPage() {
         <CropImagesModal
           isOpen={productStates.showCropModal}
           onClose={() => productStates.setShowCropModal(false)}
-          product={productStates.selectedProductForCrop ? {
-            id: productStates.selectedProductForCrop.id,
-            name: productStates.selectedProductForCrop.name,
-            anymarket_id: productStates.selectedProductForCrop.anymarket_id || ''
-          } : null}
+          product={productStates.selectedProductForCrop}
           originalImages={[]} // Por enquanto vazio, pode ser implementado depois
           onProcessingComplete={(productId) => {
             // Atualizar o estado para incluir este produto na lista de produtos com imagens cropadas

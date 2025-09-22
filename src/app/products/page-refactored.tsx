@@ -305,11 +305,7 @@ export default function ProductsPage() {
         <CropImagesModal
           isOpen={productStates.showImageAnalysisModal}
           onClose={() => productStates.setShowImageAnalysisModal(false)}
-          product={productStates.selectedProductForAnalysis ? {
-            id: productStates.selectedProductForAnalysis.id,
-            name: productStates.selectedProductForAnalysis.name,
-            anymarket_id: productStates.selectedProductForAnalysis.anymarket_id || ''
-          } : null}
+          product={productStates.selectedProductForAnalysis}
           originalImages={[]}
         />
       )}
