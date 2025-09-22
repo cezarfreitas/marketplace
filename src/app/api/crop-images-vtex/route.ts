@@ -44,18 +44,24 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Deletar todas as imagens do Anymarket
-    console.log('🗑️ Deletando todas as imagens do Anymarket...');
-    for (const image of anymarketImages) {
+    console.log(`🗑️ Deletando ${anymarketImages.length} imagens do Anymarket...`);
+    let deletedCount = 0;
+    for (let i = 0; i < anymarketImages.length; i++) {
+      const image = anymarketImages[i];
       try {
+        console.log(`🗑️ Deletando imagem ${i + 1}/${anymarketImages.length}: ID ${image.id}`);
         const deleteResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images/${image.id}`, {
           method: 'DELETE',
           headers: {
-            'gumgaToken': process.env.ANYMARKET_GUMGA_TOKEN || ''
+            'gumgaToken': process.env.ANYMARKET || '',
+            'Content-Type': 'application/json',
+            'User-Agent': 'Meli-Integration/1.0'
           }
         });
 
         if (deleteResponse.ok) {
-          console.log(`✅ Imagem ${image.id} deletada`);
+          console.log(`✅ Imagem ${image.id} deletada com sucesso`);
+          deletedCount++;
         } else {
           console.warn(`⚠️ Erro ao deletar imagem ${image.id}:`, deleteResponse.status);
         }
@@ -63,23 +69,24 @@ export async function POST(request: NextRequest) {
         console.warn(`⚠️ Erro ao deletar imagem ${image.id}:`, error);
       }
     }
+    console.log(`✅ Deleção concluída: ${deletedCount}/${anymarketImages.length} imagens deletadas`);
 
     // 3. Buscar imagens da VTEX do produto
     console.log('🔍 Buscando imagens da VTEX...');
     const vtexImages = await executeQuery(`
       SELECT 
-        i.id,
+        i.id_photo_vtex as id,
         i.file_location,
         i.text as alt_text,
         i.is_main as is_primary,
         i.position,
-        s.id as sku_id,
+        s.id_sku_vtex as sku_id,
         s.name as sku_name,
         NULL as sku_color
       FROM images_vtex i
-      INNER JOIN skus_vtex s ON i.sku_id = s.id
-      WHERE s.product_id = ?
-      ORDER BY i.is_main DESC, i.position ASC, i.id ASC
+      INNER JOIN skus_vtex s ON i.id_sku_vtex = s.id_sku_vtex
+      WHERE s.id_produto_vtex = ?
+      ORDER BY i.is_main DESC, i.position ASC, i.id_photo_vtex ASC
     `, [productId]);
 
     if (!vtexImages || vtexImages.length === 0) {
@@ -182,8 +189,8 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            index: i, // Index sequencial: 0, 1, 2, 3...
-            main: i === 0, // Primeira imagem (index 0) é main: true, demais false
+            index: i + 1, // Index sequencial: 1, 2, 3, 4... (Anymarket começa do 1)
+            main: i === 0, // Primeira imagem (index 1) é main: true, demais false
             url: newImageUrl
           })
         });
@@ -201,7 +208,7 @@ export async function POST(request: NextRequest) {
           skuName: vtexImage.sku_name,
           skuColor: vtexImage.sku_color,
           position: vtexImage.position,
-          anymarketIndex: i, // Index no Anymarket: 0, 1, 2, 3...
+          anymarketIndex: i + 1, // Index no Anymarket: 1, 2, 3, 4... (começa do 1)
           isMain: i === 0, // Primeira imagem é principal
           originalVtexUrl: vtexImageUrl,
           newUrl: newImageUrl,
