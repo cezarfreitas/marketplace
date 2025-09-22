@@ -168,12 +168,13 @@ async function executeCharacteristicsGeneration(productId: number): Promise<{ su
   }
 }
 
-// Função para sincronizar produto com AnyMarket
+// Função para sincronizar produto com AnyMarket (igual ao modal individual)
 async function executeAnymarketSync(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`🔄 Executando sincronização AnyMarket para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/anymarket/sync-put`, {
+    // 1. Buscar dados do produto no Anymarket (igual ao modal individual)
+    const fetchResponse = await fetch(`${getBaseUrl()}/api/anymarket/fetch-product`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -183,48 +184,224 @@ async function executeAnymarketSync(productId: number): Promise<{ success: boole
       })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      return { success: false, error: errorData.message || 'Erro na sincronização AnyMarket' };
+    if (!fetchResponse.ok) {
+      const errorData = await fetchResponse.json();
+      return { success: false, error: errorData.message || 'Erro ao buscar dados do Anymarket' };
     }
 
-    const result = await response.json();
+    const fetchResult = await fetchResponse.json();
+    if (!fetchResult.success) {
+      return { success: false, error: fetchResult.message || 'Erro ao buscar dados do Anymarket' };
+    }
+
+    // 2. Atualizar produto no Anymarket (igual ao modal individual)
+    const updateResponse = await fetch(`${getBaseUrl()}/api/anymarket/update-product`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        productId,
+        anymarketData: fetchResult.data
+      })
+    });
+
+    if (!updateResponse.ok) {
+      const errorData = await updateResponse.json();
+      return { success: false, error: errorData.message || 'Erro na atualização do Anymarket' };
+    }
+
+    const updateResult = await updateResponse.json();
     return { 
-      success: result.success, 
-      error: result.success ? undefined : result.message,
-      message: result.success ? 'Sincronização AnyMarket concluída' : result.message
+      success: updateResult.success, 
+      error: updateResult.success ? undefined : updateResult.message,
+      message: updateResult.success ? 'Sincronização AnyMarket concluída' : updateResult.message
     };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
 
-// Função para executar crop de imagens de um produto
+// Função para executar crop de imagens de um produto (igual ao modal individual)
 async function executeImageCrop(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`✂️ Executando crop de imagens para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/crop-images-vtex`, {
+    // 1. Buscar dados do produto para obter anymarket_id
+    const { executeQuery } = await import('@/lib/database');
+    const productQuery = `
+      SELECT 
+        p.id_produto_vtex as id,
+        p.name,
+        a.id_produto_any as anymarket_id
+      FROM products_vtex p
+      LEFT JOIN anymarket a ON p.ref_produto = a.ref_produto_vtex
+      WHERE p.id_produto_vtex = ?
+    `;
+    
+    const products = await executeQuery(productQuery, [productId]);
+    if (products.length === 0) {
+      return { success: false, error: 'Produto não encontrado' };
+    }
+    
+    const product = products[0];
+    if (!product.anymarket_id) {
+      return { success: false, error: 'Produto não possui ID do Anymarket' };
+    }
+
+    // 2. Buscar imagens da VTEX (igual ao modal individual)
+    const vtexResponse = await fetch(`${getBaseUrl()}/api/crop-images`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ 
-        productId: productId
+        productId: productId,
+        anymarketId: product.anymarket_id
       })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      return { success: false, error: errorData.message || 'Erro no crop de imagens' };
+    if (!vtexResponse.ok) {
+      const errorData = await vtexResponse.json();
+      return { success: false, error: errorData.message || 'Erro ao buscar imagens da VTEX' };
     }
 
-    const result = await response.json();
-    return { 
-      success: result.success, 
-      error: result.success ? undefined : result.message,
-      message: result.success ? 'Crop de imagens concluído' : result.message
-    };
+    const vtexResult = await vtexResponse.json();
+    if (!vtexResult.success) {
+      return { success: false, error: vtexResult.message || 'Erro ao buscar imagens da VTEX' };
+    }
+
+    const vtexImages = vtexResult.data?.images || [];
+    if (vtexImages.length === 0) {
+      return { success: false, error: 'Nenhuma imagem da VTEX encontrada' };
+    }
+
+    // 3. Processar cada imagem com Pixian.ai (igual ao modal individual)
+    let successCount = 0;
+    let errorCount = 0;
+    const processedImages = [];
+
+    for (let i = 0; i < vtexImages.length; i++) {
+      const vtexImage = vtexImages[i];
+      
+      try {
+        // Dados para o Pixian (igual ao modal individual)
+        const pixianData = {
+          image: {
+            url: vtexImage.url
+          },
+          background: {
+            color: "#FFFFFF"
+          },
+          result: {
+            crop_to_foreground: true,
+            target_size: "1500 1500",
+            vertical_alignment: "middle",
+            margin: "0px 150px 0px 150px"
+          },
+          output: {
+            format: "jpeg",
+            jpeg_quality: 90
+          }
+        };
+
+        const pixianResponse = await fetch('https://api.pixian.ai/api/v2/remove-background', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Basic cHhnbmNzZm5hZHpqNGZiOmJnczNjcDM4bzVjdTlrY2FuOTI0ZDZyMDF0b2ZrbTAwc3R1ZWw5N3RndXRyMXVyYzdxZm4=',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(pixianData)
+        });
+
+        if (pixianResponse.ok) {
+          const croppedImageBuffer = await pixianResponse.arrayBuffer();
+          const croppedImageBase64 = Buffer.from(croppedImageBuffer).toString('base64');
+          
+          processedImages.push({
+            ...vtexImage,
+            cropped_base64: `data:image/jpeg;base64,${croppedImageBase64}`,
+            cropped_size: croppedImageBuffer.byteLength
+          });
+          successCount++;
+        } else {
+          console.error(`Erro no Pixian para imagem ${i + 1}:`, pixianResponse.status);
+          errorCount++;
+        }
+      } catch (error: any) {
+        console.error(`Erro ao processar imagem ${i + 1}:`, error);
+        errorCount++;
+      }
+    }
+
+    // 4. Fazer upload das imagens processadas (igual ao modal individual)
+    let uploadedCount = 0;
+    let uploadErrorCount = 0;
+
+    for (let i = 0; i < processedImages.length; i++) {
+      const processedImage = processedImages[i];
+      
+      try {
+        // Upload da imagem processada
+        const uploadResponse = await fetch(`${getBaseUrl()}/api/upload-image`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            imageData: processedImage.cropped_base64,
+            fileName: `crop_${productId}_${i + 1}.jpg`
+          })
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          const newImageUrl = uploadResult.data.publicUrl;
+          
+          // Enviar para Anymarket
+          const anymarketUploadResponse = await fetch(`${getBaseUrl()}/api/anymarket/upload-image`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              anymarketId: product.anymarket_id,
+              imageUrl: newImageUrl,
+              index: i + 1,
+              main: i === 0
+            })
+          });
+
+          if (anymarketUploadResponse.ok) {
+            const result = await anymarketUploadResponse.json();
+            if (result.success) {
+              uploadedCount++;
+            } else {
+              uploadErrorCount++;
+            }
+          } else {
+            uploadErrorCount++;
+          }
+        } else {
+          uploadErrorCount++;
+        }
+      } catch (error: any) {
+        console.error(`Erro ao fazer upload da imagem ${i + 1}:`, error);
+        uploadErrorCount++;
+      }
+    }
+
+    if (uploadedCount > 0) {
+      return { 
+        success: true, 
+        message: `Crop de imagens concluído: ${uploadedCount} imagens processadas e enviadas` 
+      };
+    } else {
+      return { 
+        success: false, 
+        error: `Erro no crop: ${errorCount} erros de processamento, ${uploadErrorCount} erros de upload` 
+      };
+    }
   } catch (error: any) {
     return { success: false, error: error.message };
   }
