@@ -23,9 +23,9 @@ export async function PUT(request: NextRequest) {
         p.name as product_name,
         t.title as product_title
       FROM anymarket a
-      INNER JOIN products_vtex p ON a.ref_produto_vtex = p.ref_id
-      LEFT JOIN titles t ON p.id = t.product_id
-      WHERE p.id = ?
+      INNER JOIN products_vtex p ON a.ref_produto_vtex = p.ref_produto
+      LEFT JOIN titles t ON p.id_produto_vtex = t.id_product_vtex
+      WHERE p.id_produto_vtex = ?
     `;
     
     const products = await executeQuery(productQuery, [productId]);

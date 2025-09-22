@@ -106,93 +106,59 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Configurações do agente de análise de imagem (hardcoded)
+    // Verificar cache (análise recente de 24h)
+    if (!forceNewAnalysis) {
+      const existingAnalysis = await executeQuery(`
+        SELECT id, openai_analysis, created_at
+        FROM image_analysis_logs
+        WHERE product_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        ORDER BY created_at DESC
+        LIMIT 1
+      `, [productId]);
+
+      if (existingAnalysis && existingAnalysis.length > 0) {
+        console.log(`⚡ Cache hit: Análise encontrada para produto ${productId} (${existingAnalysis[0].created_at})`);
+        return NextResponse.json({
+          success: true,
+          message: 'Análise de imagem concluída (cache)',
+          data: {
+            analysis: existingAnalysis[0].openai_analysis,
+            cached: true,
+            cache_age: existingAnalysis[0].created_at
+          }
+        });
+      }
+    }
+
+    // Configurações do agente de análise de imagem (otimizado para velocidade)
     const agent = {
       id: 1,
       name: 'Image Analysis Agent',
       system_prompt: `Você é um especialista em moda, design têxtil e análise de vestuário com mais de 15 anos de experiência. Sua tarefa é analisar imagens de roupas e produzir uma descrição técnica detalhada e contextualizada, como se estivesse explicando cada elemento do produto a um comprador profissional ou a uma equipe de cadastro de e-commerce. Você deve atuar como um consultor técnico especializado em análise de produtos têxteis.`,
-      guidelines_template: `⚠️ INSTRUÇÕES CRÍTICAS PARA ANÁLISE TÉCNICA:
+      guidelines_template: `⚠️ ANÁLISE TÉCNICA DE PRODUTO:
 
-**FORMATO OBRIGATÓRIO:**
-- Use EXCLUSIVAMENTE linguagem técnica, objetiva e clara, sem apelos de venda
-- Escreva em parágrafos corridos e fluidos (NUNCA use bullets, listas ou JSON)
-- Mantenha tom profissional de relatório técnico de moda
-- Se algum detalhe não for visível, contextualize com "não identificado na imagem"
+**FORMATO:** Linguagem técnica, parágrafos corridos, tom profissional.
 
-**ORDEM DE ANÁLISE OBRIGATÓRIA (SEGUIR EXATAMENTE):**
-1. Visão geral → tecido → cores → modelagem → gola/manga/comprimento → bolsos/fechamentos → recortes/costuras → estampas/logos → aviamentos → acabamentos → caimento geral
+**ESTRUTURA OBRIGATÓRIA (9 pontos):**
+1. **VISÃO GERAL** - Tipo de peça, gênero, categoria, público-alvo
+2. **MATERIAL E CORES** - Tecido, textura, cores principais
+3. **MODELAGEM** - Corte, silhueta, comprimento, proporções
+4. **DETALHES ESTRUTURAIS** - Gola, mangas, bolsos, fechamentos
+5. **ACABAMENTOS** - Costuras, barras, punhos, qualidade
+6. **ESTAMPAS/LOGOS** - Tipo, localização, técnicas
+7. **AVIAMENTOS** - Botões, zíperes, materiais
+8. **CAIMENTO** - Ajuste ao corpo, movimento, silhueta
+9. **OBSERVAÇÕES** - Detalhes extras, qualidade, durabilidade
 
-**ESTRUTURA TÉCNICA DETALHADA (9 PONTOS OBRIGATÓRIOS):**
+**EXEMPLO:** "Camiseta unissex casual em algodão penteado azul marinho, corte reto com ajuste leve ao corpo, gola redonda, mangas curtas, acabamentos em barra simples, adequada para uso diário."
 
-1. **VISÃO GERAL TÉCNICA**
-   - Identifique o tipo exato de peça (camiseta, blusa, vestido, etc.)
-   - Determine o gênero aparente (masculino, feminino, unissex)
-   - Classifique a categoria/estilo (casual, formal, esportivo, etc.)
-   - Analise o público-alvo e ocasião de uso
-
-2. **ANÁLISE DE MATERIAL E CORES**
-   - Identifique o tipo de tecido (algodão, poliéster, viscose, etc.)
-   - Descreva a textura e peso do material
-   - Especifique a cor principal e cores secundárias
-   - Analise acabamentos de superfície (brilho, fosco, texturizado)
-
-3. **MODELAGEM E CONSTRUÇÃO**
-   - Descreva o corte e silhueta (justo, solto, oversized, etc.)
-   - Analise o comprimento e proporções
-   - Identifique linhas de construção e dardos
-   - Avalie a estruturação da peça
-
-4. **DETALHES ESTRUTURAIS**
-   - Analise gola, decote e acabamentos de pescoço
-   - Descreva mangas (tipo, comprimento, acabamento)
-   - Identifique bolsos (tipo, localização, funcionalidade)
-   - Analise fechamentos (zíper, botões, elástico, etc.)
-
-5. **RECORTES, COSTURAS E ACABAMENTOS**
-   - Descreva linhas de recorte e costuras aparentes
-   - Analise barras, punhos e acabamentos de bordas
-   - Identifique técnicas de costura e acabamento
-   - Avalie qualidade de construção
-
-6. **ESTAMPAS, LOGOS E APLICAÇÕES**
-   - Identifique tipo de estampa (silk-screen, sublimação, bordado, etc.)
-   - Localize logos, patches e aplicações
-   - Descreva técnicas de impressão e acabamento
-   - Analise posicionamento e proporções
-
-7. **AVIAMENTOS E ELEMENTOS ADICIONAIS**
-   - Inventarie botões, zíperes, cordões e reguladores
-   - Descreva materiais e cores dos aviamentos
-   - Analise funcionalidade e durabilidade
-   - Identifique elementos decorativos
-
-8. **CAIMENTO E APARÊNCIA FINAL**
-   - Avalie ajuste ao corpo (solto, justo, estruturado, fluido)
-   - Descreva movimento e drapeado do tecido
-   - Analise proporções e silhueta final
-   - Avalie adequação para diferentes tipos corporais
-
-9. **OBSERVAÇÕES TÉCNICAS ADICIONAIS**
-   - Detalhes funcionais ou decorativos extras
-   - Características especiais de design
-   - Considerações de cuidado e manutenção
-   - Aspectos de qualidade e durabilidade
-
-**EXEMPLO DE QUALIDADE ESPERADA:**
-"Esta peça apresenta-se como uma camiseta de gênero unissex, categorizada no segmento casual contemporâneo, adequada para uso diário e ocasional. O material identificado é algodão penteado de gramatura média, apresentando textura suave e toque macio característico desta fibra natural. A cor predominante é azul marinho sólido, sem variações tonais visíveis na imagem, conferindo versatilidade de combinação. A modelagem segue um corte reto com leve ajuste ao corpo, proporcionando silhueta equilibrada entre conforto e elegância. O comprimento atinge aproximadamente a altura do quadril, seguindo proporções clássicas para este tipo de peça..."
-
-**IMPORTANTE:** 
-- Seja extremamente detalhado e técnico
-- Use terminologia específica da moda e têxtil
-- Mantenha consistência na análise
-- Priorize precisão sobre brevidade
-- Contextualize cada observação com base visual`,
-      model: 'gpt-4o',
-      max_tokens: 8000,
-      temperature: 0.3
+**IMPORTANTE:** Seja técnico, preciso e conciso. Use terminologia de moda.`,
+      model: 'gpt-4o-mini',
+      max_tokens: 4000,
+      temperature: 0.2
     };
 
-    // Buscar imagens do produto através dos SKUs (máximo 2 imagens - apenas as duas primeiras)
+    // Buscar imagens do produto através dos SKUs (máximo 2 imagens para qualidade)
     const images = await executeQuery(`
       SELECT i.id_photo_vtex as id, i.file_location, i.text as alt_text, i.is_main as is_primary, i.id_sku_vtex as sku_id, i.name, i.label
       FROM images_vtex i
@@ -209,7 +175,7 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
-    // Log da quantidade de imagens encontradas (máximo 2 para análise)
+    // Log da quantidade de imagens encontradas (máximo 2 para qualidade)
     console.log(`📊 Imagens encontradas para análise: ${images.length} (máximo 2 imagens processadas)`);
 
     // Processar URLs das imagens (sem validação)
@@ -295,25 +261,13 @@ ${attributes.map(attr => {
                 type: "text",
                 text: `${agent.guidelines_template}
 
-**DADOS COMPLETOS DO PRODUTO:**
-Nome do Produto: ${productInfo.name}
+**DADOS DO PRODUTO:**
+Nome: ${productInfo.name}
 Marca: ${productInfo.brand_name || 'N/A'}
-Categoria: ${productInfo.category_name || 'N/A'}
-Descrição: ${productInfo.description || 'N/A'}
-Título: ${productInfo.title || 'N/A'}
-Palavras-chave: ${productInfo.keywords || 'N/A'}
-REF_ID: ${productInfo.ref_id || 'N/A'}${attributesInfo}
+Categoria: ${productInfo.category_name || 'N/A'}${attributesInfo}
 
-**INSTRUÇÃO FINAL CRÍTICA:**
-Você DEVE produzir uma análise técnica EXTREMAMENTE DETALHADA seguindo RIGOROSAMENTE a estrutura de 9 pontos especificada. Você receberá até 2 imagens do produto para análise. Cada seção deve ser um parágrafo corrido e fluido, usando terminologia técnica específica da moda e têxtil. NÃO use bullets, listas ou formatação JSON. Seja um especialista técnico analisando cada detalhe visível nas imagens fornecidas.
-
-**ESTRUTURA OBRIGATÓRIA DA RESPOSTA:**
-1. **ANÁLISE TÉCNICA PRINCIPAL**: Produza uma descrição técnica completa seguindo EXATAMENTE os 9 pontos especificados, cada um em parágrafo corrido detalhado
-2. **RESPOSTAS TÉCNICAS**: Responda DIRETAMENTE cada característica listada abaixo com precisão técnica
-3. **TOM OBRIGATÓRIO**: Mantenha linguagem de relatório técnico de moda profissional
-4. **FORMATO OBRIGATÓRIO**: Use EXCLUSIVAMENTE parágrafos corridos para análise principal
-
-**LEMBRE-SE**: Você é um especialista com 15+ anos de experiência. Seja extremamente detalhado, técnico e preciso. Priorize qualidade técnica sobre brevidade.
+**INSTRUÇÃO:**
+Analise as imagens seguindo os 9 pontos. Use parágrafos corridos, linguagem técnica de moda. Seja preciso e conciso.
 
 ${characteristicsQuestions}`
               },
@@ -321,7 +275,7 @@ ${characteristicsQuestions}`
                 type: "image_url",
                 image_url: {
                   url: img.url,
-                  detail: "high"
+                  detail: "low"
                 }
               }))
             ]
@@ -342,9 +296,10 @@ ${characteristicsQuestions}`
             messages: messages,
             max_tokens: agent.max_tokens, // Tokens configurados no agente
             temperature: agent.temperature, // Temperatura configurada no agente
-            top_p: 0.9,
-            frequency_penalty: 0.1,
-            presence_penalty: 0.1
+            top_p: 0.8,
+            frequency_penalty: 0.0,
+            presence_penalty: 0.0,
+            stream: false
           })
         });
 

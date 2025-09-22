@@ -65,19 +65,19 @@ export async function POST(request: NextRequest) {
     const product = products[0];
     console.log('📦 Produto encontrado:', product.name);
 
-    // Buscar atributos do produto (tabela não existe, inicializar como vazio)
+    // Buscar atributos do produto da tabela product_attributes_vtex
     let productAttributes = [];
     try {
       const productAttributesQuery = `
-        SELECT attribute_name, attribute_values
-        FROM product_attributes
-        WHERE product_id = ?
+        SELECT attribute_name, attribute_value
+        FROM product_attributes_vtex
+        WHERE id_product_vtex = ?
         ORDER BY attribute_name
       `;
       productAttributes = await executeQuery(productAttributesQuery, [numericProductId]);
       console.log(`📋 ${productAttributes?.length || 0} atributos encontrados para o produto`);
     } catch (error) {
-      console.log('⚠️ Tabela product_attributes não existe, continuando sem atributos');
+      console.log('⚠️ Erro ao buscar atributos do produto:', error);
       productAttributes = [];
     }
 

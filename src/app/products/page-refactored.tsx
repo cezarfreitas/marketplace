@@ -127,6 +127,15 @@ export default function ProductsPage() {
     }
   }, [productStates.selectedProducts, productStates.setIsExporting]);
 
+  // Funções de batch analysis
+  const handleBatchAnalysis = useCallback(() => {
+    alert(`Iniciar análise em lote para produtos: ${productStates.selectedProducts.join(', ')}`);
+  }, [productStates.selectedProducts]);
+
+  const handleBatchAnalysisComplete = useCallback((results: any[]) => {
+    console.log('Análise em lote concluída:', results);
+  }, []);
+
   // Funções de análise e geração (placeholders)
   const handleAnalyzeImages = useCallback((product: Product) => {
     productStates.setSelectedProductForAnalysis(product);
@@ -155,6 +164,14 @@ export default function ProductsPage() {
     console.log('Crop images for product:', product.id);
   }, [productStates.setSelectedProductForTool]);
 
+  const handleBatchCropImages = useCallback(() => {
+    productStates.setShowBatchCropModal(true);
+  }, [productStates.setShowBatchCropModal]);
+
+  const handleBatchOptimizeAll = useCallback(() => {
+    productStates.setShowBatchOptimizationModal(true);
+  }, [productStates.setShowBatchOptimizationModal]);
+
   return (
     <Layout title="Produtos" subtitle="Gerencie os produtos importados da VTEX">
       
@@ -165,6 +182,7 @@ export default function ProductsPage() {
         onExportSelected={handleExportSelected}
         onViewSkus={handleViewSkus}
         onDeleteSelected={handleDeleteSelected}
+        onBatchAnalysis={handleBatchAnalysis}
         isExporting={productStates.isExporting}
       />
 
@@ -309,6 +327,7 @@ export default function ProductsPage() {
           originalImages={[]}
         />
       )}
+
     </Layout>
   );
 }

@@ -10,7 +10,6 @@ export async function POST(request: NextRequest) {
       'image_analysis_logs',     // Logs de análise de imagens
       'product_videos',          // Vídeos de produtos
       'product_images',          // Imagens de produtos
-      'product_specifications',  // Especificações de produtos
       'stock',                   // Estoque
       'skus',                    // SKUs
       'products',                // Produtos

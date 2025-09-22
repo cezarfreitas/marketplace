@@ -19,22 +19,22 @@ export async function GET(request: NextRequest) {
     // Buscar atributos do produto
     const attributes = await executeQuery(
       `SELECT 
-        attribute_id,
+        id_attribute_vtex,
         attribute_name,
-        attribute_values,
+        attribute_value,
         created_at,
         updated_at
-       FROM product_attributes 
-       WHERE product_id = ? 
+       FROM product_attributes_vtex 
+       WHERE id_product_vtex = ? 
        ORDER BY attribute_name`,
       [productId]
     );
 
-    // Transformar os valores JSON
+    // Transformar os valores
     const formattedAttributes = attributes.map((attr: any) => ({
-      id: attr.attribute_id,
+      id: attr.id_attribute_vtex,
       name: attr.attribute_name,
-      values: JSON.parse(attr.attribute_values),
+      value: attr.attribute_value,
       createdAt: attr.created_at,
       updatedAt: attr.updated_at
     }));
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar se o produto existe
     const productExists = await executeQuery(
-      'SELECT id FROM products_vtex WHERE id = ?',
+      'SELECT id_produto_vtex FROM products_vtex WHERE id_produto_vtex = ?',
       [productId]
     );
 
@@ -84,14 +84,14 @@ export async function POST(request: NextRequest) {
 
     // Limpar atributos existentes
     await executeQuery(
-      'DELETE FROM product_attributes WHERE product_id = ?',
+      'DELETE FROM product_attributes_vtex WHERE id_product_vtex = ?',
       [productId]
     );
 
     // Inserir novos atributos (desconsiderando "Seller" e "Categoria")
     let importedCount = 0;
     for (const attribute of attributes) {
-      if (attribute.id && attribute.name && attribute.values) {
+      if (attribute.id && attribute.name && attribute.value) {
         // Desconsiderar atributos específicos
         if (EXCLUDED_ATTRIBUTES.includes(attribute.name)) {
           console.log(`⏭️ Atributo "${attribute.name}" desconsiderado para produto ${productId}`);
@@ -99,13 +99,13 @@ export async function POST(request: NextRequest) {
         }
 
         await executeQuery(
-          `INSERT INTO product_attributes (product_id, attribute_id, attribute_name, attribute_values, created_at, updated_at)
+          `INSERT INTO product_attributes_vtex (id_product_vtex, id_attribute_vtex, attribute_name, attribute_value, created_at, updated_at)
            VALUES (?, ?, ?, ?, NOW(), NOW())`,
           [
             productId,
             attribute.id,
             attribute.name,
-            JSON.stringify(attribute.values)
+            attribute.value
           ]
         );
         importedCount++;

@@ -152,14 +152,14 @@ export class ProductAttributesImportModule {
   async getProductAttributes(productId: number): Promise<ProductAttribute[]> {
     try {
       const attributes = await executeQuery(
-        'SELECT attribute_id, attribute_name, attribute_values FROM product_attributes WHERE product_id = ? ORDER BY attribute_name',
+        'SELECT id_attribute_vtex, attribute_name, attribute_value FROM product_attributes_vtex WHERE id_product_vtex = ? ORDER BY attribute_name',
         [productId]
       );
 
       return attributes.map((attr: any) => ({
-        Id: attr.attribute_id,
+        Id: attr.id_attribute_vtex,
         Name: attr.attribute_name,
-        Value: JSON.parse(attr.attribute_values)
+        Value: attr.attribute_value
       }));
 
     } catch (error: any) {
@@ -177,23 +177,23 @@ export class ProductAttributesImportModule {
     try {
       const placeholders = productIds.map(() => '?').join(',');
       const attributes = await executeQuery(
-        `SELECT product_id, attribute_id, attribute_name, attribute_values 
-         FROM product_attributes 
-         WHERE product_id IN (${placeholders}) 
-         ORDER BY product_id, attribute_name`,
+        `SELECT id_product_vtex, id_attribute_vtex, attribute_name, attribute_value 
+         FROM product_attributes_vtex 
+         WHERE id_product_vtex IN (${placeholders}) 
+         ORDER BY id_product_vtex, attribute_name`,
         productIds
       );
 
-      // Agrupar por product_id
+      // Agrupar por id_product_vtex
       attributes.forEach((attr: any) => {
-        if (!results.has(attr.product_id)) {
-          results.set(attr.product_id, []);
+        if (!results.has(attr.id_product_vtex)) {
+          results.set(attr.id_product_vtex, []);
         }
         
-        results.get(attr.product_id)!.push({
-          Id: attr.attribute_id,
+        results.get(attr.id_product_vtex)!.push({
+          Id: attr.id_attribute_vtex,
           Name: attr.attribute_name,
-          Value: JSON.parse(attr.attribute_values)
+          Value: attr.attribute_value
         });
       });
 

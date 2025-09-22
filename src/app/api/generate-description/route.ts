@@ -278,9 +278,9 @@ IMPORTANTE:
       const tokensCompletion = data.usage?.completion_tokens || 0;
       const cost = calculateOpenAICost(tokensUsed, currentAgent.model || 'gpt-4o-mini');
 
-      // Salvar na tabela descriptions
+      // Salvar na tabela descriptions (usando REPLACE para evitar duplicatas)
       const insertQuery = `
-        INSERT INTO descriptions (
+        REPLACE INTO descriptions (
           id_product_vtex, description,
           openai_model, openai_tokens_used, openai_tokens_prompt, openai_tokens_completion,
           openai_temperature, openai_max_tokens, openai_response_time_ms, openai_cost,

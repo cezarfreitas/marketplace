@@ -12,6 +12,7 @@ import {
 import { AnymarketSyncModal } from '@/components/AnymarketSyncModal';
 import { CropImagesModal } from '@/components/CropImagesModal';
 import { SimpleSkusModal } from '@/components/SimpleSkusModal';
+import { BatchAnalysisProgressModal } from '@/components/BatchAnalysisProgressModal';
 import { ImageAnalysisModal } from '@/components/ImageAnalysisModal';
 import { TitleGenerationModal } from '@/components/TitleGenerationModal';
 import { CharacteristicsModal } from '@/components/CharacteristicsModal';
@@ -74,6 +75,7 @@ export default function ProductsPage() {
 
   // Estados locais para funcionalidades específicas
   const [showSkusModal, setShowSkusModal] = useState(false);
+  const [showBatchAnalysisModal, setShowBatchAnalysisModal] = useState(false);
 
   // Carregar produtos quando a página carregar (sem busca de status)
   useEffect(() => {
@@ -172,6 +174,18 @@ export default function ProductsPage() {
     productStates.setShowCropModal(true);
   }, [productStates.setSelectedProductForCrop, productStates.setShowCropModal]);
 
+  const handleBatchAnalysis = useCallback(() => {
+    setShowBatchAnalysisModal(true);
+  }, []);
+
+  const handleBatchAnalysisComplete = useCallback((results: any[]) => {
+    console.log('Análise em lote concluída:', results);
+    setShowBatchAnalysisModal(false);
+    // Atualizar a lista de produtos se necessário
+    // productsHook.refresh();
+  }, []);
+
+
   return (
     <Layout title="Produtos" subtitle="Gerencie os produtos importados da VTEX">
       
@@ -182,6 +196,7 @@ export default function ProductsPage() {
         onExportSelected={handleExportSelected}
         onViewSkus={handleViewSkus}
         onDeleteSelected={handleDeleteSelected}
+        onBatchAnalysis={handleBatchAnalysis}
         isExporting={productStates.isExporting}
       />
 
@@ -487,6 +502,17 @@ export default function ProductsPage() {
           }}
         />
       )}
+
+      {/* Modal de Análise em Lote */}
+      {showBatchAnalysisModal && (
+        <BatchAnalysisProgressModal
+          isOpen={showBatchAnalysisModal}
+          onClose={() => setShowBatchAnalysisModal(false)}
+          selectedProducts={productStates.selectedProducts}
+          onComplete={handleBatchAnalysisComplete}
+        />
+      )}
+
     </Layout>
   );
 }

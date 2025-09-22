@@ -69,6 +69,8 @@ export function useProductStates() {
   // Estados para Crop de Imagens
   const [showCropModal, setShowCropModal] = useState(false);
   const [selectedProductForCrop, setSelectedProductForCrop] = useState<Product | null>(null);
+  const [showBatchCropModal, setShowBatchCropModal] = useState(false);
+  const [showBatchOptimizationModal, setShowBatchOptimizationModal] = useState(false);
 
   // Estados para Anymarket
   const [anymarketMappings, setAnymarketMappings] = useState<Record<string, string>>({});
@@ -214,6 +216,10 @@ export function useProductStates() {
     setShowCropModal,
     selectedProductForCrop,
     setSelectedProductForCrop,
+    showBatchCropModal,
+    setShowBatchCropModal,
+    showBatchOptimizationModal,
+    setShowBatchOptimizationModal,
 
     // Anymarket
     anymarketMappings,

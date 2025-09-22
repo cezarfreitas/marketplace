@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Package, Trash2, X, Camera, Warehouse, Download, Crop, Loader2, TrendingUp, Settings, Activity } from 'lucide-react';
+import { Package, Trash2, X, Download, Loader2, Image } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ interface BatchActionsProps {
   onExportSelected: () => void;
   onViewSkus: () => void;
   onDeleteSelected: () => void;
+  onBatchAnalysis: () => void;
   isExporting: boolean;
 }
 
@@ -30,6 +31,7 @@ export function BatchActions({
   onExportSelected,
   onViewSkus,
   onDeleteSelected,
+  onBatchAnalysis,
   isExporting
 }: BatchActionsProps) {
   if (selectedProducts.length === 0) return null;
@@ -91,6 +93,16 @@ export function BatchActions({
           >
             <Package className="h-3 w-3 mr-1" />
             SKUs
+          </button>
+          
+          <button
+            onClick={onBatchAnalysis}
+            disabled={isExporting}
+            className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-blue-50 to-indigo-50"
+            title="Análise de Imagens em Lote"
+          >
+            <Image className="h-3 w-3 mr-1" />
+            Otimização em Lote
           </button>
           
           <button
