@@ -200,8 +200,8 @@ export function BatchAnalysisProgressModal({
     }
   };
 
-  const handleClose = () => {
-    if (!isProcessing) {
+  const handleClose = (forceClose = false) => {
+    if (!isProcessing || forceClose) {
       onClose();
       // Reset states
       setProgress(0);
@@ -468,9 +468,43 @@ export function BatchAnalysisProgressModal({
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
               <div className="flex items-center">
                 <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                <div>
+                <div className="flex-1">
                   <h3 className="text-sm font-medium text-red-800">Erro na Análise</h3>
                   <p className="text-sm text-red-700 mt-1">{error}</p>
+                  <div className="mt-3 flex space-x-2">
+                    <Button
+                      onClick={() => {
+                        setError(null);
+                        setResults([]);
+                        setProgress(0);
+                        setIsCompleted(false);
+                        setCurrentProductIndex(0);
+                        setCurrentProduct('');
+                        setCurrentStep('');
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="text-red-700 border-red-300 hover:bg-red-100"
+                    >
+                      Tentar Novamente
+                    </Button>
+                    <Button
+                      onClick={() => setError(null)}
+                      size="sm"
+                      variant="outline"
+                      className="text-gray-700 border-gray-300 hover:bg-gray-100"
+                    >
+                      Fechar Erro
+                    </Button>
+                    <Button
+                      onClick={() => handleClose(true)}
+                      size="sm"
+                      variant="outline"
+                      className="text-red-700 border-red-300 hover:bg-red-100"
+                    >
+                      Fechar Modal
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -591,7 +625,9 @@ export function BatchAnalysisProgressModal({
                             <p className="text-xs text-gray-600 ml-4">
                               {result.steps.titleGeneration.message}
                               {result.steps.titleGeneration.error && (
-                                <span className="text-red-600"> - {result.steps.titleGeneration.error}</span>
+                                <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-red-700">
+                                  <strong>Erro:</strong> {result.steps.titleGeneration.error}
+                                </div>
                               )}
                             </p>
                             
@@ -615,7 +651,9 @@ export function BatchAnalysisProgressModal({
                             <p className="text-xs text-gray-600 ml-4">
                               {result.steps.descriptionGeneration.message}
                               {result.steps.descriptionGeneration.error && (
-                                <span className="text-red-600"> - {result.steps.descriptionGeneration.error}</span>
+                                <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-red-700">
+                                  <strong>Erro:</strong> {result.steps.descriptionGeneration.error}
+                                </div>
                               )}
                             </p>
                             
@@ -639,7 +677,9 @@ export function BatchAnalysisProgressModal({
                     <p className="text-xs text-gray-600 ml-4">
                       {result.steps.characteristicsGeneration.message}
                       {result.steps.characteristicsGeneration.error && (
-                        <span className="text-red-600"> - {result.steps.characteristicsGeneration.error}</span>
+                        <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-red-700">
+                          <strong>Erro:</strong> {result.steps.characteristicsGeneration.error}
+                        </div>
                       )}
                     </p>
 
@@ -663,7 +703,9 @@ export function BatchAnalysisProgressModal({
                     <p className="text-xs text-gray-600 ml-4">
                       {result.steps.anymarketSync.message}
                       {result.steps.anymarketSync.error && (
-                        <span className="text-red-600"> - {result.steps.anymarketSync.error}</span>
+                        <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-red-700">
+                          <strong>Erro:</strong> {result.steps.anymarketSync.error}
+                        </div>
                       )}
                     </p>
 
@@ -687,15 +729,19 @@ export function BatchAnalysisProgressModal({
                     <p className="text-xs text-gray-600 ml-4">
                       {result.steps.imageCrop.message}
                       {result.steps.imageCrop.error && (
-                        <span className="text-red-600"> - {result.steps.imageCrop.error}</span>
+                        <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-red-700">
+                          <strong>Erro:</strong> {result.steps.imageCrop.error}
+                        </div>
                       )}
                     </p>
                           </div>
                           
                           {result.error && (
-                            <p className="text-sm text-red-600">
-                              <strong>Erro Geral:</strong> {result.error}
-                            </p>
+                            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                              <p className="text-sm text-red-700">
+                                <strong>Erro Geral:</strong> {result.error}
+                              </p>
+                            </div>
                           )}
                         </div>
                       </CardContent>
