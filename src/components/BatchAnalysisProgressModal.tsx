@@ -396,7 +396,7 @@ export function BatchAnalysisProgressModal({
             </div>
             <Button
               variant="outline"
-              onClick={handleClose}
+              onClick={() => handleClose()}
               disabled={isProcessing}
             >
               {isProcessing ? <Pause className="w-4 h-4" /> : 'Fechar'}
@@ -755,7 +755,7 @@ export function BatchAnalysisProgressModal({
           {/* Botão de fechar quando concluído */}
           {isCompleted && (
             <div className="text-center mt-6">
-              <Button onClick={handleClose} className="bg-green-600 hover:bg-green-700">
+              <Button onClick={() => handleClose()} className="bg-green-600 hover:bg-green-700">
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Concluir
               </Button>
