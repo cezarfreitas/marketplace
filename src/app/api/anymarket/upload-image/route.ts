@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { executeQuery } from '@/lib/database';
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +46,19 @@ export async function POST(request: NextRequest) {
       const result = await anymarketUploadResponse.json();
       console.log(`✅ Imagem enviada para Anymarket com sucesso:`, result);
       
+      // Atualizar campo imagem_cropada na tabela anymarket
+      try {
+        await executeQuery(`
+          UPDATE anymarket 
+          SET imagem_cropada = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP 
+          WHERE id_produto_any = ?
+        `, [anymarketId]);
+        console.log(`📅 Campo imagem_cropada atualizado para produto ${anymarketId}`);
+      } catch (updateError) {
+        console.error(`⚠️ Erro ao atualizar imagem_cropada para produto ${anymarketId} (não crítico):`, updateError);
+      }
+      
       return NextResponse.json({
         success: true,
         message: 'Imagem enviada para Anymarket com sucesso',
@@ -53,7 +67,8 @@ export async function POST(request: NextRequest) {
           imageUrl,
           index,
           main,
-          anymarketResponse: result
+          anymarketResponse: result,
+          imagemCropadaUpdated: true
         }
       });
     } else {

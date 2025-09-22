@@ -425,6 +425,9 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
                   const result = await anymarketUploadResponse.json();
                   if (result.success) {
                     addLog('success', `✅ Imagem ${i + 1} enviada para Anymarket com sucesso`);
+                    if (result.data?.imagemCropadaUpdated) {
+                      addLog('info', `📅 Campo imagem_cropada atualizado na tabela anymarket`);
+                    }
                     uploadedCount++;
                   } else {
                     addLog('error', `❌ Erro ao enviar imagem ${i + 1} para Anymarket: ${result.message}`);
