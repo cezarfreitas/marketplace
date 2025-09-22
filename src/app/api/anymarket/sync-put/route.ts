@@ -2,8 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database';
 
 export async function PUT(request: NextRequest) {
+  return handleRequest(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleRequest(request);
+}
+
+async function handleRequest(request: NextRequest) {
   try {
-    const { productId } = await request.json();
+    // Verificar se há conteúdo no body
+    const requestText = await request.text();
+    console.log('📄 Request body bruto:', requestText);
+    
+    if (!requestText || requestText.trim() === '') {
+      console.log('⚠️ Request body vazio');
+      return NextResponse.json({
+        success: false,
+        message: 'Request body vazio',
+        error: 'Empty request body'
+      }, { status: 400 });
+    }
+    
+    let requestData;
+    try {
+      requestData = JSON.parse(requestText);
+    } catch (parseError) {
+      console.error('❌ Erro ao fazer parse do request body:', parseError);
+      console.log('📄 Conteúdo que causou erro:', requestText);
+      return NextResponse.json({
+        success: false,
+        message: 'Erro ao fazer parse do request body',
+        error: parseError instanceof Error ? parseError.message : 'Parse error'
+      }, { status: 400 });
+    }
+    
+    const { productId } = requestData;
 
     if (!productId) {
       return NextResponse.json({
