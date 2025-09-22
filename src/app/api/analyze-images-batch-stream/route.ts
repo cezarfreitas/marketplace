@@ -2,6 +2,13 @@ import { NextRequest } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 
+// Helper para obter a URL base correta
+function getBaseUrl(): string {
+  return process.env.NODE_ENV === 'production' 
+    ? 'https://b2b-seo.jzo3qo.easypanel.host'
+    : 'http://localhost:3000';
+}
+
 interface BatchAnalysisResult {
   productId: number;
   productName: string;
@@ -37,7 +44,7 @@ async function executeImageAnalysis(productId: number): Promise<{ success: boole
       return { success: false, error: 'Produto não possui categoria definida' };
     }
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/analyze-images`, {
+    const response = await fetch(`${getBaseUrl()}/api/analyze-images`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -70,7 +77,7 @@ async function executeTitleGeneration(productId: number): Promise<{ success: boo
   try {
     console.log(`📝 Executando geração de título para produto ${productId}...`);
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/generate-title`, {
+    const response = await fetch(`${getBaseUrl()}/api/generate-title`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -102,7 +109,7 @@ async function executeDescriptionGeneration(productId: number): Promise<{ succes
   try {
     console.log(`📄 Executando geração de descrição para produto ${productId}...`);
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/generate-description`, {
+    const response = await fetch(`${getBaseUrl()}/api/generate-description`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -134,7 +141,7 @@ async function executeCharacteristicsGeneration(productId: number): Promise<{ su
   try {
     console.log(`🏷️ Executando geração de características para produto ${productId}...`);
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/generate-characteristics`, {
+    const response = await fetch(`${getBaseUrl()}/api/generate-characteristics`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -166,7 +173,7 @@ async function executeAnymarketSync(productId: number): Promise<{ success: boole
   try {
     console.log(`🔄 Executando sincronização AnyMarket para produto ${productId}...`);
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/anymarket/sync-put`, {
+    const response = await fetch(`${getBaseUrl()}/api/anymarket/sync-put`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -197,7 +204,7 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
   try {
     console.log(`✂️ Executando crop de imagens para produto ${productId}...`);
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/crop-images-batch`, {
+    const response = await fetch(`${getBaseUrl()}/api/crop-images-batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

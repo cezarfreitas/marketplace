@@ -53,6 +53,8 @@ export function BatchAnalysisProgressModal({
   selectedProducts, 
   onComplete 
 }: BatchAnalysisProgressModalProps) {
+  
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<BatchAnalysisResult[]>([]);
@@ -359,10 +361,24 @@ export function BatchAnalysisProgressModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open && !isProcessing) {
+        handleClose();
+      }
+    }}>
       <DialogContent 
         className="max-w-4xl max-h-[90vh] overflow-y-auto"
         aria-describedby="batch-analysis-description"
+        onPointerDownOutside={(e) => {
+          if (isProcessing) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isProcessing) {
+            e.preventDefault();
+          }
+        }}
       >
         <DialogHeader>
           <DialogTitle>Otimização em Lote</DialogTitle>
@@ -432,7 +448,15 @@ export function BatchAnalysisProgressModal({
           {/* Botão de iniciar */}
           {!isProcessing && results.length === 0 && (
             <div className="text-center mb-6">
-              <Button onClick={handleStartProcessing} className="bg-blue-600 hover:bg-blue-700">
+              <Button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleStartProcessing();
+                }} 
+                className="bg-blue-600 hover:bg-blue-700"
+                type="button"
+              >
                 <Play className="w-4 h-4 mr-2" />
                 Iniciar Otimização em Lote
               </Button>
