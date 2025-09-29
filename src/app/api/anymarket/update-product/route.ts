@@ -324,37 +324,33 @@ export async function POST(request: NextRequest) {
     // VALORES FIXOS OBRIGATÓRIOS: warrantyTime=1, warrantyText="Garantia de Fábrica", priceFactor=1
     console.log('🔄 ETAPA 2: Preparando payload específico para PUT...');
     
-    // Extrair valor da característica "modelo" se existir
-    // ESTRUTURA: respostas_caracteristicas > caracteristica = modelo > usar o valor da resposta
+    // Extrair valor da característica "modelo" diretamente da tabela respostas_caracteristicas
     let modeloValue = anymarketData.model; // valor padrão
     console.log('🔍 Valor padrão do model:', modeloValue);
-    console.log('🔍 Estrutura anymarketData.respostas_caracteristicas:', anymarketData.respostas_caracteristicas);
     
-    if (anymarketData.respostas_caracteristicas && Array.isArray(anymarketData.respostas_caracteristicas)) {
-      console.log('📋 Total de características encontradas:', anymarketData.respostas_caracteristicas.length);
-      
-      // Log de todas as características para debug
-      anymarketData.respostas_caracteristicas.forEach((char: any, index: number) => {
-        console.log(`📋 Característica ${index}:`, {
-          caracteristica: char.caracteristica,
-          resposta: char.resposta,
-          nome: char.name
-        });
-      });
-      
-      const modeloChar = anymarketData.respostas_caracteristicas.find((char: any) => 
-        char.caracteristica && char.caracteristica.toLowerCase().includes('modelo')
-      );
-      
-      if (modeloChar && modeloChar.resposta) {
-        modeloValue = modeloChar.resposta;
-        console.log('✅ Valor da característica "modelo" encontrado:', modeloValue);
-        console.log('✅ Estrutura: respostas_caracteristicas > caracteristica = modelo > resposta:', modeloValue);
-      } else {
-        console.log('❌ Característica "modelo" não encontrada ou sem resposta');
-      }
+    // Buscar características diretamente da tabela respostas_caracteristicas
+    const modelCharacteristicsQuery = `
+      SELECT caracteristica, resposta 
+      FROM respostas_caracteristicas 
+      WHERE produto_id = ?
+    `;
+    
+    const characteristicsData = await executeQuery(modelCharacteristicsQuery, [productId]);
+    console.log('📋 Características encontradas na tabela:', characteristicsData.length);
+    
+    // Procurar pela característica "modelo"
+    console.log('🔍 Procurando característica "modelo" em:', characteristicsData.map(c => c.caracteristica));
+    const modeloChar = characteristicsData.find((char: any) => 
+      char.caracteristica && char.caracteristica.toLowerCase().includes('modelo')
+    );
+    
+    if (modeloChar && modeloChar.resposta) {
+      modeloValue = modeloChar.resposta;
+      console.log('✅ Valor da característica "modelo" encontrado na tabela:', modeloValue);
+      console.log('✅ Característica completa:', modeloChar);
     } else {
-      console.log('❌ respostas_caracteristicas não existe ou não é array');
+      console.log('❌ Característica "modelo" não encontrada na tabela respostas_caracteristicas');
+      console.log('🔍 Características disponíveis:', characteristicsData.map(c => ({ caracteristica: c.caracteristica, resposta: c.resposta })));
     }
     
     // Usar APENAS os campos específicos permitidos na Etapa 2
@@ -412,11 +408,19 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    console.log('📦 Payload PATCH (merge-patch):', JSON.stringify({
+    const patchPayload = {
       title: newTitle,
       description: newDescription || anymarketData.description,
       characteristics: productCharacteristics
-    }, null, 2));
+    };
+
+    // Adicionar campo model se foi extraído da característica
+    if (modeloValue && modeloValue !== anymarketData.model) {
+      patchPayload.model = modeloValue;
+      console.log('✅ Campo model adicionado ao payload PATCH:', modeloValue);
+    }
+
+    console.log('📦 Payload PATCH (merge-patch):', JSON.stringify(patchPayload, null, 2));
     
     const patchResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketData.id}`, {
       method: 'PATCH',
@@ -426,11 +430,7 @@ export async function POST(request: NextRequest) {
         'User-Agent': 'Meli-Integration/1.0',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({
-        title: newTitle,
-        description: newDescription || anymarketData.description,
-        characteristics: productCharacteristics
-      }),
+      body: JSON.stringify(patchPayload),
       cache: 'no-store'
     });
 
