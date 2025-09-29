@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkBuildEnvironment } from '@/lib/build-check';
 
 export async function GET(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get('productId');
 

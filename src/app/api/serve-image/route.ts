@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile, access } from 'fs/promises';
 import { join } from 'path';
+import { checkBuildEnvironment } from '@/lib/build-check';
 
 export async function GET(request: NextRequest) {
   try {
+    // Evitar execução durante o build do Next.js
+    if (checkBuildEnvironment()) {
+      return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
+    }
+
     const { searchParams } = new URL(request.url);
     let fileName = searchParams.get('file');
     
