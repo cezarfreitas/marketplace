@@ -37,7 +37,7 @@ export function BatchActions({
   if (selectedProducts.length === 0) return null;
 
   return (
-    <Card className="mb-6 relative z-[90] border-2 border-primary/20">
+    <Card className="mb-6 relative z-[10] border-2 border-primary/20">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
