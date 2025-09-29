@@ -408,7 +408,7 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    const patchPayload = {
+    const patchPayload: any = {
       title: newTitle,
       description: newDescription || anymarketData.description,
       characteristics: productCharacteristics
