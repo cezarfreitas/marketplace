@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BatchActions, ProductFilters } from '@/components/products';
 import { useProductStates } from '@/hooks/useProductStates';
 import { useBatchOperations } from '@/hooks/useBatchOperations';
+import { useFiltersData } from '@/hooks/useFiltersData';
 
 // Função auxiliar para formatar data
 const formatDate = (dateString: string | null | undefined): string => {
@@ -33,6 +34,9 @@ const formatDate = (dateString: string | null | undefined): string => {
 export default function ProductsPage() {
   // Hook customizado para gerenciar estados
   const productStates = useProductStates();
+  
+  // Hook para dados de filtros
+  const filtersData = useFiltersData();
   
   // Hook do módulo de produtos
   const {
@@ -193,10 +197,10 @@ export default function ProductsPage() {
           brand_id: Array.isArray(filters.brand_id) ? filters.brand_id.map(Number) : filters.brand_id ? [Number(filters.brand_id)] : undefined,
           category_id: Array.isArray(filters.category_id) ? filters.category_id.map(Number) : filters.category_id ? [Number(filters.category_id)] : undefined
         }}
-        brands={[]}
-        categories={[]}
-        loadingBrands={false}
-        loadingCategories={false}
+        brands={filtersData.brands}
+        categories={filtersData.categories}
+        loadingBrands={filtersData.loadingBrands}
+        loadingCategories={filtersData.loadingCategories}
         onFiltersChange={(newFilters) => {
           updateFilters({
             ...newFilters,
