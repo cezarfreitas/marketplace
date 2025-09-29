@@ -1,6 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database';
 
+// Função auxiliar para salvar logs de sincronização
+async function saveSyncLog(productId: number, anymarketId: string, title: string, description: string, success: boolean, responseData: any, errorMessage?: string, syncType: string = 'patch', action: string = 'update') {
+  try {
+    const logQuery = `
+      INSERT INTO anymarket_sync_logs (product_id, anymarket_id, title, description, success, response_data, error_message, sync_type, action, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    `;
+
+    await executeQuery(logQuery, [
+      productId,
+      anymarketId,
+      title,
+      description,
+      success ? 1 : 0,
+      JSON.stringify(responseData),
+      errorMessage || null,
+      syncType,
+      action
+    ]);
+
+    console.log('📝 Log de sincronização salvo com sucesso');
+  } catch (error) {
+    console.error('❌ Erro ao salvar log de sincronização:', error);
+  }
+}
+
 export async function PUT(request: NextRequest) {
   return handleRequest(request);
 }
@@ -213,6 +239,17 @@ async function handleRequest(request: NextRequest) {
       });
 
       // Log de erro salvo
+      await saveSyncLog(
+        productId,
+        product.anymarket_id,
+        product.product_title || product.product_name,
+        '',
+        false,
+        anymarketResult,
+        `Erro HTTP ${anymarketResponse.status}: ${JSON.stringify(anymarketResult)}`,
+        'patch',
+        'update'
+      );
 
       return NextResponse.json({
         success: false,
@@ -223,21 +260,31 @@ async function handleRequest(request: NextRequest) {
 
     console.log('✅ Sincronização PATCH com Anymarket realizada com sucesso!');
 
-    // 4. Atualizar data_sincronizacao e enviado_any na tabela anymarket
+    // 4. Atualizar enviado_any na tabela anymarket (removido data_sincronizacao)
     try {
       await executeQuery(`
         UPDATE anymarket
-        SET data_sincronizacao = CURRENT_TIMESTAMP, 
-            enviado_any = CURRENT_TIMESTAMP,
+        SET enviado_any = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE ref_produto_vtex = ?
       `, [product.ref_produto_vtex]);
-      console.log('📅 Data de sincronização e envio atualizadas na tabela anymarket');
+      console.log('📅 Data de envio atualizada na tabela anymarket');
     } catch (updateError) {
-      console.error('⚠️ Erro ao atualizar datas (não crítico):', updateError);
+      console.error('⚠️ Erro ao atualizar data de envio (não crítico):', updateError);
     }
 
     // 5. Log de sincronização salvo
+    await saveSyncLog(
+      productId,
+      product.anymarket_id,
+      product.product_title || product.product_name,
+      '',
+      true,
+      anymarketResult,
+      undefined,
+      'patch',
+      'update'
+    );
 
     return NextResponse.json({
       success: true,
@@ -258,6 +305,24 @@ async function handleRequest(request: NextRequest) {
 
   } catch (error: any) {
     console.error('❌ Erro interno do servidor:', error);
+    
+    // Log de erro interno
+    try {
+      await saveSyncLog(
+        0, // productId não disponível em caso de erro interno
+        '',
+        '',
+        '',
+        false,
+        { error: error.message, stack: error.stack },
+        `Erro interno: ${error.message}`,
+        'patch',
+        'update'
+      );
+    } catch (logError) {
+      console.error('❌ Erro ao salvar log de erro interno:', logError);
+    }
+    
     return NextResponse.json({
       success: false,
       message: 'Erro interno do servidor ao sincronizar com Anymarket via PATCH',

@@ -50,32 +50,11 @@ function convertTextToHtml(text: string): string {
 }
 
 // Função auxiliar para salvar logs de sincronização
-async function saveSyncLog(productId: number, anymarketId: string, title: string, description: string, success: boolean, responseData: any, errorMessage?: string) {
+async function saveSyncLog(productId: number, anymarketId: string, title: string, description: string, success: boolean, responseData: any, errorMessage?: string, syncType: string = 'product', action: string = 'create') {
   try {
-    const createLogsTableQuery = `
-      CREATE TABLE IF NOT EXISTS anymarket_sync_logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        product_id INT NOT NULL,
-        anymarket_id VARCHAR(255) NOT NULL,
-        title VARCHAR(500),
-        description TEXT,
-        success BOOLEAN NOT NULL DEFAULT true,
-        response_data JSON,
-        error_message TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (product_id) REFERENCES products_vtex(id) ON DELETE CASCADE,
-        INDEX idx_product_id (product_id),
-        INDEX idx_anymarket_id (anymarket_id),
-        INDEX idx_created_at (created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `;
-
-    await executeQuery(createLogsTableQuery, []);
-
     const logQuery = `
-      INSERT INTO anymarket_sync_logs (product_id, anymarket_id, title, description, success, response_data, error_message, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+      INSERT INTO anymarket_sync_logs (product_id, anymarket_id, title, description, success, response_data, error_message, sync_type, action, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
 
     await executeQuery(logQuery, [
@@ -83,9 +62,11 @@ async function saveSyncLog(productId: number, anymarketId: string, title: string
       anymarketId,
       title,
       description,
-      success,
+      success ? 1 : 0,
       JSON.stringify(responseData),
-      errorMessage || null
+      errorMessage || null,
+      syncType,
+      action
     ]);
 
     console.log('📝 Log de sincronização salvo no banco de dados');
@@ -443,18 +424,17 @@ export async function POST(request: NextRequest) {
 
         console.log(`✅ Sincronização com Anymarket realizada com sucesso para produto ${productId}!`);
 
-        // 5. Atualizar data_sincronizacao e enviado_any na tabela anymarket
+        // 5. Atualizar enviado_any na tabela anymarket (removido data_sincronizacao)
         try {
           await executeQuery(`
             UPDATE anymarket 
-            SET data_sincronizacao = CURRENT_TIMESTAMP, 
-                enviado_any = CURRENT_TIMESTAMP,
+            SET enviado_any = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP 
             WHERE ref_produto_vtex = ?
           `, [product.ref_id]);
-          console.log(`📅 Data de sincronização e envio atualizadas para produto ${productId}`);
+          console.log(`📅 Data de envio atualizada para produto ${productId}`);
         } catch (updateError) {
-          console.error(`⚠️ Erro ao atualizar datas para produto ${productId} (não crítico):`, updateError);
+          console.error(`⚠️ Erro ao atualizar data de envio para produto ${productId} (não crítico):`, updateError);
         }
 
         // 6. Salvar log da sincronização

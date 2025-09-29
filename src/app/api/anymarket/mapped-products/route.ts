@@ -9,17 +9,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'API não disponível durante build' }, { status: 503 });
     }
 
-    console.log('🔍 Buscando produtos sincronizados com Anymarket (com data_sincronizacao preenchida)...');
+    console.log('🔍 Buscando produtos sincronizados com Anymarket (com enviado_any preenchido)...');
 
-    // Buscar produtos que têm mapeamento na tabela anymarket E data_sincronizacao preenchida
+    // Buscar produtos que têm mapeamento na tabela anymarket E enviado_any preenchido
     const query = `
-      SELECT DISTINCT p.id_produto_vtex as id, p.name, p.ref_produto as ref_id, a.id_produto_any, a.data_sincronizacao
+      SELECT DISTINCT p.id_produto_vtex as id, p.name, p.ref_produto as ref_id, a.id_produto_any, a.enviado_any
       FROM products_vtex p
       INNER JOIN anymarket a ON p.ref_produto = a.ref_produto_vtex
       WHERE a.ref_produto_vtex IS NOT NULL 
         AND a.ref_produto_vtex != '0'
         AND a.id_produto_any IS NOT NULL
-        AND a.data_sincronizacao IS NOT NULL
+        AND a.enviado_any IS NOT NULL
       ORDER BY p.id_produto_vtex
     `;
 

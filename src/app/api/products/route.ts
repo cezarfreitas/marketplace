@@ -142,8 +142,8 @@ export async function GET(request: NextRequest) {
         const stockCondition = `
           (SELECT COALESCE(SUM(st.total_quantity), 0) 
            FROM skus_vtex s 
-           LEFT JOIN stock_vtex st ON s.id = st.sku_id 
-           WHERE s.product_id = p.id) ${stock_operator} ?
+           LEFT JOIN stock_vtex st ON s.id_sku_vtex = st.id_sku_vtex 
+           WHERE s.id_produto_vtex = p.id_produto_vtex) ${stock_operator} ?
         `;
         conditions.push(stockCondition);
         searchParams_array.push(stockNum);
@@ -234,8 +234,8 @@ export async function GET(request: NextRequest) {
           c.name as category_name,
           c.id_category_vtex as category_vtex_id,
           a.id_produto_any as anymarket_id,
-          a.enviado_any as anymarket_enviado_any,
-          a.imagem_cropada as anymarket_imagem_cropada,
+          asl_success.last_sync_date as anymarket_enviado_any,
+          asl_crop.last_crop_date as anymarket_imagem_cropada,
           t.title as optimized_title,
           0 as sku_count,
           COALESCE(stock.total_stock, 0) as total_stock,
@@ -248,9 +248,21 @@ export async function GET(request: NextRequest) {
         LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
         LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
         LEFT JOIN (
-          SELECT DISTINCT ref_produto_vtex, id_produto_any, enviado_any, imagem_cropada
+          SELECT DISTINCT ref_produto_vtex, id_produto_any
           FROM anymarket
         ) a ON p.ref_produto = a.ref_produto_vtex
+        LEFT JOIN (
+          SELECT DISTINCT id_produto_vtex, MAX(created_at) as last_sync_date
+          FROM anymarket_sync_logs
+          WHERE sync_type = 'info'
+          GROUP BY id_produto_vtex
+        ) asl_success ON p.id_produto_vtex = asl_success.id_produto_vtex
+        LEFT JOIN (
+          SELECT DISTINCT id_produto_vtex, MAX(created_at) as last_crop_date
+          FROM anymarket_sync_logs
+          WHERE sync_type = 'crop'
+          GROUP BY id_produto_vtex
+        ) asl_crop ON p.id_produto_vtex = asl_crop.id_produto_vtex
         LEFT JOIN titles t ON p.id_produto_vtex = t.id_product_vtex
         LEFT JOIN analise_imagens ai ON p.id_produto_vtex = ai.id_produto_vtex
         LEFT JOIN descriptions d ON p.id_produto_vtex = d.id_product_vtex
@@ -288,8 +300,8 @@ export async function GET(request: NextRequest) {
           c.name as category_name,
           c.id_category_vtex as category_vtex_id,
           a.id_produto_any as anymarket_id,
-          a.enviado_any as anymarket_enviado_any,
-          a.imagem_cropada as anymarket_imagem_cropada,
+          asl_success.last_sync_date as anymarket_enviado_any,
+          asl_crop.last_crop_date as anymarket_imagem_cropada,
           t.title as optimized_title,
           0 as sku_count,
           0 as total_stock,
@@ -302,9 +314,21 @@ export async function GET(request: NextRequest) {
         LEFT JOIN brands_vtex b ON p.id_brand_vtex = b.id_brand_vtex
         LEFT JOIN categories_vtex c ON p.id_category_vtex = c.id_category_vtex
         LEFT JOIN (
-          SELECT DISTINCT ref_produto_vtex, id_produto_any, enviado_any, imagem_cropada
+          SELECT DISTINCT ref_produto_vtex, id_produto_any
           FROM anymarket
         ) a ON p.ref_produto = a.ref_produto_vtex
+        LEFT JOIN (
+          SELECT DISTINCT id_produto_vtex, MAX(created_at) as last_sync_date
+          FROM anymarket_sync_logs
+          WHERE sync_type = 'info'
+          GROUP BY id_produto_vtex
+        ) asl_success ON p.id_produto_vtex = asl_success.id_produto_vtex
+        LEFT JOIN (
+          SELECT DISTINCT id_produto_vtex, MAX(created_at) as last_crop_date
+          FROM anymarket_sync_logs
+          WHERE sync_type = 'crop'
+          GROUP BY id_produto_vtex
+        ) asl_crop ON p.id_produto_vtex = asl_crop.id_produto_vtex
         LEFT JOIN titles t ON p.id_produto_vtex = t.id_product_vtex
         LEFT JOIN analise_imagens ai ON p.id_produto_vtex = ai.id_produto_vtex
         LEFT JOIN descriptions d ON p.id_produto_vtex = d.id_product_vtex
@@ -352,8 +376,8 @@ export async function GET(request: NextRequest) {
             c.name as category_name,
             c.id_category_vtex as category_vtex_id,
             a.id_produto_any as anymarket_id,
-          a.enviado_any as anymarket_enviado_any,
-          a.imagem_cropada as anymarket_imagem_cropada,
+          asl_success.last_sync_date as anymarket_enviado_any,
+          asl_crop.last_crop_date as anymarket_imagem_cropada,
             t.title as optimized_title,
             ${validSortField === 'total_stock' ? 'COALESCE(stock.total_stock, 0) as total_stock,' : '0 as sku_count, 0 as total_stock,'}
             CASE WHEN ai.id_produto_vtex IS NOT NULL THEN 1 ELSE 0 END as has_image_analysis,
@@ -408,8 +432,8 @@ export async function GET(request: NextRequest) {
               c.name as category_name,
               c.id_category_vtex as category_vtex_id,
               a.id_produto_any as anymarket_id,
-          a.enviado_any as anymarket_enviado_any,
-          a.imagem_cropada as anymarket_imagem_cropada,
+          asl_success.last_sync_date as anymarket_enviado_any,
+          asl_crop.last_crop_date as anymarket_imagem_cropada,
               t.title as optimized_title,
               0 as sku_count,
               0 as total_stock,
@@ -586,7 +610,7 @@ export async function DELETE(request: NextRequest) {
     // Verificar se todos os produtos existem
     const placeholders = productIds.map(() => '?').join(',');
     const existingProducts = await executeQuery(
-      `SELECT id, name FROM products_vtex WHERE id IN (${placeholders})`,
+      `SELECT id_produto_vtex as id, name FROM products_vtex WHERE id_produto_vtex IN (${placeholders})`,
       productIds
     );
 
@@ -604,7 +628,7 @@ export async function DELETE(request: NextRequest) {
       // Deletar os produtos
       console.log('🗑️ Deletando produtos...');
       await executeQuery(
-        `DELETE FROM products_vtex WHERE id IN (${placeholders})`,
+        `DELETE FROM products_vtex WHERE id_produto_vtex IN (${placeholders})`,
         productIds
       );
 

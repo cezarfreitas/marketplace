@@ -117,18 +117,17 @@ export async function POST(request: NextRequest) {
     const patchResult = await patchResponse.json();
     console.log('✅ PATCH realizado com sucesso:', patchResult);
 
-    // Atualizar data_sincronizacao e enviado_any na tabela anymarket
+    // Atualizar enviado_any na tabela anymarket (removido data_sincronizacao)
     try {
       await executeQuery(`
         UPDATE anymarket 
-        SET data_sincronizacao = CURRENT_TIMESTAMP, 
-            enviado_any = CURRENT_TIMESTAMP,
+        SET enviado_any = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP 
         WHERE id_produto_any = ?
       `, [anymarketId]);
-      console.log('📅 Data de sincronização e envio atualizadas na tabela anymarket');
+      console.log('📅 Data de envio atualizada na tabela anymarket');
     } catch (updateError) {
-      console.error('⚠️ Erro ao atualizar datas (não crítico):', updateError);
+      console.error('⚠️ Erro ao atualizar data de envio (não crítico):', updateError);
     }
 
     return NextResponse.json({

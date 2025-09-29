@@ -14,8 +14,8 @@ export async function GET() {
         SUM(CASE WHEN is_active = 1 AND is_visible = 1 THEN 1 ELSE 0 END) as active_and_visible_products,
         SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_products,
         SUM(CASE WHEN is_visible = 0 THEN 1 ELSE 0 END) as invisible_products,
-        SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM images_vtex i JOIN skus_vtex s ON i.sku_id = s.vtex_id WHERE s.product_id = p.vtex_id) THEN 1 ELSE 0 END) as products_without_images,
-        SUM(CASE WHEN EXISTS (SELECT 1 FROM images_vtex i JOIN skus_vtex s ON i.sku_id = s.vtex_id WHERE s.product_id = p.vtex_id) THEN 1 ELSE 0 END) as products_with_images,
+        SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM images_vtex i JOIN skus_vtex s ON i.id_sku_vtex = s.id_sku_vtex WHERE s.id_produto_vtex = p.id_produto_vtex) THEN 1 ELSE 0 END) as products_without_images,
+        SUM(CASE WHEN EXISTS (SELECT 1 FROM images_vtex i JOIN skus_vtex s ON i.id_sku_vtex = s.id_sku_vtex WHERE s.id_produto_vtex = p.id_produto_vtex) THEN 1 ELSE 0 END) as products_with_images,
         SUM(CASE WHEN anymarket_id IS NOT NULL AND anymarket_id != '' THEN 1 ELSE 0 END) as products_in_anymarket,
         SUM(CASE WHEN anymarket_id IS NULL OR anymarket_id = '' THEN 1 ELSE 0 END) as products_not_in_anymarket
       FROM products_vtex p

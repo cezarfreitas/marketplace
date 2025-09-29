@@ -2,6 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 
+// Função auxiliar para salvar logs de sincronização - VERSÃO SIMPLIFICADA
+async function saveSyncLog(productId: number, anymarketId: string, title: string, description: string, success: boolean, responseData: any, errorMessage?: string, syncType: string = 'info', action: string = 'update') {
+  try {
+    // Verificar se a tabela anymarket_sync_logs existe
+    const tableCheck = await executeQuery(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'anymarket_sync_logs'
+    `);
+    
+    if (tableCheck.length === 0) {
+      console.log('⚠️ Tabela anymarket_sync_logs não existe - pulando log');
+      return;
+    }
+    
+    // Estrutura limpa e correta
+    const logQuery = `
+      INSERT INTO anymarket_sync_logs (id_produto_vtex, id_produto_any, title, description, sync_type, action, response_data, error_message, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    `;
+    const values = [
+      productId,
+      anymarketId,
+      title,
+      description,
+      syncType,
+      action,
+      JSON.stringify(responseData),
+      errorMessage || null
+    ];
+    
+    await executeQuery(logQuery, values);
+    console.log('✅ Log de sincronização salvo com sucesso');
+  } catch (error) {
+    console.error('❌ Erro ao salvar log de sincronização:', error);
+    // Não relançar o erro para não interromper o processo principal
+  }
+}
+
 /**
  * Converte texto puro em HTML formatado para a Anymarket
  */
@@ -409,18 +449,22 @@ export async function POST(request: NextRequest) {
     const patchResult = await patchResponse.json();
     console.log('✅ ETAPA 2 CONCLUÍDA: PATCH realizado com sucesso:', patchResult);
 
-    // 3. Atualizar data_sincronizacao e enviado_any na tabela anymarket
+    // 3. Salvar log de sincronização na tabela anymarket_sync_logs
     try {
-      await executeQuery(`
-        UPDATE anymarket 
-        SET data_sincronizacao = CURRENT_TIMESTAMP, 
-            enviado_any = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP 
-        WHERE id_produto_any = ?
-      `, [anymarketId]);
-      console.log('📅 Data de sincronização e envio atualizadas na tabela anymarket');
-    } catch (updateError) {
-      console.error('⚠️ Erro ao atualizar datas (não crítico):', updateError);
+      await saveSyncLog(
+        productId,
+        anymarketId.toString(),
+        newTitle,
+        newDescription || '',
+        true,
+        patchResult,
+        undefined,
+        'info',
+        'update'
+      );
+      console.log('📅 Log de sincronização salvo na tabela anymarket_sync_logs');
+    } catch (logError) {
+      console.error('⚠️ Erro ao salvar log de sincronização (não crítico):', logError);
     }
 
     // Determinar quais campos foram atualizados para a mensagem

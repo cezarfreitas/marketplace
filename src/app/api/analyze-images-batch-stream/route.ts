@@ -202,7 +202,7 @@ async function executeAnymarketSync(productId: number): Promise<{ success: boole
       },
       body: JSON.stringify({ 
         productId,
-        anymarketData: fetchResult.data
+        anymarketId: fetchResult.data.anymarket_id
       })
     });
 
@@ -392,11 +392,57 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
     }
 
     if (uploadedCount > 0) {
+      // Salvar log de sincronização para crop
+      try {
+        const { executeQuery } = await import('@/lib/database');
+        const logQuery = `
+          INSERT INTO anymarket_sync_logs (id_produto_vtex, id_produto_any, title, description, sync_type, action, response_data, error_message, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        `;
+        const values = [
+          productId,
+          product.anymarket_id,
+          product.name,
+          '',
+          'crop',
+          'update',
+          JSON.stringify({ uploadedCount, processedImages: processedImages.length }),
+          null
+        ];
+        await executeQuery(logQuery, values);
+        console.log('✅ Log de crop salvo com sucesso');
+      } catch (logError) {
+        console.error('❌ Erro ao salvar log de crop:', logError);
+      }
+      
       return { 
         success: true, 
         message: `Crop de imagens concluído: ${uploadedCount} imagens processadas e enviadas` 
       };
     } else {
+      // Salvar log de erro para crop
+      try {
+        const { executeQuery } = await import('@/lib/database');
+        const logQuery = `
+          INSERT INTO anymarket_sync_logs (id_produto_vtex, id_produto_any, title, description, sync_type, action, response_data, error_message, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        `;
+        const values = [
+          productId,
+          product.anymarket_id,
+          product.name,
+          '',
+          'crop',
+          'update',
+          JSON.stringify({ errorCount, uploadErrorCount }),
+          `Erro no crop: ${errorCount} erros de processamento, ${uploadErrorCount} erros de upload`
+        ];
+        await executeQuery(logQuery, values);
+        console.log('✅ Log de erro de crop salvo com sucesso');
+      } catch (logError) {
+        console.error('❌ Erro ao salvar log de erro de crop:', logError);
+      }
+      
       return { 
         success: false, 
         error: `Erro no crop: ${errorCount} erros de processamento, ${uploadErrorCount} erros de upload` 

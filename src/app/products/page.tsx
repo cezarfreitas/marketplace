@@ -102,8 +102,32 @@ export default function ProductsPage() {
   // Funções de ação nos produtos
   const handleDeleteProduct = useCallback(async (product: Product) => {
     if (confirm(`Tem certeza que deseja excluir o produto "${product.name}"?`)) {
-      // Implementar lógica de exclusão
-      console.log('Excluindo produto:', product.id);
+      try {
+        console.log('Excluindo produto:', product.id);
+        
+        const response = await fetch('/api/products', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            productIds: [product.id]
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(`✅ ${result.message}`);
+          // Recarregar a página para atualizar a lista
+          window.location.reload();
+        } else {
+          alert(`❌ Erro ao excluir produto: ${result.message}`);
+        }
+      } catch (error) {
+        console.error('Erro ao excluir produto:', error);
+        alert('❌ Erro ao excluir produto. Tente novamente.');
+      }
     }
   }, []);
 
@@ -111,9 +135,34 @@ export default function ProductsPage() {
     if (productStates.selectedProducts.length === 0) return;
     
     if (confirm(`Tem certeza que deseja excluir ${productStates.selectedProducts.length} produto(s) selecionado(s)?`)) {
-      // Implementar lógica de exclusão em lote
-      console.log('Excluindo produtos:', productStates.selectedProducts);
-      productStates.setSelectedProducts([]);
+      try {
+        console.log('Excluindo produtos:', productStates.selectedProducts);
+        
+        const response = await fetch('/api/products', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            productIds: productStates.selectedProducts
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(`✅ ${result.message}`);
+          // Limpar seleção
+          productStates.setSelectedProducts([]);
+          // Recarregar a página para atualizar a lista
+          window.location.reload();
+        } else {
+          alert(`❌ Erro ao excluir produtos: ${result.message}`);
+        }
+      } catch (error) {
+        console.error('Erro ao excluir produtos:', error);
+        alert('❌ Erro ao excluir produtos. Tente novamente.');
+      }
     }
   }, [productStates.selectedProducts, productStates.setSelectedProducts]);
 
