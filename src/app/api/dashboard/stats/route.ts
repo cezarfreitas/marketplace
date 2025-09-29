@@ -41,7 +41,7 @@ export async function GET() {
       FROM products_vtex p
       WHERE EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex)
         AND EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto)
-        AND EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.product_id = p.id_produto_vtex)
+        AND EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex)
     `;
     
     let totalOptimized = 0;
