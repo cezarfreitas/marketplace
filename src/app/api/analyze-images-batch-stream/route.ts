@@ -249,7 +249,55 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
       return { success: false, error: 'Produto não possui ID do Anymarket' };
     }
 
-    // 2. Buscar imagens da VTEX (igual ao modal individual)
+    // 2. Deletar imagens antigas do Anymarket (igual ao modal individual)
+    console.log(`🗑️ Deletando imagens antigas do Anymarket para produto ${product.anymarket_id}...`);
+    try {
+      const anymarketResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images`, {
+        method: 'GET',
+        headers: {
+          'gumgaToken': process.env.ANYMARKET || '',
+          'Content-Type': 'application/json',
+          'User-Agent': 'Meli-Integration/1.0',
+          'Accept': 'application/json'
+        },
+        cache: 'no-store'
+      });
+
+      if (anymarketResponse.ok) {
+        const anymarketImages = await anymarketResponse.json();
+        console.log(`📊 Encontradas ${anymarketImages.length} imagens antigas no Anymarket para deletar`);
+        
+        // Deletar cada imagem antiga
+        for (const image of anymarketImages) {
+          try {
+            console.log(`🗑️ Deletando imagem antiga ${image.id}...`);
+            const deleteResponse = await fetch(`https://api.anymarket.com.br/v2/products/${product.anymarket_id}/images/${image.id}`, {
+              method: 'DELETE',
+              headers: {
+                'gumgaToken': process.env.ANYMARKET || '',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Meli-Integration/1.0'
+              }
+            });
+
+            if (deleteResponse.ok) {
+              console.log(`✅ Imagem antiga ${image.id} deletada com sucesso`);
+            } else {
+              console.warn(`⚠️ Erro ao deletar imagem antiga ${image.id}:`, deleteResponse.status);
+            }
+          } catch (deleteError) {
+            console.warn(`⚠️ Erro ao deletar imagem antiga ${image.id}:`, deleteError);
+          }
+        }
+        console.log(`✅ Deleção de imagens antigas concluída`);
+      } else {
+        console.log('⚠️ Erro ao buscar imagens antigas do Anymarket, continuando...');
+      }
+    } catch (error) {
+      console.warn('⚠️ Erro ao deletar imagens antigas, continuando:', error);
+    }
+
+    // 3. Buscar imagens da VTEX (igual ao modal individual)
     const vtexResponse = await fetch(`${getBaseUrl()}/api/crop-images`, {
       method: 'POST',
       headers: {
@@ -276,7 +324,7 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
       return { success: false, error: 'Nenhuma imagem da VTEX encontrada' };
     }
 
-    // 3. Processar cada imagem com Pixian.ai (igual ao modal individual)
+    // 4. Processar cada imagem com Pixian.ai (igual ao modal individual)
     let successCount = 0;
     let errorCount = 0;
     const processedImages = [];
@@ -334,7 +382,7 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
       }
     }
 
-    // 4. Fazer upload das imagens processadas (igual ao modal individual)
+    // 5. Fazer upload das imagens processadas (igual ao modal individual)
     let uploadedCount = 0;
     let uploadErrorCount = 0;
 
@@ -343,6 +391,7 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
       
       try {
         // Upload da imagem processada
+        console.log(`📤 Fazendo upload da imagem ${i + 1}/${processedImages.length}...`);
         const uploadResponse = await fetch(`${getBaseUrl()}/api/upload-image`, {
           method: 'POST',
           headers: {
@@ -357,8 +406,10 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
         if (uploadResponse.ok) {
           const uploadResult = await uploadResponse.json();
           const newImageUrl = uploadResult.data.publicUrl;
+          console.log(`✅ Upload local concluído para imagem ${i + 1}: ${newImageUrl}`);
           
           // Enviar para Anymarket
+          console.log(`📤 Enviando imagem ${i + 1} para Anymarket...`);
           const anymarketUploadResponse = await fetch(`${getBaseUrl()}/api/anymarket/upload-image`, {
             method: 'POST',
             headers: {
@@ -375,14 +426,20 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
           if (anymarketUploadResponse.ok) {
             const result = await anymarketUploadResponse.json();
             if (result.success) {
+              console.log(`✅ Imagem ${i + 1} enviada para Anymarket com sucesso`);
               uploadedCount++;
             } else {
+              console.error(`❌ Erro no upload para Anymarket - imagem ${i + 1}:`, result.message);
               uploadErrorCount++;
             }
           } else {
+            const errorText = await anymarketUploadResponse.text();
+            console.error(`❌ Erro HTTP no upload para Anymarket - imagem ${i + 1}:`, anymarketUploadResponse.status, errorText);
             uploadErrorCount++;
           }
         } else {
+          const errorText = await uploadResponse.text();
+          console.error(`❌ Erro no upload local - imagem ${i + 1}:`, uploadResponse.status, errorText);
           uploadErrorCount++;
         }
       } catch (error: any) {
