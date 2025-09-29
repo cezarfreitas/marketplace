@@ -96,9 +96,9 @@ export async function GET(request: NextRequest) {
     const has_image_analysis = searchParams.get('has_image_analysis');
     if (has_image_analysis) {
       if (has_image_analysis === 'true') {
-        conditions.push(`EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)`);
+        conditions.push(`EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex)`);
       } else if (has_image_analysis === 'false') {
-        conditions.push(`NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto = p.id)`);
+        conditions.push(`NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex)`);
       }
     }
 
@@ -109,9 +109,9 @@ export async function GET(request: NextRequest) {
     const has_anymarket_ref_id = searchParams.get('has_anymarket_ref_id');
     if (has_anymarket_ref_id) {
       if (has_anymarket_ref_id === 'true') {
-        conditions.push(`EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)`);
+        conditions.push(`EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto)`);
       } else if (has_anymarket_ref_id === 'false') {
-        conditions.push(`NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_vtex = p.ref_id)`);
+        conditions.push(`NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto)`);
       }
     }
 
@@ -129,9 +129,9 @@ export async function GET(request: NextRequest) {
     const has_crop_processed = searchParams.get('has_crop_processed');
     if (has_crop_processed) {
       if (has_crop_processed === 'true') {
-        conditions.push(`EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')`);
+        conditions.push(`EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex AND asl.sync_type = 'crop')`);
       } else if (has_crop_processed === 'false') {
-        conditions.push(`NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id AND cpl.status = 'completed')`);
+        conditions.push(`NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex AND asl.sync_type = 'crop')`);
       }
     }
 
@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
           conditions.push(`(
             NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex) AND
             NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto AND a.id_produto_any IS NOT NULL) AND
-            NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id_produto_vtex AND cpl.status = 'completed')
+            NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex AND asl.sync_type = 'crop')
           )`);
           break;
           
@@ -170,7 +170,7 @@ export async function GET(request: NextRequest) {
              NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto AND a.id_produto_any IS NOT NULL)) OR
             (NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex) AND 
              EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto AND a.id_produto_any IS NOT NULL)) OR
-            (EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id_produto_vtex AND cpl.status = 'completed') AND
+            (EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex AND asl.sync_type = 'crop') AND
              NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex))
           )`);
           break;
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
           conditions.push(`(
             EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex) AND
             EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto AND a.id_produto_any IS NOT NULL) AND
-            EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id_produto_vtex AND cpl.status = 'completed')
+            EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex AND asl.sync_type = 'crop')
           )`);
           break;
           
@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
           conditions.push(`(
             EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex) AND
             NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto AND a.id_produto_any IS NOT NULL) AND
-            NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id_produto_vtex AND cpl.status = 'completed')
+            NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex AND asl.sync_type = 'crop')
           )`);
           break;
           
@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
           conditions.push(`(
             NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex) AND
             NOT EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto AND a.id_produto_any IS NOT NULL) AND
-            NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id_produto_vtex AND cpl.status = 'completed')
+            NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex AND asl.sync_type = 'crop')
           )`);
           break;
           
@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
           conditions.push(`(
             NOT EXISTS (SELECT 1 FROM analise_imagens ai WHERE ai.id_produto_vtex = p.id_produto_vtex) AND
             EXISTS (SELECT 1 FROM anymarket a WHERE a.ref_produto_vtex = p.ref_produto AND a.id_produto_any IS NOT NULL) AND
-            NOT EXISTS (SELECT 1 FROM crop_processing_logs cpl WHERE cpl.product_id = p.id_produto_vtex AND cpl.status = 'completed')
+            NOT EXISTS (SELECT 1 FROM anymarket_sync_logs asl WHERE asl.id_produto_vtex = p.id_produto_vtex AND asl.sync_type = 'crop')
           )`);
           break;
       }
