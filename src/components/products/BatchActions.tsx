@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Package, Trash2, X, Download, Loader2, Image } from 'lucide-react';
+import { Package, Trash2, X, Download, Loader2, Image, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ interface BatchActionsProps {
   onViewSkus: () => void;
   onDeleteSelected: () => void;
   onBatchAnalysis: () => void;
+  onAnymarketSync: () => void;
   isExporting: boolean;
 }
 
@@ -32,6 +33,7 @@ export function BatchActions({
   onViewSkus,
   onDeleteSelected,
   onBatchAnalysis,
+  onAnymarketSync,
   isExporting
 }: BatchActionsProps) {
   if (selectedProducts.length === 0) return null;
@@ -103,6 +105,16 @@ export function BatchActions({
           >
             <Image className="h-3 w-3 mr-1" />
             Otimização em Lote
+          </button>
+          
+          <button
+            onClick={onAnymarketSync}
+            disabled={isExporting}
+            className="px-2 py-1 text-xs text-green-600 border border-green-300 rounded hover:bg-green-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-green-50 to-emerald-50"
+            title="Sincronizar com Anymarket"
+          >
+            <RefreshCw className="h-3 w-3 mr-1" />
+            Sync Anymarket
           </button>
           
           <button

@@ -14,6 +14,7 @@ import { CropImagesModal } from '@/components/CropImagesModal';
 import { SimpleSkusModal } from '@/components/SimpleSkusModal';
 import { BatchAnalysisProgressModal } from '@/components/BatchAnalysisProgressModal';
 import { ImageAnalysisModal } from '@/components/ImageAnalysisModal';
+import { AnymarketBatchSyncModal } from '@/components/AnymarketBatchSyncModal';
 import { TitleGenerationModal } from '@/components/TitleGenerationModal';
 import { CharacteristicsModal } from '@/components/CharacteristicsModal';
 import { DescriptionModal } from '@/components/DescriptionModal';
@@ -86,6 +87,7 @@ export default function ProductsPage() {
   // Estados locais para funcionalidades específicas
   const [showSkusModal, setShowSkusModal] = useState(false);
   const [showBatchAnalysisModal, setShowBatchAnalysisModal] = useState(false);
+  const [showAnymarketBatchSyncModal, setShowAnymarketBatchSyncModal] = useState(false);
 
   // Carregar produtos quando a página carregar (sem busca de status)
   useEffect(() => {
@@ -244,6 +246,17 @@ export default function ProductsPage() {
     // productsHook.refresh();
   }, []);
 
+  const handleAnymarketBatchSync = useCallback(() => {
+    setShowAnymarketBatchSyncModal(true);
+  }, []);
+
+  const handleAnymarketBatchSyncComplete = useCallback(() => {
+    console.log('Sincronização em lote com Anymarket concluída');
+    setShowAnymarketBatchSyncModal(false);
+    // Atualizar a lista de produtos se necessário
+    // productsHook.refresh();
+  }, []);
+
 
   return (
     <Layout title="Produtos" subtitle="Gerencie os produtos importados da VTEX">
@@ -256,6 +269,7 @@ export default function ProductsPage() {
         onViewSkus={handleViewSkus}
         onDeleteSelected={handleDeleteSelected}
         onBatchAnalysis={handleBatchAnalysis}
+        onAnymarketSync={handleAnymarketBatchSync}
         isExporting={productStates.isExporting}
       />
 
@@ -573,6 +587,16 @@ export default function ProductsPage() {
           onClose={() => setShowBatchAnalysisModal(false)}
           selectedProducts={globalSelectedProducts}
           onComplete={handleBatchAnalysisComplete}
+        />
+      )}
+
+      {/* Modal de Sincronização em Lote com Anymarket */}
+      {showAnymarketBatchSyncModal && (
+        <AnymarketBatchSyncModal
+          isOpen={showAnymarketBatchSyncModal}
+          onClose={() => setShowAnymarketBatchSyncModal(false)}
+          selectedProducts={globalSelectedProducts}
+          onSyncComplete={handleAnymarketBatchSyncComplete}
         />
       )}
 
