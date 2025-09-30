@@ -449,7 +449,37 @@ export async function POST(request: NextRequest) {
     const patchResult = await patchResponse.json();
     console.log('✅ ETAPA 2 CONCLUÍDA: PATCH realizado com sucesso:', patchResult);
 
-    // 3. Salvar log de sincronização na tabela anymarket_sync_logs
+    // 3. ETAPA 3: Atualizar nomes dos SKUs
+    console.log('🔄 ETAPA 3: Atualizando nomes dos SKUs...');
+    let skuUpdateResult = null;
+    
+    try {
+      // Fazer requisição interna para atualizar SKUs
+      const skuUpdateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/anymarket/update-skus`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: productId,
+          anymarketId: anymarketId
+        })
+      });
+
+      if (skuUpdateResponse.ok) {
+        skuUpdateResult = await skuUpdateResponse.json();
+        console.log('✅ ETAPA 3 CONCLUÍDA: SKUs atualizados com sucesso:', skuUpdateResult);
+      } else {
+        const skuError = await skuUpdateResponse.json();
+        console.error('⚠️ Erro ao atualizar SKUs (não crítico):', skuError);
+        skuUpdateResult = { success: false, error: skuError.message };
+      }
+    } catch (skuError) {
+      console.error('⚠️ Erro ao atualizar SKUs (não crítico):', skuError);
+      skuUpdateResult = { success: false, error: skuError instanceof Error ? skuError.message : 'Erro desconhecido' };
+    }
+
+    // 4. Salvar log de sincronização na tabela anymarket_sync_logs
     try {
       await saveSyncLog(
         productId,
@@ -470,16 +500,18 @@ export async function POST(request: NextRequest) {
     // Determinar quais campos foram atualizados para a mensagem
     const updatedFields = updates.map(update => update.field).join(' e ');
     const characteristicsMessage = productCharacteristics.length > 0 ? ` e ${productCharacteristics.length} características` : '';
+    const skuMessage = skuUpdateResult && skuUpdateResult.success ? ` e ${skuUpdateResult.data?.skus_updated || 0} SKUs` : '';
     
     return NextResponse.json({
       success: true,
-      message: `Produto atualizado com sucesso: ${updatedFields}${characteristicsMessage} atualizados`,
+      message: `Produto atualizado com sucesso: ${updatedFields}${characteristicsMessage}${skuMessage} atualizados`,
       data: {
         anymarket_id: anymarketId,
         action: 'product_updated_patch',
         updates: updates,
         characteristics: productCharacteristics,
         characteristics_count: productCharacteristics.length,
+        sku_update: skuUpdateResult,
         patch_payload: {
           title: newTitle,
           description: newDescription || anymarketData.description,
