@@ -24,7 +24,7 @@ export default function Home() {
           IA Generator SEO
         </h2>
         <p className="text-gray-600 flex items-center justify-center">
-          Feito com <span className="w-4 h-4 mx-1 text-red-500 animate-pulse">❤️</span> por IDE | Negócios Digitais
+          Feito com <span className="inline-block w-4 h-4 mx-1 text-red-500 animate-pulse">❤️</span> por IDE | Negócios Digitais
         </p>
       </div>
     </div>
