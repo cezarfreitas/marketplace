@@ -23,7 +23,7 @@ interface ProductTableProps {
   onPageChange: (page: number) => void;
   onItemsPerPageChange: (limit: number) => void;
   onProductSelect: (id: number) => void;
-  onSelectAll: () => void;
+  onSelectAll: (selected: boolean) => void;
   onViewProduct: (product: Product) => void;
   onDeleteProduct: (product: Product) => void;
   onAnalyzeImages: (product: Product) => void;
