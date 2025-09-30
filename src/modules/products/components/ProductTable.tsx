@@ -274,7 +274,7 @@ export function ProductTable({
                         <div 
                           className="text-xs text-blue-600 font-mono truncate cursor-pointer hover:text-blue-800 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors flex items-center gap-1" 
                           title={`Clique para copiar: ${product.first_sku_ref}`}
-                          onClick={() => copyReference(product.first_sku_ref)}
+                          onClick={() => copyReference(product.first_sku_ref!)}
                         >
                           {copiedRef === product.first_sku_ref ? (
                             <>
