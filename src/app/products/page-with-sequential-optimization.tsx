@@ -380,6 +380,7 @@ export default function ProductsPageWithSequentialOptimization() {
             onViewSkus={() => setShowSkusModal(true)}
             onDeleteSelected={handleDeleteSelected}
             onBatchAnalysis={handleBatchAnalysis}
+            onAnymarketSync={() => {}} // Placeholder - funcionalidade não implementada nesta versão
             isExporting={productStates.isExporting}
           />
         )}

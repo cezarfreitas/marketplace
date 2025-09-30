@@ -187,6 +187,7 @@ export default function ProductsPage() {
         onViewSkus={handleViewSkus}
         onDeleteSelected={handleDeleteSelected}
         onBatchAnalysis={handleBatchAnalysis}
+        onAnymarketSync={() => {}} // Placeholder - funcionalidade não implementada nesta versão
         isExporting={productStates.isExporting}
       />
 
