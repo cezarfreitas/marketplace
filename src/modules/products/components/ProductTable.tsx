@@ -6,7 +6,7 @@ import { formatDate, formatNumber, getProductImageUrl } from '../utils/formatter
 import { StockTooltip } from './StockTooltip';
 import { 
   Eye, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon,
-  Camera, FileText, RotateCcw, Crop, Package, List, Type
+  Camera, FileText, RotateCcw, Crop, Package, List, Type, Copy, Check
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -74,6 +74,9 @@ export function ProductTable({
   anymarketMappings = {}
 }: ProductTableProps) {
   
+  // Estado para controlar qual referência foi copiada
+  const [copiedRef, setCopiedRef] = useState<string | null>(null);
+  
   // Log para debug do campo has_generated_description
   console.log('🔍 ProductTable - Produtos recebidos:', products.length);
   const productsWithDescription = products.filter(p => p.has_generated_description === true);
@@ -91,6 +94,20 @@ export function ProductTable({
     if (!text) return '';
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
+  };
+
+  // Função para copiar referência
+  const copyReference = async (reference: string) => {
+    try {
+      await navigator.clipboard.writeText(reference);
+      setCopiedRef(reference);
+      // Resetar o estado após 2 segundos
+      setTimeout(() => {
+        setCopiedRef(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Erro ao copiar referência:', err);
+    }
   };
 
   const getSortIcon = (field: ProductSortOptions['field']) => {
@@ -132,8 +149,11 @@ export function ProductTable({
               <th className="px-4 py-4 text-left w-12">
                 <input
                   type="checkbox"
-                  checked={selectedProducts.length === products.length && products.length > 0}
-                  onChange={onSelectAll}
+                  checked={products.length > 0 && products.every(p => selectedProducts.includes(p.id))}
+                  onChange={() => {
+                    const allSelected = products.every(p => selectedProducts.includes(p.id));
+                    onSelectAll(!allSelected);
+                  }}
                   className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 focus:ring-2"
                 />
               </th>
@@ -144,11 +164,6 @@ export function ProductTable({
                 <div className="flex items-center space-x-1">
                   <span>Produto</span>
                   {getSortIcon('name')}
-                </div>
-              </th>
-              <th className="px-3 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider text-center w-16">
-                <div className="flex items-center justify-center space-x-1">
-                  <span>SKUs</span>
                 </div>
               </th>
               <th 
@@ -255,9 +270,23 @@ export function ProductTable({
                           )}
                         </div>
                       </div>
-                      {product.ref_produto && (
-                        <div className="text-xs text-blue-600 font-mono truncate" title={`Ref_Produto: ${product.ref_produto}`}>
-                          {product.ref_produto}
+                      {product.first_sku_ref && (
+                        <div 
+                          className="text-xs text-blue-600 font-mono truncate cursor-pointer hover:text-blue-800 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors flex items-center gap-1" 
+                          title={`Clique para copiar: ${product.first_sku_ref}`}
+                          onClick={() => copyReference(product.first_sku_ref)}
+                        >
+                          {copiedRef === product.first_sku_ref ? (
+                            <>
+                              <Check className="h-3 w-3 text-green-600" />
+                              <span className="text-green-600">Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3 w-3" />
+                              {product.first_sku_ref}
+                            </>
+                          )}
                           {product.anymarket_id && (
                             <span className="text-purple-600">
                               {' - '}{product.anymarket_id}
@@ -265,9 +294,47 @@ export function ProductTable({
                           )}
                         </div>
                       )}
-                      {product.ref_id && (
-                        <div className="text-xs text-blue-600 font-mono truncate" title={`Ref_Produto: ${product.ref_id}`}>
-                          Ref_Produto: {product.ref_id}
+                      {!product.first_sku_ref && product.ref_produto && (
+                        <div 
+                          className="text-xs text-blue-600 font-mono truncate cursor-pointer hover:text-blue-800 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors flex items-center gap-1" 
+                          title={`Clique para copiar: ${product.ref_produto}`}
+                          onClick={() => copyReference(product.ref_produto)}
+                        >
+                          {copiedRef === product.ref_produto ? (
+                            <>
+                              <Check className="h-3 w-3 text-green-600" />
+                              <span className="text-green-600">Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3 w-3" />
+                              {product.ref_produto}
+                            </>
+                          )}
+                          {product.anymarket_id && (
+                            <span className="text-purple-600">
+                              {' - '}{product.anymarket_id}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {!product.first_sku_ref && !product.ref_produto && product.ref_id && (
+                        <div 
+                          className="text-xs text-blue-600 font-mono truncate cursor-pointer hover:text-blue-800 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors flex items-center gap-1" 
+                          title={`Clique para copiar: ${product.ref_id}`}
+                          onClick={() => copyReference(product.ref_id)}
+                        >
+                          {copiedRef === product.ref_id ? (
+                            <>
+                              <Check className="h-3 w-3 text-green-600" />
+                              <span className="text-green-600">Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3 w-3" />
+                              Ref_Produto: {product.ref_id}
+                            </>
+                          )}
                         </div>
                       )}
                       {product.title && (
@@ -276,13 +343,6 @@ export function ProductTable({
                         </div>
                       )}
                     </div>
-                  </div>
-                </td>
-                <td className="px-3 py-4 whitespace-nowrap text-center">
-                  <div className="flex items-center justify-center">
-                    <span className="inline-flex items-center justify-center w-8 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200">
-                      {product.sku_count || 0}
-                    </span>
                   </div>
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-center">
@@ -587,6 +647,10 @@ export function ProductTable({
                   <option value={20}>20</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
+                  <option value={200}>200</option>
+                  <option value={300}>300</option>
+                  <option value={400}>400</option>
+                  <option value={500}>500</option>
                 </select>
               </div>
             </div>
@@ -611,8 +675,8 @@ export function ProductTable({
                     onClick={() => onPageChange(page)}
                     className={`w-8 h-8 text-sm rounded-lg transition-colors ${
                       currentPage === page
-                        ? 'bg-primary-600 text-white'
-                        : 'text-gray-600 hover:bg-white hover:text-gray-900'
+                        ? 'bg-blue-600 text-white shadow-md border-2 border-blue-700'
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
                     }`}
                   >
                     {page}

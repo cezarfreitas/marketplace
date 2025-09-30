@@ -17,13 +17,10 @@ export function useProducts(options: UseProductsOptions = {}) {
       search: '',
       brand_id: [] as string[],
       category_id: [] as string[],
-      has_image_analysis: undefined,
       has_anymarket_ref_id: undefined,
-      has_anymarket_sync_log: undefined,
       is_active: '',
       is_visible: '',
       has_images: undefined,
-      has_crop_processed: undefined,
       optimization_status: undefined,
       stock_operator: '',
       stock_value: undefined
@@ -42,6 +39,7 @@ export function useProducts(options: UseProductsOptions = {}) {
   const [sort, setSort] = useState<ProductSortOptions>(initialSort);
   const [itemsPerPage, setItemsPerPage] = useState(initialLimit);
   const [anymarketMappings, setAnymarketMappings] = useState<Record<string, string>>({});
+  const [globalSelectedProducts, setGlobalSelectedProducts] = useState<number[]>([]);
 
   // Função para buscar mapeamentos do Anymarket
   const fetchAnymarketMappings = useCallback(async (products: Product[]) => {
@@ -163,6 +161,42 @@ export function useProducts(options: UseProductsOptions = {}) {
     }
   }, [fetchProducts]);
 
+  // Funções para gerenciar seleção global
+  const addToGlobalSelection = useCallback((productId: number) => {
+    setGlobalSelectedProducts(prev => {
+      if (!prev.includes(productId)) {
+        return [...prev, productId];
+      }
+      return prev;
+    });
+  }, []);
+
+  const removeFromGlobalSelection = useCallback((productId: number) => {
+    setGlobalSelectedProducts(prev => prev.filter(id => id !== productId));
+  }, []);
+
+  const clearGlobalSelection = useCallback(() => {
+    setGlobalSelectedProducts([]);
+  }, []);
+
+  const selectAllCurrentPage = useCallback((currentProducts: Product[]) => {
+    const currentPageIds = currentProducts.map(p => p.id);
+    setGlobalSelectedProducts(prev => {
+      const newSelection = [...prev];
+      currentPageIds.forEach(id => {
+        if (!newSelection.includes(id)) {
+          newSelection.push(id);
+        }
+      });
+      return newSelection;
+    });
+  }, []);
+
+  const deselectAllCurrentPage = useCallback((currentProducts: Product[]) => {
+    const currentPageIds = currentProducts.map(p => p.id);
+    setGlobalSelectedProducts(prev => prev.filter(id => !currentPageIds.includes(id)));
+  }, []);
+
   // Effect para buscar produtos quando dependências mudarem
   useEffect(() => {
     fetchProducts();
@@ -181,6 +215,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     sort,
     itemsPerPage,
     anymarketMappings,
+    globalSelectedProducts,
 
     // Ações
     fetchProducts,
@@ -191,6 +226,13 @@ export function useProducts(options: UseProductsOptions = {}) {
     updateItemsPerPage,
     deleteProduct,
     deleteMultipleProducts,
+
+    // Seleção global
+    addToGlobalSelection,
+    removeFromGlobalSelection,
+    clearGlobalSelection,
+    selectAllCurrentPage,
+    deselectAllCurrentPage,
 
     // Utilitários
     hasProducts: products.length > 0,

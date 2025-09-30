@@ -111,7 +111,20 @@ export default function AnymarketPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(`Arquivo processado com sucesso! ${data.data.processed} registros importados.`);
+        const { processed, skipped, errors, totalRows } = data.data;
+        let message = `Arquivo processado com sucesso! ${processed} registros importados.`;
+        
+        if (skipped > 0) {
+          message += ` ${skipped} linhas puladas (valores iguais ou registros já existentes).`;
+        }
+        
+        if (errors > 0) {
+          message += ` ${errors} erros encontrados.`;
+        }
+        
+        message += ` Total: ${totalRows} linhas processadas.`;
+        
+        setSuccess(message);
         setSelectedFile(null);
         setShowMappingModal(false);
         setFileAnalysis(null);

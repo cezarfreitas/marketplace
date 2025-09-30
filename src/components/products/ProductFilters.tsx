@@ -21,11 +21,8 @@ interface Filters {
   search?: string;
   brand_id?: number[];
   category_id?: number[];
-  has_image_analysis?: boolean;
-  has_crop_processed?: boolean;
   optimization_status?: string;
   has_anymarket_ref_id?: boolean;
-  has_anymarket_sync_log?: boolean;
   stock_operator?: string;
   stock_value?: number;
 }
@@ -145,61 +142,6 @@ export function ProductFilters({
               />
             </div>
             
-            {/* Análise de Imagens */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Análise de Imagens
-              </label>
-              <Select
-                value={filters.has_image_analysis === true ? 'true' : filters.has_image_analysis === false ? 'false' : 'all'}
-                onValueChange={(value) => {
-                  if (value === 'all') {
-                    onFiltersChange({ has_image_analysis: undefined });
-                  } else if (value === 'true') {
-                    onFiltersChange({ has_image_analysis: true });
-                  } else {
-                    onFiltersChange({ has_image_analysis: false });
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecionar análise" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as análises</SelectItem>
-                  <SelectItem value="true">🖼️ Com Análise</SelectItem>
-                  <SelectItem value="false">🚫 Sem Análise</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Crop de Imagens */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Crop de Imagens
-              </label>
-              <Select
-                value={filters.has_crop_processed === true ? 'true' : filters.has_crop_processed === false ? 'false' : 'all'}
-                onValueChange={(value) => {
-                  if (value === 'all') {
-                    onFiltersChange({ has_crop_processed: undefined });
-                  } else if (value === 'true') {
-                    onFiltersChange({ has_crop_processed: true });
-                  } else {
-                    onFiltersChange({ has_crop_processed: false });
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecionar crop" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os crops</SelectItem>
-                  <SelectItem value="true">✂️ Com Crop</SelectItem>
-                  <SelectItem value="false">🚫 Sem Crop</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Status de Otimizações */}
             <div>
@@ -259,33 +201,6 @@ export function ProductFilters({
               </Select>
             </div>
             
-            {/* Sincronização */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Sincronização
-              </label>
-              <Select
-                value={filters.has_anymarket_sync_log === true ? 'true' : filters.has_anymarket_sync_log === false ? 'false' : 'all'}
-                onValueChange={(value) => {
-                  if (value === 'all') {
-                    onFiltersChange({ has_anymarket_sync_log: undefined });
-                  } else if (value === 'true') {
-                    onFiltersChange({ has_anymarket_sync_log: true });
-                  } else {
-                    onFiltersChange({ has_anymarket_sync_log: false });
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="true">⚡ Com Log</SelectItem>
-                  <SelectItem value="false">❌ Sem Log</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Filtro de Estoque */}
             <div>

@@ -56,11 +56,17 @@ export default function ProductsPage() {
     itemsPerPage,
     sort,
     filters,
+    globalSelectedProducts,
     updateSort,
     updatePage,
     updateItemsPerPage,
     updateFilters,
-    clearFilters
+    clearFilters,
+    addToGlobalSelection,
+    removeFromGlobalSelection,
+    clearGlobalSelection,
+    selectAllCurrentPage,
+    deselectAllCurrentPage
   } = productsHook;
 
   // Hook do modal de produtos
@@ -73,7 +79,7 @@ export default function ProductsPage() {
 
   // Hook para operações em lote (funções removidas)
   const batchOperations = useBatchOperations({
-    selectedProducts: productStates.selectedProducts,
+    selectedProducts: globalSelectedProducts,
     products
   });
 
@@ -89,19 +95,19 @@ export default function ProductsPage() {
   // Funções de seleção de produtos
   const handleSelectProduct = useCallback((productId: number, selected: boolean) => {
     if (selected) {
-      productStates.setSelectedProducts(prev => [...prev, productId]);
+      addToGlobalSelection(productId);
     } else {
-      productStates.setSelectedProducts(prev => prev.filter(id => id !== productId));
+      removeFromGlobalSelection(productId);
     }
-  }, [productStates.setSelectedProducts]);
+  }, [addToGlobalSelection, removeFromGlobalSelection]);
 
   const handleSelectAll = useCallback((selected: boolean) => {
     if (selected && products) {
-      productStates.setSelectedProducts(products.map(p => p.id));
-    } else {
-      productStates.setSelectedProducts([]);
+      selectAllCurrentPage(products);
+    } else if (products) {
+      deselectAllCurrentPage(products);
     }
-  }, [products, productStates.setSelectedProducts]);
+  }, [products, selectAllCurrentPage, deselectAllCurrentPage]);
 
   // Funções de ação nos produtos
   const handleDeleteProduct = useCallback(async (product: Product) => {
@@ -136,11 +142,11 @@ export default function ProductsPage() {
   }, []);
 
   const handleDeleteSelected = useCallback(async () => {
-    if (productStates.selectedProducts.length === 0) return;
+    if (globalSelectedProducts.length === 0) return;
     
-    if (confirm(`Tem certeza que deseja excluir ${productStates.selectedProducts.length} produto(s) selecionado(s)?`)) {
+    if (confirm(`Tem certeza que deseja excluir ${globalSelectedProducts.length} produto(s) selecionado(s)?`)) {
       try {
-        console.log('Excluindo produtos:', productStates.selectedProducts);
+        console.log('Excluindo produtos:', globalSelectedProducts);
         
         const response = await fetch('/api/products', {
           method: 'DELETE',
@@ -148,7 +154,7 @@ export default function ProductsPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            productIds: productStates.selectedProducts
+            productIds: globalSelectedProducts
           })
         });
 
@@ -157,7 +163,7 @@ export default function ProductsPage() {
         if (result.success) {
           alert(`✅ ${result.message}`);
           // Limpar seleção
-          productStates.setSelectedProducts([]);
+          clearGlobalSelection();
           // Recarregar a página para atualizar a lista
           window.location.reload();
         } else {
@@ -168,7 +174,7 @@ export default function ProductsPage() {
         alert('❌ Erro ao excluir produtos. Tente novamente.');
       }
     }
-  }, [productStates.selectedProducts, productStates.setSelectedProducts]);
+  }, [globalSelectedProducts, clearGlobalSelection]);
 
   const handleViewSkus = useCallback(() => {
     setShowSkusModal(true);
@@ -176,18 +182,18 @@ export default function ProductsPage() {
 
   // Funções de exportação
   const handleExportSelected = useCallback(async () => {
-    if (productStates.selectedProducts.length === 0) return;
+    if (globalSelectedProducts.length === 0) return;
     
     productStates.setIsExporting(true);
     try {
       // Implementar lógica de exportação
-      console.log('Exportando produtos:', productStates.selectedProducts);
+      console.log('Exportando produtos:', globalSelectedProducts);
     } catch (error) {
       console.error('Erro ao exportar:', error);
     } finally {
       productStates.setIsExporting(false);
     }
-  }, [productStates.selectedProducts, productStates.setIsExporting]);
+  }, [globalSelectedProducts, productStates.setIsExporting]);
 
   // Funções de análise e geração (placeholders)
   const handleAnalyzeImages = useCallback(async (product: Product) => {
@@ -244,8 +250,8 @@ export default function ProductsPage() {
       
       {/* Ações em Lote */}
       <BatchActions
-        selectedProducts={productStates.selectedProducts}
-        onClearSelection={() => productStates.setSelectedProducts([])}
+        selectedProducts={globalSelectedProducts}
+        onClearSelection={clearGlobalSelection}
         onExportSelected={handleExportSelected}
         onViewSkus={handleViewSkus}
         onDeleteSelected={handleDeleteSelected}
@@ -287,9 +293,13 @@ export default function ProductsPage() {
           <CardContent className="pt-0">
             <ProductFilters
               filters={{
-                ...filters,
+                search: filters.search,
                 brand_id: Array.isArray(filters.brand_id) ? filters.brand_id.map(Number) : filters.brand_id ? [Number(filters.brand_id)] : undefined,
-                category_id: Array.isArray(filters.category_id) ? filters.category_id.map(Number) : filters.category_id ? [Number(filters.category_id)] : undefined
+                category_id: Array.isArray(filters.category_id) ? filters.category_id.map(Number) : filters.category_id ? [Number(filters.category_id)] : undefined,
+                optimization_status: filters.optimization_status,
+                has_anymarket_ref_id: filters.has_anymarket_ref_id,
+                stock_operator: filters.stock_operator,
+                stock_value: filters.stock_value
               }}
               brands={filtersData.brands}
               categories={filtersData.categories}
@@ -334,12 +344,12 @@ export default function ProductsPage() {
             totalProducts={totalProducts}
             itemsPerPage={itemsPerPage}
             sort={sort}
-            selectedProducts={productStates.selectedProducts}
+            selectedProducts={globalSelectedProducts}
             onSort={updateSort}
             onPageChange={updatePage}
             onItemsPerPageChange={updateItemsPerPage}
-            onProductSelect={(id) => handleSelectProduct(id, !productStates.selectedProducts.includes(id))}
-            onSelectAll={() => handleSelectAll(true)}
+            onProductSelect={(id) => handleSelectProduct(id, !globalSelectedProducts.includes(id))}
+            onSelectAll={handleSelectAll}
             onViewProduct={handleViewProduct}
             onDeleteProduct={handleDeleteProduct}
             onAnalyzeImages={handleAnalyzeImages}
@@ -411,7 +421,7 @@ export default function ProductsPage() {
         <SimpleSkusModal
           isOpen={showSkusModal}
           onClose={() => setShowSkusModal(false)}
-          productIds={productStates.selectedProducts}
+          productIds={globalSelectedProducts}
         />
       )}
 
@@ -561,7 +571,7 @@ export default function ProductsPage() {
         <BatchAnalysisProgressModal
           isOpen={showBatchAnalysisModal}
           onClose={() => setShowBatchAnalysisModal(false)}
-          selectedProducts={productStates.selectedProducts}
+          selectedProducts={globalSelectedProducts}
           onComplete={handleBatchAnalysisComplete}
         />
       )}

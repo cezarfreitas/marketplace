@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
-import { executeModificationQuery } from '@/lib/database';
+import { executeModificationQuery, executeQuery } from '@/lib/database';
 import * as XLSX from 'xlsx';
 
 export async function POST(request: NextRequest) {
@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
     console.log(`📊 Processando ${rows.length} linhas em lotes de 300...`);
     let processed = 0;
     let errors = 0;
+    let skipped = 0;
     const errorDetails: string[] = [];
     const BATCH_SIZE = 300;
 
@@ -143,11 +144,47 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // Pular linha se o valor da coluna A for igual ao valor da coluna B
+        if (cleanIdAny === cleanVtexId) {
+          console.log(`⏭️ Linha ${originalIndex + 2} pulada: valor da coluna A (${cleanIdAny}) é igual ao valor da coluna B (${cleanVtexId})`);
+          skipped++;
+          continue;
+        }
+
         validBatchData.push({
           idAny: cleanIdAny,
           vtexId: cleanVtexId,
           originalIndex
         });
+      }
+
+      // Verificar duplicatas existentes no banco para este lote
+      if (validBatchData.length > 0) {
+        console.log(`🔍 Verificando duplicatas existentes para ${validBatchData.length} registros...`);
+        
+        const existingRecords = await executeQuery(`
+          SELECT id_produto_any, ref_produto_vtex 
+          FROM anymarket 
+          WHERE (id_produto_any, ref_produto_vtex) IN (${validBatchData.map(() => '(?, ?)').join(', ')})
+        `, validBatchData.flatMap(item => [item.idAny, item.vtexId]));
+        
+        // Criar um Set para busca rápida
+        const existingSet = new Set(existingRecords.map(record => `${record.id_produto_any}|${record.ref_produto_vtex}`));
+        
+        // Filtrar registros que já existem
+        const newValidBatchData = validBatchData.filter(item => {
+          const key = `${item.idAny}|${item.vtexId}`;
+          if (existingSet.has(key)) {
+            console.log(`⏭️ Linha ${item.originalIndex + 2} pulada: registro já existe (${item.idAny} - ${item.vtexId})`);
+            skipped++;
+            return false;
+          }
+          return true;
+        });
+        
+        console.log(`📊 Após verificação: ${newValidBatchData.length} registros novos de ${validBatchData.length} válidos`);
+        validBatchData.length = 0; // Limpar array
+        validBatchData.push(...newValidBatchData); // Adicionar apenas os novos
       }
 
       // Se há dados válidos no lote, inserir em batch
@@ -234,7 +271,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`✅ Processamento concluído - Processados: ${processed}, Erros: ${errors}`);
+    console.log(`✅ Processamento concluído - Processados: ${processed}, Erros: ${errors}, Pulados: ${skipped}`);
 
     return NextResponse.json({
       success: true,
@@ -242,6 +279,7 @@ export async function POST(request: NextRequest) {
       data: {
         processed,
         errors,
+        skipped,
         totalRows: rows.length,
         errorDetails: errorDetails.slice(0, 10), // Limitar a 10 erros para não sobrecarregar
         mapping: {

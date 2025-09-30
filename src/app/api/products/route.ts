@@ -515,6 +515,28 @@ export async function GET(request: NextRequest) {
           product.total_stock = stockCountResult[0]?.total_stock || 0;
         }
 
+        // Buscar primeira SKU do produto
+        const firstSkuQuery = `
+          SELECT ref_sku, name as sku_name
+          FROM skus_vtex
+          WHERE id_produto_vtex = ?
+          ORDER BY id_sku_vtex ASC
+          LIMIT 1
+        `;
+        const firstSkuResult = await executeQuery(firstSkuQuery, [product.id_produto_vtex]);
+        if (firstSkuResult && firstSkuResult.length > 0) {
+          const sku = firstSkuResult[0];
+          // Usar ref_sku se disponível, senão extrair do nome
+          let firstSkuRef = sku.ref_sku;
+          if (!firstSkuRef || firstSkuRef === 'null') {
+            const match = sku.sku_name?.match(/\s-\s([^-]+)$/);
+            if (match && match[1]) {
+              firstSkuRef = match[1].trim();
+            }
+          }
+          product.first_sku_ref = firstSkuRef || sku.sku_name;
+        }
+
         // Buscar imagem principal do produto
         const imageQuery = `
           SELECT file_location, url

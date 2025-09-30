@@ -51,6 +51,7 @@ export interface Product {
   has_anymarket_sync?: boolean;
   anymarket_enviado_any?: string;
   anymarket_imagem_cropada?: string;
+  first_sku_ref?: string;
 }
 
 export interface ProductFilters {
@@ -59,11 +60,8 @@ export interface ProductFilters {
   category_id: string | string[];
   is_active: string;
   is_visible: string;
-  has_image_analysis?: boolean;
   has_anymarket_ref_id?: boolean;
-  has_anymarket_sync_log?: boolean;
   has_images?: boolean;
-  has_crop_processed?: boolean;
   optimization_status?: string;
   stock_operator?: string;
   stock_value?: number;
