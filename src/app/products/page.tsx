@@ -13,6 +13,7 @@ import { AnymarketSyncModal } from '@/components/AnymarketSyncModal';
 import { CropImagesModal } from '@/components/CropImagesModal';
 import { SimpleSkusModal } from '@/components/SimpleSkusModal';
 import { BatchAnalysisProgressModal } from '@/components/BatchAnalysisProgressModal';
+import { BatchOptimizationNoCropModal } from '@/components/BatchOptimizationNoCropModal';
 import { ImageAnalysisModal } from '@/components/ImageAnalysisModal';
 import { AnymarketBatchSyncModal } from '@/components/AnymarketBatchSyncModal';
 import { TitleGenerationModal } from '@/components/TitleGenerationModal';
@@ -257,6 +258,20 @@ export default function ProductsPage() {
     // productsHook.refresh();
   }, []);
 
+  // Estados para otimização sem crop
+  const [showBatchOptimizationNoCropModal, setShowBatchOptimizationNoCropModal] = useState(false);
+
+  const handleBatchOptimizationNoCrop = useCallback(() => {
+    console.log('🟣 handleBatchOptimizationNoCrop chamada!');
+    setShowBatchOptimizationNoCropModal(true);
+  }, []);
+
+  const handleBatchOptimizationNoCropComplete = useCallback((results: any[]) => {
+    setShowBatchOptimizationNoCropModal(false);
+    // Atualizar a lista de produtos se necessário
+    // productsHook.refresh();
+  }, []);
+
 
   return (
     <Layout title="Produtos" subtitle="Gerencie os produtos importados da VTEX">
@@ -269,6 +284,7 @@ export default function ProductsPage() {
         onViewSkus={handleViewSkus}
         onDeleteSelected={handleDeleteSelected}
         onBatchAnalysis={handleBatchAnalysis}
+        onBatchOptimizationNoCrop={handleBatchOptimizationNoCrop}
         onAnymarketSync={handleAnymarketBatchSync}
         isExporting={productStates.isExporting}
       />
@@ -597,6 +613,16 @@ export default function ProductsPage() {
           onClose={() => setShowAnymarketBatchSyncModal(false)}
           selectedProducts={globalSelectedProducts}
           onSyncComplete={handleAnymarketBatchSyncComplete}
+        />
+      )}
+
+      {/* Modal de Otimização em Lote (Sem Crop) */}
+      {showBatchOptimizationNoCropModal && (
+        <BatchOptimizationNoCropModal
+          isOpen={showBatchOptimizationNoCropModal}
+          onClose={() => setShowBatchOptimizationNoCropModal(false)}
+          selectedProducts={globalSelectedProducts}
+          onComplete={handleBatchOptimizationNoCropComplete}
         />
       )}
 

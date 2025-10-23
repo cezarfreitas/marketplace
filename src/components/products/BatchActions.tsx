@@ -22,6 +22,7 @@ interface BatchActionsProps {
   onViewSkus: () => void;
   onDeleteSelected: () => void;
   onBatchAnalysis: () => void;
+  onBatchOptimizationNoCrop: () => void;
   onAnymarketSync: () => void;
   isExporting: boolean;
 }
@@ -33,6 +34,7 @@ export function BatchActions({
   onViewSkus,
   onDeleteSelected,
   onBatchAnalysis,
+  onBatchOptimizationNoCrop,
   onAnymarketSync,
   isExporting
 }: BatchActionsProps) {
@@ -101,10 +103,20 @@ export function BatchActions({
             onClick={onBatchAnalysis}
             disabled={isExporting}
             className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-blue-50 to-indigo-50"
-            title="Análise de Imagens em Lote"
+            title="Análise de Imagens em Lote (com crop)"
           >
             <Image className="h-3 w-3 mr-1" />
-            Otimização em Lote
+            Otimização Completa
+          </button>
+          
+          <button
+            onClick={onBatchOptimizationNoCrop}
+            disabled={isExporting}
+            className="px-2 py-1 text-xs text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-purple-50 to-pink-50"
+            title="Otimização em Lote (sem crop)"
+          >
+            <Image className="h-3 w-3 mr-1" />
+            Otimização (Sem Crop)
           </button>
           
           <button

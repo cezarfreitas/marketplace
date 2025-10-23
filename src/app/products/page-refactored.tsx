@@ -176,6 +176,10 @@ export default function ProductsPage() {
     productStates.setShowBatchOptimizationModal(true);
   }, [productStates.setShowBatchOptimizationModal]);
 
+  const handleBatchOptimizationNoCrop = useCallback(() => {
+    productStates.setShowBatchOptimizationNoCropModal(true);
+  }, [productStates.setShowBatchOptimizationNoCropModal]);
+
   return (
     <Layout title="Produtos" subtitle="Gerencie os produtos importados da VTEX">
       
@@ -187,6 +191,7 @@ export default function ProductsPage() {
         onViewSkus={handleViewSkus}
         onDeleteSelected={handleDeleteSelected}
         onBatchAnalysis={handleBatchAnalysis}
+        onBatchOptimizationNoCrop={handleBatchOptimizationNoCrop}
         onAnymarketSync={() => {}} // Placeholder - funcionalidade não implementada nesta versão
         isExporting={productStates.isExporting}
       />

@@ -71,6 +71,7 @@ export function useProductStates() {
   const [selectedProductForCrop, setSelectedProductForCrop] = useState<Product | null>(null);
   const [showBatchCropModal, setShowBatchCropModal] = useState(false);
   const [showBatchOptimizationModal, setShowBatchOptimizationModal] = useState(false);
+  const [showBatchOptimizationNoCropModal, setShowBatchOptimizationNoCropModal] = useState(false);
 
   // Estados para Anymarket
   const [anymarketMappings, setAnymarketMappings] = useState<Record<string, string>>({});
@@ -220,6 +221,8 @@ export function useProductStates() {
     setShowBatchCropModal,
     showBatchOptimizationModal,
     setShowBatchOptimizationModal,
+    showBatchOptimizationNoCropModal,
+    setShowBatchOptimizationNoCropModal,
 
     // Anymarket
     anymarketMappings,

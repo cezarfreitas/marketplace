@@ -8,11 +8,15 @@ import { executeQuery } from '@/lib/database';
  * PROCESSO:
  * 1. Buscar título gerado da tabela titles
  * 2. Buscar SKUs atuais do produto no Anymarket
- * 3. Atualizar cada SKU com o novo nome baseado no título
+ * 3. Atualizar cada SKU com o novo nome baseado no título usando PATCH
  * 
  * PADRÃO DE NOMENCLATURA DOS SKUs:
  * - Formato: "[Título do Produto] - [Tamanho]"
  * - Exemplo: "Camiseta NFL Preta Mescla Masculina Las Vegas Raiders - P"
+ * 
+ * MÉTODO:
+ * - Usa PATCH com application/merge-patch+json para atualizar apenas o campo title
+ * - Mais eficiente que PUT pois não precisa enviar todos os campos do SKU
  */
 
 export async function POST(request: NextRequest) {
@@ -114,30 +118,19 @@ export async function POST(request: NextRequest) {
         
         console.log(`🔄 Atualizando SKU ${sku.id}: "${currentTitle}" → "${newSkuTitle}"`);
 
-        // Preparar payload para atualização do SKU
+        // Preparar payload PATCH para atualização do SKU (apenas campos necessários)
         const skuUpdatePayload = {
-          id: sku.id,
-          title: newSkuTitle,
-          partnerId: sku.partnerId,
-          ean: sku.ean,
-          price: sku.price,
-          sellPrice: sku.sellPrice,
-          amount: sku.amount,
-          additionalTime: sku.additionalTime,
-          variations: sku.variations,
-          stockLocalId: sku.stockLocalId,
-          active: sku.active,
-          volumes: sku.volumes
+          title: newSkuTitle
         };
 
-        // Fazer PUT para atualizar o SKU
+        // Fazer PATCH para atualizar apenas o título do SKU
         const skuUpdateUrl = `https://api.anymarket.com.br/v2/products/${anymarketId}/skus/${sku.id}`;
         
         const skuUpdateResponse = await fetch(skuUpdateUrl, {
-          method: 'PUT',
+          method: 'PATCH',
           headers: {
             'gumgaToken': process.env.ANYMARKET || '',
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/merge-patch+json',
             'User-Agent': 'Meli-Integration/1.0',
             'Accept': 'application/json'
           },

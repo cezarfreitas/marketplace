@@ -28,6 +28,24 @@ export async function POST(request: NextRequest) {
       main
     });
 
+    // Log detalhado da requisição
+    const requestBody = {
+      index: index || 1,
+      main: main || false,
+      url: imageUrl
+    };
+    
+    console.log('🔍 Detalhes da requisição:', {
+      url: `https://api.anymarket.com.br/v2/products/${anymarketId}/images`,
+      method: 'POST',
+      headers: {
+        'gumgaToken': anymarketToken.substring(0, 20) + '...',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Meli-Integration/1.0'
+      },
+      body: requestBody
+    });
+
     const anymarketUploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${anymarketId}/images`, {
       method: 'POST',
       headers: {
@@ -35,11 +53,15 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         'User-Agent': 'Meli-Integration/1.0'
       },
-      body: JSON.stringify({
-        index: index || 1,
-        main: main || false,
-        url: imageUrl
-      })
+      body: JSON.stringify(requestBody)
+    });
+
+    // Log detalhado da resposta
+    console.log('📡 Resposta da API Anymarket:', {
+      status: anymarketUploadResponse.status,
+      statusText: anymarketUploadResponse.statusText,
+      ok: anymarketUploadResponse.ok,
+      headers: Object.fromEntries(anymarketUploadResponse.headers.entries())
     });
 
     if (anymarketUploadResponse.ok) {

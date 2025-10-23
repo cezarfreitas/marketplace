@@ -13,6 +13,7 @@ import { AnymarketSyncModal } from '@/components/AnymarketSyncModal';
 import { CropImagesModal } from '@/components/CropImagesModal';
 import { SimpleSkusModal } from '@/components/SimpleSkusModal';
 import { BatchAnalysisProgressModal } from '@/components/BatchAnalysisProgressModal';
+import { BatchOptimizationNoCropModal } from '@/components/BatchOptimizationNoCropModal';
 import { ImageAnalysisModal } from '@/components/ImageAnalysisModal';
 import { TitleGenerationModal } from '@/components/TitleGenerationModal';
 import { CharacteristicsModal } from '@/components/CharacteristicsModal';
@@ -80,6 +81,7 @@ export default function ProductsPageWithSequentialOptimization() {
   // Estados locais para funcionalidades específicas
   const [showSkusModal, setShowSkusModal] = useState(false);
   const [showBatchAnalysisModal, setShowBatchAnalysisModal] = useState(false);
+  const [showBatchOptimizationNoCropModal, setShowBatchOptimizationNoCropModal] = useState(false);
 
   // Funções de seleção de produtos
   const handleSelectProduct = useCallback((productId: number, selected: boolean) => {
@@ -297,6 +299,13 @@ export default function ProductsPageWithSequentialOptimization() {
     }
   }, []);
 
+
+  const handleBatchOptimizationNoCropComplete = useCallback((results: any[]) => {
+    setShowBatchOptimizationNoCropModal(false);
+    // Atualizar a lista de produtos se necessário
+    // productsHook.refresh();
+  }, []);
+
   const handleBatchAnalysis = useCallback(() => {
     setShowBatchAnalysisModal(true);
   }, []);
@@ -325,6 +334,12 @@ export default function ProductsPageWithSequentialOptimization() {
   const handleViewSkus = useCallback(() => {
     setShowSkusModal(true);
   }, []);
+
+  const handleBatchOptimizationNoCrop = () => {
+    console.log('🟣 handleBatchOptimizationNoCrop chamada!');
+    setShowBatchOptimizationNoCropModal(true);
+  };
+
 
   return (
     <Layout>
@@ -373,17 +388,21 @@ export default function ProductsPageWithSequentialOptimization() {
 
         {/* Ações em lote */}
         {productStates.selectedProducts.length > 0 && (
-          <BatchActions
-            selectedProducts={productStates.selectedProducts}
-            onClearSelection={() => productStates.setSelectedProducts([])}
-            onExportSelected={handleExportSelected}
-            onViewSkus={() => setShowSkusModal(true)}
-            onDeleteSelected={handleDeleteSelected}
-            onBatchAnalysis={handleBatchAnalysis}
-            onAnymarketSync={() => {}} // Placeholder - funcionalidade não implementada nesta versão
-            isExporting={productStates.isExporting}
-          />
+          <>
+            <BatchActions
+              selectedProducts={productStates.selectedProducts}
+              onClearSelection={() => productStates.setSelectedProducts([])}
+              onExportSelected={handleExportSelected}
+              onViewSkus={() => setShowSkusModal(true)}
+              onDeleteSelected={handleDeleteSelected}
+              onBatchAnalysis={handleBatchAnalysis}
+              onBatchOptimizationNoCrop={handleBatchOptimizationNoCrop}
+              onAnymarketSync={() => {}} // Placeholder - funcionalidade não implementada nesta versão
+              isExporting={productStates.isExporting}
+            />
+          </>
         )}
+        
 
         {/* Tabela de produtos */}
         <Card>
@@ -463,6 +482,20 @@ export default function ProductsPageWithSequentialOptimization() {
             onComplete={handleBatchAnalysisComplete}
           />
         )}
+
+        {/* Modal de Otimização em Lote (Sem Crop) */}
+        {showBatchOptimizationNoCropModal && (
+          <BatchOptimizationNoCropModal
+            isOpen={showBatchOptimizationNoCropModal}
+            onClose={() => {
+              setShowBatchOptimizationNoCropModal(false);
+            }}
+            selectedProducts={productStates.selectedProducts}
+            onComplete={handleBatchOptimizationNoCropComplete}
+          />
+        )}
+        
+        
 
       </div>
     </Layout>
