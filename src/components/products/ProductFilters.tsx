@@ -25,6 +25,7 @@ interface Filters {
   has_anymarket_ref_id?: boolean;
   stock_operator?: string;
   stock_value?: number;
+  sku_filter?: string;
 }
 
 interface ProductFiltersProps {
@@ -90,6 +91,29 @@ export function ProductFilters({
               className="pl-10"
             />
           </div>
+        </div>
+
+        {/* Filtro de SKUs */}
+        <div className="mb-6">
+          <label htmlFor="sku_filter" className="block text-sm font-medium mb-2">
+            Filtrar por SKUs
+          </label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <textarea
+              id="sku_filter"
+              placeholder="Digite os SKUs separados por vírgula ou um por linha..."
+              value={filters.sku_filter || ''}
+              onChange={(e) => {
+                onFiltersChange({ sku_filter: e.target.value });
+              }}
+              className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-none"
+              rows={3}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Você pode digitar os SKUs separados por vírgula (ex: SKU001, SKU002, SKU003) ou um por linha
+          </p>
         </div>
       
         {/* Filtros */}

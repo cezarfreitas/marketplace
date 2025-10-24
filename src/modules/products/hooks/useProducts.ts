@@ -23,7 +23,8 @@ export function useProducts(options: UseProductsOptions = {}) {
       has_images: undefined,
       optimization_status: undefined,
       stock_operator: '',
-      stock_value: undefined
+      stock_value: undefined,
+      sku_filter: ''
     },
     initialSort = { field: 'created_at', direction: 'desc' }
   } = options;

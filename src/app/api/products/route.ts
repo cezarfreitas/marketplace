@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const is_visible = searchParams.get('is_visible');
     const stock_operator = searchParams.get('stock_operator');
     const stock_value = searchParams.get('stock_value');
+    const sku_filter = searchParams.get('sku_filter');
 
     if (brand_id && brand_id.length > 0) {
       // Filtrar valores vazios
@@ -147,6 +148,45 @@ export async function GET(request: NextRequest) {
         `;
         conditions.push(stockCondition);
         searchParams_array.push(stockNum);
+      }
+    }
+
+    // Filtro por SKUs (ref_produto ou ref_sku)
+    if (sku_filter && sku_filter.trim() !== '') {
+      console.log('🔍 Filtro de SKUs recebido:', sku_filter);
+      
+      // Processar SKUs separados por vírgula ou quebra de linha
+      const skuList = sku_filter
+        .split(/[,\n]/)
+        .map(sku => sku.trim())
+        .filter(sku => sku !== '');
+      
+      console.log('📋 Lista de SKUs processada:', skuList);
+      
+      if (skuList.length > 0) {
+        // Criar condições OR para cada SKU
+        // Busca em: ref_produto (produto), ref_sku e name (SKU)
+        const skuConditions = skuList.map(() => {
+          return `(p.ref_produto LIKE ? OR EXISTS (
+            SELECT 1 FROM skus_vtex s 
+            WHERE s.id_produto_vtex = p.id_produto_vtex 
+            AND (s.ref_sku LIKE ? OR s.name LIKE ?)
+          ))`;
+        }).join(' OR ');
+        
+        conditions.push(`(${skuConditions})`);
+        
+        console.log('🔧 Condição SQL de SKUs aplicada');
+        
+        // Adicionar parâmetros para cada SKU
+        skuList.forEach(sku => {
+          searchParams_array.push(`%${sku}%`); // ref_produto LIKE
+          searchParams_array.push(`%${sku}%`); // ref_sku LIKE
+          searchParams_array.push(`%${sku}%`); // name LIKE
+        });
+        
+        console.log('📊 Parâmetros adicionados para SKUs:', skuList.length * 3, 'parâmetros');
+        console.log('📊 Valores dos parâmetros:', skuList.map(s => `%${s}%`));
       }
     }
 

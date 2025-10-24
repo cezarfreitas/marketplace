@@ -329,7 +329,8 @@ export default function ProductsPage() {
                 optimization_status: filters.optimization_status,
                 has_anymarket_ref_id: filters.has_anymarket_ref_id,
                 stock_operator: filters.stock_operator,
-                stock_value: filters.stock_value
+                stock_value: filters.stock_value,
+                sku_filter: filters.sku_filter
               }}
               brands={filtersData.brands}
               categories={filtersData.categories}

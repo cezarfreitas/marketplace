@@ -65,6 +65,7 @@ export interface ProductFilters {
   optimization_status?: string;
   stock_operator?: string;
   stock_value?: number;
+  sku_filter?: string;
 }
 
 export interface ProductListResponse {
