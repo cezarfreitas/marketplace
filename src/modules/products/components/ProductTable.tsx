@@ -569,24 +569,26 @@ export function ProductTable({
                         onCropImages(product);
                       }}
                       className={`w-8 h-8 border rounded flex items-center justify-center transition-colors group ${
-                        product.anymarket_imagem_cropada
+                        product.anymarket_imagem_cropada || productsWithCroppedImages.includes(product.id)
                           ? 'border-purple-500 hover:bg-purple-600 shadow-md'
                           : 'border-gray-300 hover:bg-gray-50'
                       }`}
                       style={{
-                        backgroundColor: product.anymarket_imagem_cropada
+                        backgroundColor: product.anymarket_imagem_cropada || productsWithCroppedImages.includes(product.id)
                           ? '#a855f7' // purple-500
                           : undefined
                       }}
                       title={
                         product.anymarket_imagem_cropada 
                           ? `Imagens Cropadas em ${new Date(product.anymarket_imagem_cropada).toLocaleString('pt-BR')}`
+                          : productsWithCroppedImages.includes(product.id)
+                          ? "Imagens Cropadas (Já Processadas)"
                           : "Crop de Imagens"
                       }
                     >
                       <Crop 
                         className={`h-4 w-4 ${
-                          product.anymarket_imagem_cropada
+                          product.anymarket_imagem_cropada || productsWithCroppedImages.includes(product.id)
                             ? 'text-white group-hover:text-purple-50'
                             : 'text-gray-600 group-hover:text-gray-800'
                         }`}

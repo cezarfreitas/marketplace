@@ -7,7 +7,8 @@ import { useImportLogic } from '@/hooks/useImportLogic';
 import { 
   ImportInput, 
   ImportProgress, 
-  ImportInfo 
+  ImportInfo,
+  BatchSelector
 } from '@/components/import';
 
 export default function ImportPage() {
@@ -15,6 +16,7 @@ export default function ImportPage() {
     state,
     updateRefIds,
     updateBatchSize,
+    updateBatchId,
     updateConfig,
     updateProgress,
     setProgressId,
@@ -31,6 +33,7 @@ export default function ImportPage() {
       state.refIds,
       state.config,
       state.batchSize,
+      state.batchId,
       updateProgress,
       setProgressId
     );
@@ -45,6 +48,14 @@ export default function ImportPage() {
         {/* Progresso - Acima de tudo */}
         <div className="mb-6">
           <ImportProgress progress={state.progress} />
+        </div>
+
+        {/* Seletor de Lote */}
+        <div className="mb-6">
+          <BatchSelector
+            selectedBatchId={state.batchId}
+            onBatchChange={updateBatchId}
+          />
         </div>
 
         {/* Input de Dados com Configurações */}

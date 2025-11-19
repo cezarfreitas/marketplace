@@ -224,6 +224,8 @@ async function executeAnymarketSync(productId: number): Promise<{ success: boole
 
 // Função para executar crop de imagens de um produto (igual ao modal individual)
 async function executeImageCrop(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+  let logId: number | null = null;
+  
   try {
     console.log(`✂️ Executando crop de imagens para produto ${productId}...`);
     
@@ -247,6 +249,20 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
     const product = products[0];
     if (!product.anymarket_id) {
       return { success: false, error: 'Produto não possui ID do Anymarket' };
+    }
+    
+    // Criar log inicial na tabela crop_processing_logs
+    try {
+      const createLogQuery = `
+        INSERT INTO crop_processing_logs 
+        (product_id, product_name, anymarket_id, status, created_at, updated_at)
+        VALUES (?, ?, ?, 'processing', NOW(), NOW())
+      `;
+      const logResult = await executeQuery(createLogQuery, [productId, product.name, product.anymarket_id]);
+      logId = (logResult as any).insertId;
+      console.log(`📝 Log de processamento criado (ID: ${logId})`);
+    } catch (logError) {
+      console.warn('⚠️ Erro ao criar log inicial:', logError);
     }
 
     // 2. Deletar imagens antigas do Anymarket (igual ao modal individual)
@@ -321,7 +337,35 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
 
     const vtexImages = vtexResult.data?.images || [];
     if (vtexImages.length === 0) {
+      // Atualizar log como falha
+      if (logId) {
+        try {
+          await executeQuery(
+            `UPDATE crop_processing_logs 
+             SET status = 'failed', error_message = ?, updated_at = NOW() 
+             WHERE id = ?`,
+            ['Nenhuma imagem da VTEX encontrada', logId]
+          );
+        } catch (logError) {
+          console.warn('⚠️ Erro ao atualizar log de falha:', logError);
+        }
+      }
       return { success: false, error: 'Nenhuma imagem da VTEX encontrada' };
+    }
+    
+    // Atualizar log com total de imagens encontradas
+    if (logId) {
+      try {
+        await executeQuery(
+          `UPDATE crop_processing_logs 
+           SET total_images = ?, updated_at = NOW() 
+           WHERE id = ?`,
+          [vtexImages.length, logId]
+        );
+        console.log(`📝 Log atualizado: ${vtexImages.length} imagens encontradas`);
+      } catch (logError) {
+        console.warn('⚠️ Erro ao atualizar total de imagens:', logError);
+      }
     }
 
     // 4. Processar cada imagem com Pixian.ai (igual ao modal individual)
@@ -353,16 +397,46 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
           }
         };
 
-        const pixianResponse = await fetch('https://api.pixian.ai/api/v2/remove-background', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic cHhnbmNzZm5hZHpqNGZiOmJnczNjcDM4bzVjdTlrY2FuOTI0ZDZyMDF0b2ZrbTAwc3R1ZWw5N3RndXRyMXVyYzdxZm4=',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(pixianData)
-        });
+        // Retry logic para Pixian (até 3 tentativas)
+        let pixianSuccess = false;
+        let pixianResponse: Response | null = null;
+        let lastError = null;
+        
+        for (let attempt = 1; attempt <= 3 && !pixianSuccess; attempt++) {
+          try {
+            console.log(`🔄 Tentativa ${attempt}/3 para processar imagem ${i + 1}...`);
+            
+            // Criar AbortController para timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
+            
+            pixianResponse = await fetch('https://api.pixian.ai/api/v2/remove-background', {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Basic cHhnbmNzZm5hZHpqNGZiOmJnczNjcDM4bzVjdTlrY2FuOTI0ZDZyMDF0b2ZrbTAwc3R1ZWw5N3RndXRyMXVyYzdxZm4=',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(pixianData),
+              signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (pixianResponse.ok) {
+              pixianSuccess = true;
+            } else {
+              lastError = `HTTP ${pixianResponse.status}`;
+              console.warn(`⚠️ Tentativa ${attempt} falhou: ${lastError}`);
+              if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // backoff
+            }
+          } catch (fetchError: any) {
+            lastError = fetchError.message;
+            console.warn(`⚠️ Tentativa ${attempt} falhou: ${lastError}`);
+            if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // backoff
+          }
+        }
 
-        if (pixianResponse.ok) {
+        if (pixianSuccess && pixianResponse) {
           const croppedImageBuffer = await pixianResponse.arrayBuffer();
           const croppedImageBase64 = Buffer.from(croppedImageBuffer).toString('base64');
           
@@ -372,12 +446,13 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
             cropped_size: croppedImageBuffer.byteLength
           });
           successCount++;
+          console.log(`✅ Imagem ${i + 1} processada com sucesso`);
         } else {
-          console.error(`Erro no Pixian para imagem ${i + 1}:`, pixianResponse.status);
+          console.error(`❌ Falha após 3 tentativas para imagem ${i + 1}: ${lastError}`);
           errorCount++;
         }
       } catch (error: any) {
-        console.error(`Erro ao processar imagem ${i + 1}:`, error);
+        console.error(`❌ Erro crítico ao processar imagem ${i + 1}:`, error);
         errorCount++;
       }
     }
@@ -472,6 +547,39 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
         console.error('❌ Erro ao salvar log de crop:', logError);
       }
       
+      // Atualizar log detalhado com sucesso
+      if (logId) {
+        try {
+          await executeQuery(
+            `UPDATE crop_processing_logs 
+             SET status = 'completed', 
+                 processed_images = ?, 
+                 uploaded_images = ?,
+                 failed_images = ?,
+                 completed_at = NOW(),
+                 updated_at = NOW() 
+             WHERE id = ?`,
+            [processedImages.length, uploadedCount, errorCount + uploadErrorCount, logId]
+          );
+          console.log(`📝 Log de sucesso atualizado (ID: ${logId})`);
+        } catch (logError) {
+          console.warn('⚠️ Erro ao atualizar log de sucesso:', logError);
+        }
+      }
+      
+      // Atualizar campo anymarket_imagem_cropada no produto
+      try {
+        await executeQuery(
+          `UPDATE anymarket 
+           SET anymarket_imagem_cropada = NOW() 
+           WHERE id_produto_any = ?`,
+          [product.anymarket_id]
+        );
+        console.log('✅ Campo anymarket_imagem_cropada atualizado');
+      } catch (updateError) {
+        console.warn('⚠️ Erro ao atualizar anymarket_imagem_cropada:', updateError);
+      }
+      
       return { 
         success: true, 
         message: `Crop de imagens concluído: ${uploadedCount} imagens processadas e enviadas` 
@@ -500,12 +608,52 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
         console.error('❌ Erro ao salvar log de erro de crop:', logError);
       }
       
+      // Atualizar log detalhado com falha
+      if (logId) {
+        try {
+          await executeQuery(
+            `UPDATE crop_processing_logs 
+             SET status = 'failed', 
+                 processed_images = ?, 
+                 uploaded_images = 0,
+                 failed_images = ?,
+                 error_message = ?,
+                 completed_at = NOW(),
+                 updated_at = NOW() 
+             WHERE id = ?`,
+            [processedImages.length, errorCount + uploadErrorCount, 
+             `${errorCount} erros de processamento, ${uploadErrorCount} erros de upload`, logId]
+          );
+          console.log(`📝 Log de falha atualizado (ID: ${logId})`);
+        } catch (logError) {
+          console.warn('⚠️ Erro ao atualizar log de falha:', logError);
+        }
+      }
+      
       return { 
         success: false, 
         error: `Erro no crop: ${errorCount} erros de processamento, ${uploadErrorCount} erros de upload` 
       };
     }
   } catch (error: any) {
+    // Atualizar log com erro crítico
+    if (logId) {
+      try {
+        const { executeQuery } = await import('@/lib/database');
+        await executeQuery(
+          `UPDATE crop_processing_logs 
+           SET status = 'failed', 
+               error_message = ?,
+               completed_at = NOW(),
+               updated_at = NOW() 
+           WHERE id = ?`,
+          [error.message, logId]
+        );
+        console.log(`📝 Log de erro crítico atualizado (ID: ${logId})`);
+      } catch (logError) {
+        console.warn('⚠️ Erro ao atualizar log de erro crítico:', logError);
+      }
+    }
     return { success: false, error: error.message };
   }
 }

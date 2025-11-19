@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Search, Filter, RefreshCw, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ interface Filters {
   search?: string;
   brand_id?: number[];
   category_id?: number[];
+  batch_id?: number;
   optimization_status?: string;
   has_anymarket_ref_id?: boolean;
   stock_operator?: string;
@@ -47,6 +49,28 @@ export function ProductFilters({
   onFiltersChange,
   onClearFilters
 }: ProductFiltersProps) {
+  const [batches, setBatches] = useState<Array<{id: number; name: string; actual_product_count: number}>>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+
+  // Buscar lotes
+  useEffect(() => {
+    const fetchBatches = async () => {
+      setLoadingBatches(true);
+      try {
+        const response = await fetch('/api/batches?status=active&limit=1000');
+        const data = await response.json();
+        if (data.success) {
+          setBatches(data.data.batches);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar lotes:', error);
+      } finally {
+        setLoadingBatches(false);
+      }
+    };
+    fetchBatches();
+  }, []);
+
   return (
     <Card className="mb-6">
       <CardHeader>
@@ -166,6 +190,35 @@ export function ProductFilters({
               />
             </div>
             
+            {/* Lote */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Lote
+              </label>
+              <Select
+                value={filters.batch_id?.toString() || 'all'}
+                onValueChange={(value) => {
+                  if (value === 'all') {
+                    onFiltersChange({ batch_id: undefined });
+                  } else {
+                    onFiltersChange({ batch_id: parseInt(value) });
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={loadingBatches ? "Carregando..." : "Selecionar lote"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os lotes</SelectItem>
+                  <SelectItem value="0">Sem Lote</SelectItem>
+                  {batches.map((batch) => (
+                    <SelectItem key={batch.id} value={batch.id.toString()}>
+                      {batch.name} ({batch.actual_product_count})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Status de Otimizações */}
             <div>

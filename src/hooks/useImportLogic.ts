@@ -6,6 +6,7 @@ export const useImportLogic = () => {
     refIds: string,
     config: ImportConfig,
     batchSize: number,
+    batchId: number | null,
     updateProgress: (progress: Partial<ImportProgress>) => void,
     setProgressId: (id: string | null) => void
   ) => {
@@ -16,8 +17,8 @@ export const useImportLogic = () => {
       return;
     }
 
-    if (refIdList.length > 200) {
-      alert('Máximo de 200 produtos por importação. Use múltiplas chamadas para mais produtos.');
+    if (refIdList.length > 500) {
+      alert('Máximo de 500 produtos por importação. Use múltiplas chamadas para mais produtos.');
       return;
     }
 
@@ -47,7 +48,8 @@ export const useImportLogic = () => {
         body: JSON.stringify({
           refIds: refIdList,
           config,
-          batchSize
+          batchSize,
+          batchId
         }),
       });
 

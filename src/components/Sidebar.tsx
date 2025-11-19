@@ -13,7 +13,8 @@ import {
   FileSpreadsheet,
   BarChart3,
   Brain,
-  List
+  List,
+  Layers
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -68,6 +69,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
     { name: 'Importar', href: '/import', icon: Upload },
+    { name: 'Lotes', href: '/batches', icon: Layers },
     { name: 'Produtos', href: '/products', icon: Package },
     { name: 'Marcas', href: '/brands', icon: Tag },
     { name: 'Categorias', href: '/categories', icon: FolderOpen },

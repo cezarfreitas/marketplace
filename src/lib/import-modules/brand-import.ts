@@ -117,7 +117,7 @@ export class BrandImportModule {
             title = ?,                   -- Título da marca
             meta_tag_description = ?,    -- Meta descrição para SEO
             image_url = ?,               -- URL da imagem
-            contexto = NULL,             -- Campo contexto (não disponível na API VTEX)
+            -- contexto não é atualizado para preservar o contexto gerado pela IA
             updated_at = NOW()           -- Data de atualização
           WHERE id_brand_vtex = ?
         `, [

@@ -26,6 +26,7 @@ export interface ImportConfig {
 export interface ImportState {
   refIds: string;
   batchSize: number;
+  batchId: number | null;
   config: ImportConfig;
   progress: ImportProgress;
   progressId: string | null;
@@ -35,6 +36,7 @@ export const useImportState = () => {
   const [state, setState] = useState<ImportState>({
     refIds: '',
     batchSize: 20,
+    batchId: null,
     config: {
       importProduct: true,
       importBrand: true,
@@ -65,6 +67,10 @@ export const useImportState = () => {
 
   const updateBatchSize = useCallback((batchSize: number) => {
     setState(prev => ({ ...prev, batchSize }));
+  }, []);
+
+  const updateBatchId = useCallback((batchId: number | null) => {
+    setState(prev => ({ ...prev, batchId }));
   }, []);
 
   const updateConfig = useCallback((config: Partial<ImportConfig>) => {
@@ -111,6 +117,7 @@ export const useImportState = () => {
     state,
     updateRefIds,
     updateBatchSize,
+    updateBatchId,
     updateConfig,
     updateProgress,
     setProgressId,

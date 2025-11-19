@@ -27,7 +27,7 @@ export const ImportInput = ({
   const refIdList = refIds.split('\n').filter(id => id.trim());
   const productCount = refIdList.length;
   const isEmpty = productCount === 0;
-  const exceedsLimit = productCount > 200;
+  const exceedsLimit = productCount > 500;
 
   const handleRemoveRefId = (indexToRemove: number) => {
     const newRefIdList = refIdList.filter((_, index) => index !== indexToRemove);
@@ -169,7 +169,7 @@ export const ImportInput = ({
               <div className="absolute top-2 right-2">
                 <div className="bg-gray-100 rounded-lg px-3 py-1 shadow-sm border border-gray-200">
                   <span className={`text-xs font-medium ${exceedsLimit ? 'text-red-600' : 'text-gray-700'}`}>
-                    {productCount}/200 produtos
+                    {productCount}/500 produtos
                   </span>
                 </div>
               </div>
@@ -220,7 +220,7 @@ export const ImportInput = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
               <span className="text-sm text-red-800">
-                <strong>Limite excedido:</strong> Máximo de 200 produtos por importação. Use múltiplas chamadas para mais produtos. Você tem {productCount} produtos.
+                <strong>Limite excedido:</strong> Máximo de 500 produtos por importação. Use múltiplas chamadas para mais produtos. Você tem {productCount} produtos.
               </span>
             </div>
           </div>

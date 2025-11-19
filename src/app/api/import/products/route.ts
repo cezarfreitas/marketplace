@@ -11,7 +11,9 @@ async function saveBrandAndCategory(brand: any, category: any) {
     `INSERT INTO brands (vtex_id, name, is_active, title, meta_tag_description, image_url, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
      ON DUPLICATE KEY UPDATE 
-     name = VALUES(name), is_active = VALUES(is_active), title = VALUES(title), updated_at = NOW()`,
+     name = VALUES(name), is_active = VALUES(is_active), title = VALUES(title), 
+     meta_tag_description = VALUES(meta_tag_description), image_url = VALUES(image_url), 
+     updated_at = NOW()`,
     [
       brand.id,
       brand.name,
@@ -21,7 +23,7 @@ async function saveBrandAndCategory(brand: any, category: any) {
       brand.imageUrl || null
     ]
   );
-  console.log(`✅ Marca inserida no banco`);
+  console.log(`✅ Marca inserida no banco (contexto preservado se já existir)`);
 
   // Inserir categoria no banco
   console.log(`📂 Inserindo categoria no banco...`);

@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
     console.log('🚀 API de importação em lote RÁPIDA chamada');
 
     const body = await request.json();
-    const { refIds, config, batchSize = 20 } = body;
+    const { refIds, config, batchSize = 20, batchId = null } = body;
 
-    console.log('Dados recebidos:', { refIds, config, batchSize });
+    console.log('Dados recebidos:', { refIds, config, batchSize, batchId });
 
     // Validar entrada
     if (!refIds || !Array.isArray(refIds) || refIds.length === 0) {
@@ -46,9 +46,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validar limite máximo de produtos
-    if (refIds.length > 200) {
+    if (refIds.length > 500) {
       return NextResponse.json(
-        { error: 'Máximo de 200 produtos por importação. Use múltiplas chamadas para mais produtos. Você enviou ' + refIds.length + ' produtos.' },
+        { error: 'Máximo de 500 produtos por importação. Use múltiplas chamadas para mais produtos. Você enviou ' + refIds.length + ' produtos.' },
         { status: 400 }
       );
     }
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Executar importação em background com processamento paralelo
-    executeFastImportInBackground(progressId, refIds, importConfig, baseUrl, headers, maxBatchSize);
+    executeFastImportInBackground(progressId, refIds, importConfig, baseUrl, headers, maxBatchSize, batchId);
 
     // Log para debug
     console.log('🚀 Importação iniciada com progressId:', progressId);
@@ -155,7 +155,8 @@ async function executeFastImportInBackground(
   config: any,
   baseUrl: string,
   headers: Record<string, string>,
-  batchSize: number
+  batchSize: number,
+  batchId: number | null = null
 ) {
   try {
     const fastImporter = new FastBatchImportModule(baseUrl, headers);
@@ -174,7 +175,8 @@ async function executeFastImportInBackground(
     // Executar importação rápida usando o FastBatchImportModule
     const results = await fastImporter.importMultipleProductsFast(refIds, {
       ...config,
-      batchSize
+      batchSize,
+      batchId
     }, (current: number, total: number, currentItem?: string) => {
       // Atualizar progresso em tempo real - apenas mensagens de SKU
       const progress = Math.round((current / total) * 100);

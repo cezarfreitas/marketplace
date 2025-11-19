@@ -52,12 +52,14 @@ export interface Product {
   anymarket_enviado_any?: string;
   anymarket_imagem_cropada?: string;
   first_sku_ref?: string;
+  batch_id?: number;
 }
 
 export interface ProductFilters {
   search: string;
   brand_id: string | string[];
   category_id: string | string[];
+  batch_id?: number;
   is_active: string;
   is_visible: string;
   has_anymarket_ref_id?: boolean;

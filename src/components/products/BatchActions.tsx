@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Package, Trash2, X, Download, Loader2, Image, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, Trash2, X, Download, Loader2, Image, RefreshCw, Layers } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,9 +38,67 @@ export function BatchActions({
   onAnymarketSync,
   isExporting
 }: BatchActionsProps) {
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batches, setBatches] = useState<Array<{id: number; name: string}>>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Buscar lotes
+  useEffect(() => {
+    const fetchBatches = async () => {
+      try {
+        const response = await fetch('/api/batches?status=active&limit=1000');
+        const data = await response.json();
+        if (data.success) {
+          setBatches(data.data.batches);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar lotes:', error);
+      }
+    };
+    fetchBatches();
+  }, []);
+
+  // Adicionar produtos ao lote
+  const handleAddToBatch = async () => {
+    if (selectedBatchId === null) {
+      alert('Selecione um lote');
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch('/api/products/batch-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productIds: selectedProducts,
+          batchId: selectedBatchId
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`✅ ${selectedProducts.length} produto(s) adicionado(s) ao lote!`);
+        setShowBatchModal(false);
+        setSelectedBatchId(null);
+        window.location.reload(); // Recarregar para atualizar a lista
+      } else {
+        alert(`❌ Erro: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar produtos ao lote:', error);
+      alert('❌ Erro ao adicionar produtos ao lote');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (selectedProducts.length === 0) return null;
 
   return (
+    <>
     <Card className="mb-6 relative z-[10] border-2 border-primary/20">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -130,6 +188,16 @@ export function BatchActions({
           </button>
           
           <button
+            onClick={() => setShowBatchModal(true)}
+            disabled={isExporting}
+            className="px-2 py-1 text-xs text-orange-600 border border-orange-300 rounded hover:bg-orange-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Adicionar a Lote"
+          >
+            <Layers className="h-3 w-3 mr-1" />
+            Adicionar a Lote
+          </button>
+          
+          <button
             onClick={onDeleteSelected}
             disabled={isExporting}
             className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
@@ -140,5 +208,66 @@ export function BatchActions({
         </div>
       </CardContent>
     </Card>
+
+    {/* Modal de Seleção de Lote */}
+    {showBatchModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <h2 className="text-xl font-bold mb-4 flex items-center">
+            <Layers className="w-5 h-5 mr-2 text-orange-600" />
+            Adicionar {selectedProducts.length} produto(s) ao Lote
+          </h2>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Selecione o Lote
+            </label>
+            <select
+              value={selectedBatchId || ''}
+              onChange={(e) => setSelectedBatchId(e.target.value ? parseInt(e.target.value) : null)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Selecione um lote...</option>
+              {batches.map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              onClick={handleAddToBatch}
+              disabled={isUpdating || selectedBatchId === null}
+              className="flex-1 bg-orange-600 hover:bg-orange-700"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Adicionando...
+                </>
+              ) : (
+                <>
+                  <Layers className="w-4 h-4 mr-2" />
+                  Adicionar ao Lote
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={() => {
+                setShowBatchModal(false);
+                setSelectedBatchId(null);
+              }}
+              variant="outline"
+              disabled={isUpdating}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

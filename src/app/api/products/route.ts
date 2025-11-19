@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
     // Filtros básicos apenas
     const brand_id = searchParams.getAll('brand_id');
     const category_id = searchParams.getAll('category_id');
+    const batch_id = searchParams.get('batch_id');
     const is_active = searchParams.get('is_active');
     const is_visible = searchParams.get('is_visible');
     const stock_operator = searchParams.get('stock_operator');
@@ -74,6 +75,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Filtro de lote
+    if (batch_id) {
+      if (batch_id === '0') {
+        // Produtos sem lote
+        conditions.push(`p.batch_id IS NULL`);
+      } else {
+        conditions.push(`p.batch_id = ?`);
+        searchParams_array.push(batch_id);
+      }
+    }
 
     // Filtros complexos removidos para simplificar
 

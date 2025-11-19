@@ -174,6 +174,7 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
     clearLogs();
     
     const startTime = Date.now();
+    let logId: number | null = null; // Variável para armazenar o ID do log
     
     addLog('info', '🚀 Iniciando processamento completo de imagens...', {
       productId: product.id,
@@ -187,6 +188,34 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
     }
 
     try {
+      // Criar log inicial no banco de dados
+      try {
+        const createLogResponse = await fetch('/api/crop-logs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            productId: product.id,
+            anymarketId: product.anymarket_id || '',
+            productName: product.name || '',
+            status: 'processing',
+            totalImages: 0,
+            details: {
+              startedAt: new Date().toISOString()
+            }
+          })
+        });
+
+        if (createLogResponse.ok) {
+          const logResult = await createLogResponse.json();
+          logId = logResult.data?.logId || null;
+          addLog('info', `📝 Log de processamento criado (ID: ${logId})`);
+        }
+      } catch (logError: any) {
+        console.error('⚠️ Erro ao criar log inicial:', logError);
+        // Continuar mesmo se falhar ao criar log
+      }
       // ETAPA 1: Deletar imagens existentes do Anymarket
       setCurrentStep('Etapa 1: Deletando imagens existentes do Anymarket...');
       addLog('info', '🗑️ ETAPA 1: Deletando imagens existentes do Anymarket...');
@@ -285,8 +314,45 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
           
           addLog('success', `✅ Encontradas ${vtexImages.length} imagens da VTEX`);
           
+          // Atualizar log com total de imagens
+          if (logId && vtexImages.length > 0) {
+            try {
+              await fetch('/api/crop-logs', {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  logId: logId,
+                  totalImages: vtexImages.length
+                })
+              });
+            } catch (logError: any) {
+              console.error('⚠️ Erro ao atualizar log com total de imagens:', logError);
+            }
+          }
+          
           if (vtexImages.length === 0) {
             addLog('error', '❌ Nenhuma imagem da VTEX encontrada');
+            // Atualizar log com erro
+            if (logId) {
+              try {
+                await fetch('/api/crop-logs', {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    logId: logId,
+                    status: 'failed',
+                    errorMessage: 'Nenhuma imagem da VTEX encontrada',
+                    processingTimeSeconds: Math.round((Date.now() - startTime) / 1000)
+                  })
+                });
+              } catch (logError: any) {
+                console.error('⚠️ Erro ao atualizar log:', logError);
+              }
+            }
             setIsProcessing(false);
             return;
           }
@@ -371,6 +437,27 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
 
           if (processedImages.length === 0) {
             addLog('error', '❌ Nenhuma imagem foi processada com sucesso');
+            // Atualizar log com erro
+            if (logId) {
+              try {
+                await fetch('/api/crop-logs', {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    logId: logId,
+                    status: 'failed',
+                    errorMessage: 'Nenhuma imagem foi processada com sucesso',
+                    pixianSuccessCount: successCount,
+                    pixianErrorCount: errorCount,
+                    processingTimeSeconds: Math.round((Date.now() - startTime) / 1000)
+                  })
+                });
+              } catch (logError: any) {
+                console.error('⚠️ Erro ao atualizar log:', logError);
+              }
+            }
             setIsProcessing(false);
             return;
           }
@@ -458,14 +545,121 @@ export function CropImagesModal({ isOpen, onClose, product, originalImages, onPr
           addLog('success', `🎉 Processamento completo finalizado em ${totalTime}s!`);
           addLog('info', `📊 Resumo: ${uploadedCount} imagens enviadas para o Anymarket`);
 
+          // Atualizar log final no banco de dados
+          if (logId) {
+            try {
+              const updateLogResponse = await fetch('/api/crop-logs', {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  logId: logId,
+                  status: uploadedCount > 0 ? 'completed' : 'failed',
+                  processedImages: uploadedCount,
+                  failedImages: uploadErrorCount,
+                  pixianSuccessCount: successCount,
+                  pixianErrorCount: errorCount,
+                  anymarketSuccessCount: uploadedCount,
+                  anymarketErrorCount: uploadErrorCount,
+                  processingTimeSeconds: totalTime,
+                  errorMessage: uploadedCount === 0 ? 'Nenhuma imagem foi enviada com sucesso' : null,
+                  details: {
+                    totalImages: vtexImages.length,
+                    processedImages: processedImages.length,
+                    uploadedCount,
+                    uploadErrorCount,
+                    successCount,
+                    errorCount,
+                    totalTime
+                  }
+                })
+              });
+
+              if (updateLogResponse.ok) {
+                addLog('info', '📝 Log de processamento salvo no banco de dados');
+              }
+            } catch (logError: any) {
+              console.error('⚠️ Erro ao atualizar log final:', logError);
+            }
+          }
+
+          // Chamar callback de processamento completo se houver sucesso
+          if (uploadedCount > 0 && onProcessingComplete && product) {
+            onProcessingComplete(product.id, {
+              success: true,
+              uploadedCount,
+              errorCount: uploadErrorCount,
+              totalTime
+            });
+          }
+
         } else {
           addLog('error', '❌ Erro ao buscar imagens da VTEX');
+          // Atualizar log com erro
+          if (logId) {
+            try {
+              await fetch('/api/crop-logs', {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  logId: logId,
+                  status: 'failed',
+                  errorMessage: 'Erro ao buscar imagens da VTEX',
+                  processingTimeSeconds: Math.round((Date.now() - startTime) / 1000)
+                })
+              });
+            } catch (logError: any) {
+              console.error('⚠️ Erro ao atualizar log:', logError);
+            }
+          }
         }
       } catch (error: any) {
         addLog('error', `❌ Erro na ETAPA 2: ${error.message}`);
+        // Atualizar log com erro
+        if (logId) {
+          try {
+            await fetch('/api/crop-logs', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                logId: logId,
+                status: 'failed',
+                errorMessage: `Erro na ETAPA 2: ${error.message}`,
+                processingTimeSeconds: Math.round((Date.now() - startTime) / 1000)
+              })
+            });
+          } catch (logError: any) {
+            console.error('⚠️ Erro ao atualizar log:', logError);
+          }
+        }
       }
 
     } catch (error: any) {
+      // Atualizar log em caso de erro geral
+      if (logId) {
+        try {
+          await fetch('/api/crop-logs', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              logId: logId,
+              status: 'failed',
+              errorMessage: error.message,
+              processingTimeSeconds: Math.round((Date.now() - startTime) / 1000)
+            })
+          });
+        } catch (logError: any) {
+          console.error('⚠️ Erro ao atualizar log de erro:', logError);
+        }
+      }
+      
       console.error('❌ Erro geral no processamento:', error);
       addLog('error', `❌ Erro geral: ${error.message}`);
     } finally {
