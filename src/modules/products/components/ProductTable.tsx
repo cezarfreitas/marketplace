@@ -74,8 +74,8 @@ export function ProductTable({
   anymarketMappings = {}
 }: ProductTableProps) {
   
-  // Estado para controlar qual referência foi copiada
-  const [copiedRef, setCopiedRef] = useState<string | null>(null);
+  // Estado para controlar quais referências foram copiadas (múltiplas)
+  const [copiedRefs, setCopiedRefs] = useState<Set<string>>(new Set());
   
   // Log para debug do campo has_generated_description
   console.log('🔍 ProductTable - Produtos recebidos:', products.length);
@@ -100,11 +100,7 @@ export function ProductTable({
   const copyReference = async (reference: string) => {
     try {
       await navigator.clipboard.writeText(reference);
-      setCopiedRef(reference);
-      // Resetar o estado após 2 segundos
-      setTimeout(() => {
-        setCopiedRef(null);
-      }, 2000);
+      setCopiedRefs(prev => new Set(prev).add(reference));
     } catch (err) {
       console.error('Erro ao copiar referência:', err);
     }
@@ -272,21 +268,22 @@ export function ProductTable({
                       </div>
                       {product.first_sku_ref && (
                         <div 
-                          className="text-xs text-blue-600 font-mono truncate cursor-pointer hover:text-blue-800 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors flex items-center gap-1" 
+                          className={`text-xs font-mono truncate cursor-pointer px-1 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                            copiedRefs.has(product.first_sku_ref)
+                              ? 'bg-orange-50 hover:bg-orange-100'
+                              : 'hover:bg-blue-50'
+                          }`}
                           title={`Clique para copiar: ${product.first_sku_ref}`}
                           onClick={() => copyReference(product.first_sku_ref!)}
                         >
-                          {copiedRef === product.first_sku_ref ? (
-                            <>
-                              <Check className="h-3 w-3 text-green-600" />
-                              <span className="text-green-600">Copiado!</span>
-                            </>
+                          {copiedRefs.has(product.first_sku_ref) ? (
+                            <Check className="h-3 w-3 text-orange-600" />
                           ) : (
-                            <>
-                              <Copy className="h-3 w-3" />
-                              {product.first_sku_ref}
-                            </>
+                            <Copy className="h-3 w-3 text-blue-600" />
                           )}
+                          <span className={copiedRefs.has(product.first_sku_ref) ? 'text-orange-600' : 'text-blue-600 hover:text-blue-800'}>
+                            {product.first_sku_ref}
+                          </span>
                           {product.anymarket_id && (
                             <span className="text-purple-600">
                               {' - '}{product.anymarket_id}
@@ -296,21 +293,22 @@ export function ProductTable({
                       )}
                       {!product.first_sku_ref && product.ref_produto && (
                         <div 
-                          className="text-xs text-blue-600 font-mono truncate cursor-pointer hover:text-blue-800 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors flex items-center gap-1" 
+                          className={`text-xs font-mono truncate cursor-pointer px-1 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                            copiedRefs.has(product.ref_produto)
+                              ? 'bg-orange-50 hover:bg-orange-100'
+                              : 'hover:bg-blue-50'
+                          }`}
                           title={`Clique para copiar: ${product.ref_produto}`}
                           onClick={() => copyReference(product.ref_produto)}
                         >
-                          {copiedRef === product.ref_produto ? (
-                            <>
-                              <Check className="h-3 w-3 text-green-600" />
-                              <span className="text-green-600">Copiado!</span>
-                            </>
+                          {copiedRefs.has(product.ref_produto) ? (
+                            <Check className="h-3 w-3 text-orange-600" />
                           ) : (
-                            <>
-                              <Copy className="h-3 w-3" />
-                              {product.ref_produto}
-                            </>
+                            <Copy className="h-3 w-3 text-blue-600" />
                           )}
+                          <span className={copiedRefs.has(product.ref_produto) ? 'text-orange-600' : 'text-blue-600 hover:text-blue-800'}>
+                            {product.ref_produto}
+                          </span>
                           {product.anymarket_id && (
                             <span className="text-purple-600">
                               {' - '}{product.anymarket_id}
@@ -320,21 +318,22 @@ export function ProductTable({
                       )}
                       {!product.first_sku_ref && !product.ref_produto && product.ref_id && (
                         <div 
-                          className="text-xs text-blue-600 font-mono truncate cursor-pointer hover:text-blue-800 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors flex items-center gap-1" 
+                          className={`text-xs font-mono truncate cursor-pointer px-1 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                            copiedRefs.has(product.ref_id)
+                              ? 'bg-orange-50 hover:bg-orange-100'
+                              : 'hover:bg-blue-50'
+                          }`}
                           title={`Clique para copiar: ${product.ref_id}`}
                           onClick={() => copyReference(product.ref_id)}
                         >
-                          {copiedRef === product.ref_id ? (
-                            <>
-                              <Check className="h-3 w-3 text-green-600" />
-                              <span className="text-green-600">Copiado!</span>
-                            </>
+                          {copiedRefs.has(product.ref_id) ? (
+                            <Check className="h-3 w-3 text-orange-600" />
                           ) : (
-                            <>
-                              <Copy className="h-3 w-3" />
-                              Ref_Produto: {product.ref_id}
-                            </>
+                            <Copy className="h-3 w-3 text-blue-600" />
                           )}
+                          <span className={copiedRefs.has(product.ref_id) ? 'text-orange-600' : 'text-blue-600 hover:text-blue-800'}>
+                            Ref_Produto: {product.ref_id}
+                          </span>
                         </div>
                       )}
                       {product.title && (

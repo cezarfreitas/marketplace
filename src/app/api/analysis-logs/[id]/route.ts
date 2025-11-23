@@ -3,10 +3,11 @@ import { executeQuery } from '@/lib/database';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const id = params.id;
+    const resolvedParams = await Promise.resolve(params);
+    const id = resolvedParams.id;
     console.log('🔍 Buscando log específico ID:', id);
 
     const logs = await executeQuery(`
