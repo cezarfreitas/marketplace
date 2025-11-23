@@ -784,6 +784,20 @@ Retorne EXATAMENTE 5 títulos numerados, sem explicações.`,
 
     const generatedTitle = titleResponse.data!;
     console.log('✅ Título gerado com agente exclusivo:', generatedTitle);
+    
+    // Mostrar comparação entre nome antigo e novo
+    console.log('\n' + '='.repeat(80));
+    console.log('📊 COMPARAÇÃO DE TÍTULOS');
+    console.log('='.repeat(80));
+    console.log(`📦 Nome Original (Antigo): "${product.name}"`);
+    console.log(`   └─ Caracteres: ${product.name.length}`);
+    console.log('');
+    console.log(`✨ Nome Otimizado (Novo): "${generatedTitle}"`);
+    console.log(`   └─ Caracteres: ${generatedTitle.length}`);
+    console.log('');
+    console.log(`📏 Economia: ${product.name.length - generatedTitle.length} caracteres`);
+    console.log(`⏱️  Tempo de geração: ${titleGenerationTime}ms`);
+    console.log('='.repeat(80) + '\n');
 
     // 8. Salvar título no banco de dados
     console.log('💾 Salvando título no banco de dados...');
