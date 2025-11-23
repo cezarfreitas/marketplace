@@ -41,6 +41,7 @@ export function AnymarketSyncModal({ isOpen, onClose, product, onSyncComplete }:
   const [loadingUpdate, setLoadingUpdate] = useState(false);
   const [currentStep, setCurrentStep] = useState<'idle' | 'fetching' | 'updating' | 'completed'>('idle');
   const [errorStep, setErrorStep] = useState<'none' | 'fetching' | 'updating'>('none');
+  const [sentJsonData, setSentJsonData] = useState<any>(null);
 
   // Limpar dados quando o modal fechar e carregar dados quando abrir
   useEffect(() => {
@@ -48,6 +49,7 @@ export function AnymarketSyncModal({ isOpen, onClose, product, onSyncComplete }:
       setAnymarketData(null);
       setPatchResult(null);
       setUpdateResult(null);
+      setSentJsonData(null);
       setCurrentStep('idle');
       setErrorStep('none');
     } else if (product) {
@@ -203,6 +205,8 @@ export function AnymarketSyncModal({ isOpen, onClose, product, onSyncComplete }:
       
       if (result.success) {
         setUpdateResult(result.data);
+        // Armazenar o payload que foi enviado para o Anymarket
+        setSentJsonData(result.data?.patch_payload || result.data?.payload || null);
         setCurrentStep('completed');
         console.log('✅ Atualização realizada com sucesso!');
         
@@ -556,6 +560,25 @@ export function AnymarketSyncModal({ isOpen, onClose, product, onSyncComplete }:
                         </div>
                       </div>
                     ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* JSON Enviado para Anymarket */}
+            {sentJsonData && currentStep === 'completed' && (
+              <Card className="border-purple-200 bg-purple-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center space-x-2 text-sm">
+                    <Hash className="w-4 h-4 text-purple-600" />
+                    <span>JSON Enviado para Anymarket</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                    <pre className="text-green-400 text-xs font-mono whitespace-pre-wrap break-words">
+                      {JSON.stringify(sentJsonData, null, 2)}
+                    </pre>
                   </div>
                 </CardContent>
               </Card>
