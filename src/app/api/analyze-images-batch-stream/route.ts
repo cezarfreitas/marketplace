@@ -158,12 +158,20 @@ async function executeCharacteristicsGeneration(productId: number): Promise<{ su
     }
 
     const result = await response.json();
+    
+    console.log(`📊 Resultado da geração de características para produto ${productId}:`, {
+      success: result.success,
+      message: result.message,
+      characteristics_saved: result.data?.characteristics_saved || 0
+    });
+    
     return { 
       success: result.success, 
       error: result.success ? undefined : result.message,
       message: result.success ? 'Características geradas com sucesso' : result.message
     };
   } catch (error: any) {
+    console.error(`❌ Erro na geração de características para produto ${productId}:`, error);
     return { success: false, error: error.message };
   }
 }
@@ -212,12 +220,21 @@ async function executeAnymarketSync(productId: number): Promise<{ success: boole
     }
 
     const updateResult = await updateResponse.json();
+    
+    console.log(`📊 Resultado da sincronização AnyMarket para produto ${productId}:`, {
+      success: updateResult.success,
+      message: updateResult.message,
+      characteristics_count: updateResult.data?.characteristics_count || 0,
+      skus_updated: updateResult.data?.sku_update?.data?.skus_updated || 0
+    });
+    
     return { 
       success: updateResult.success, 
       error: updateResult.success ? undefined : updateResult.message,
       message: updateResult.success ? 'Sincronização AnyMarket concluída' : updateResult.message
     };
   } catch (error: any) {
+    console.error(`❌ Erro na sincronização AnyMarket para produto ${productId}:`, error);
     return { success: false, error: error.message };
   }
 }
