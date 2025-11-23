@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       id_product_vtex,
       title,
       original_title || null,
-      openai_model || 'gpt-4o-mini',
+      openai_model || 'gpt-4.1-mini',
       openai_tokens_used || 0,
       openai_tokens_prompt || 0,
       openai_tokens_completion || 0,

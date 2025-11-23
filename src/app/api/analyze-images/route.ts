@@ -130,32 +130,113 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Configurações do agente de análise de imagem (otimizado para velocidade)
+    // Configurações do agente de análise de imagem (otimizado para velocidade e qualidade)
     const agent = {
       id: 1,
       name: 'Image Analysis Agent',
-      system_prompt: `Você é um especialista em moda, design têxtil e análise de vestuário com mais de 15 anos de experiência. Sua tarefa é analisar imagens de roupas e produzir uma descrição técnica detalhada e contextualizada, como se estivesse explicando cada elemento do produto a um comprador profissional ou a uma equipe de cadastro de e-commerce. Você deve atuar como um consultor técnico especializado em análise de produtos têxteis.`,
-      guidelines_template: `⚠️ ANÁLISE TÉCNICA DE PRODUTO:
+      system_prompt: `Você é um especialista sênior em moda, design têxtil e análise visual de vestuário com mais de 20 anos de experiência em catalogação de produtos para e-commerce de luxo. Sua análise é baseada EXCLUSIVAMENTE no que é VISÍVEL nas imagens. NUNCA especule ou invente informações técnicas que não podem ser confirmadas visualmente.
 
-**FORMATO:** Linguagem técnica, parágrafos corridos, tom profissional.
+⚠️ REGRAS CRÍTICAS DE PRECISÃO:
+- NUNCA mencione gramaturas específicas (ex: 180g/m², 280g/m²) - você não pode medir isso visualmente
+- NUNCA mencione composições exatas de tecido (ex: "100% algodão", "65% poliéster") a menos que esteja VISÍVEL em etiqueta
+- NUNCA mencione medidas específicas (ex: "gola de 2cm") - você não pode medir com precisão
+- NUNCA mencione idade do modelo/pessoa nas fotos (ex: "jovem", "18-45 anos", "adulto jovem")
+- NUNCA use notas numéricas ou escalas (ex: "qualidade 8/10", "7/10", "nota 9")
+- NUNCA invente especificações técnicas que não sejam absolutamente evidentes
+- Use apenas termos descritivos visuais: "aparenta ser algodão", "textura lisa", "tecido espesso"
+- Para qualidade: use termos qualitativos ("confecção cuidadosa", "acabamento bem executado", "construção robusta")
+- Se não tiver certeza absoluta, use termos como: "aparenta", "parece ser", "possivelmente"
+- Priorize descrições visuais objetivas sobre especulações técnicas`,
+      guidelines_template: `🔍 ANÁLISE TÉCNICA DETALHADA DE PRODUTO - FICHA TÉCNICA PROFISSIONAL:
 
-**ESTRUTURA OBRIGATÓRIA (9 pontos):**
-1. **VISÃO GERAL** - Tipo de peça, gênero, categoria, público-alvo
-2. **MATERIAL E CORES** - Tecido, textura, cores principais
-3. **MODELAGEM** - Corte, silhueta, comprimento, proporções
-4. **DETALHES ESTRUTURAIS** - Gola, mangas, bolsos, fechamentos
-5. **ACABAMENTOS** - Costuras, barras, punhos, qualidade
-6. **ESTAMPAS/LOGOS** - Tipo, localização, técnicas
-7. **AVIAMENTOS** - Botões, zíperes, materiais
-8. **CAIMENTO** - Ajuste ao corpo, movimento, silhueta
-9. **OBSERVAÇÕES** - Detalhes extras, qualidade, durabilidade
+**FORMATO:** Linguagem técnica especializada, parágrafos estruturados, terminologia precisa de moda e confecção.
 
-**EXEMPLO:** "Camiseta unissex casual em algodão penteado azul marinho, corte reto com ajuste leve ao corpo, gola redonda, mangas curtas, acabamentos em barra simples, adequada para uso diário."
+**ESTRUTURA OBRIGATÓRIA (10 pontos técnicos):**
 
-**IMPORTANTE:** Seja técnico, preciso e conciso. Use terminologia de moda.`,
-      model: 'gpt-4o-mini',
-      max_tokens: 4000,
-      temperature: 0.2
+1. **CLASSIFICAÇÃO GERAL** 
+   - Tipo exato da peça (categoria e subcategoria)
+   - Gênero e público-alvo (ocasião de uso)
+   - Estilo e linha de moda (casual, formal, esportivo, etc)
+   - ⚠️ NUNCA mencione idade do modelo/pessoa na foto
+
+2. **COMPOSIÇÃO E MATERIAIS** (⚠️ SOMENTE O QUE É VISÍVEL)
+   - Descrição visual do tecido (ex: "aparenta ser algodão", "textura de malha", "tecido com aspecto de moletom")
+   - NUNCA mencione gramaturas específicas (180g/m², 280g/m²) - isso não é visível
+   - NUNCA mencione composições exatas (100% algodão, 65% poliéster) a menos que visível em etiqueta
+   - Textura visual detalhada (lisa, canelada, texturizada, jacquard, felpuda)
+   - Elasticidade aparente e caimento visual do material
+   - Forros, entretelas ou camadas adicionais VISÍVEIS
+
+3. **COLORIMETRIA E TONALIDADES**
+   - Cores principais com nomenclatura técnica (ex: azul navy, off-white, preto carbono)
+   - Gradientes, degradês ou variações de tom
+   - Brilho e acabamento da cor (fosco, acetinado, metálico)
+
+4. **MODELAGEM E CONSTRUÇÃO**
+   - Corte técnico (reto, anatômico, oversized, slim fit, etc)
+   - Silhueta e proporções (comprimento, largura, cavas)
+   - Linhas de construção e recortes
+   - Pences, franzidos, pregas ou drapeados
+
+5. **ELEMENTOS ESTRUTURAIS DETALHADOS**
+   - Gola: tipo, medidas, acabamento (redonda, V, polo, alta, etc)
+   - Mangas: tipo, comprimento, construção (curta, longa, 3/4, raglan, japonesa)
+   - Bolsos: quantidade, tipo, localização, funcionalidade
+   - Fechamentos: tipo e localização (botões, zíper, velcro, etc)
+
+6. **ACABAMENTOS E COSTURAS**
+   - Tipo de costura (reta, overlock, flatlock, aparente, oculta)
+   - Acabamento de barras (dobrada, elástico, viés)
+   - Punhos e cós (tipo, material, construção)
+   - Qualidade e precisão dos acabamentos
+
+7. **ESTAMPAS, APLICAÇÕES E GRAFISMOS**
+   - Técnica de estampa (sublimação, silk screen, bordado, transfer)
+   - Localização precisa no produto (frente, costas, laterais)
+   - Tamanho e proporção dos elementos gráficos
+   - Logos, marcas ou textos visíveis
+
+8. **AVIAMENTOS E COMPONENTES**
+   - Botões: tipo, material, quantidade, tamanho
+   - Zíperes: tipo, material, comprimento (metálico, plástico, invisível)
+   - Etiquetas: localização e tipo (interna, externa)
+   - Outros elementos (ilhoses, rebites, fivelas, cadarços)
+
+9. **CAIMENTO E ERGONOMIA**
+   - Ajuste ao corpo (justo, regular, amplo, oversized)
+   - Mobilidade e conforto
+   - Pontos de tensão e sustentação
+   - Queda natural do tecido
+
+10. **ANÁLISE TÉCNICA COMPLEMENTAR**
+    - Descrição qualitativa da confecção (ex: "acabamento cuidadoso", "construção robusta")
+    - ⚠️ NUNCA use escalas numéricas ou notas (ex: 8/10, 7/10)
+    - Indicação de durabilidade aparente (ex: "parece durável", "construção reforçada")
+    - Uso e ocasião recomendados
+    - Diferenciais técnicos e detalhes exclusivos VISÍVEIS
+    - Público ideal baseado nas características visuais
+
+**EXEMPLO DE ANÁLISE TÉCNICA CORRETA (SEM ESPECULAÇÕES):**
+"Camiseta masculina casual em malha com textura lisa e aspecto de algodão. Coloração azul navy sólido com acabamento fosco uniforme. Modelagem clássica de corte reto com ligeiro afunilamento na cintura, proporcionando caimento regular ao corpo. Construção com gola careca redonda em ribana, com costura reforçada visível em overlock. Mangas curtas de corte tradicional com barra dobrada. Corpo principal com costuras laterais retas aparentemente em máquina reta industrial, acabamento de barra inferior com bainha dupla. Costura ombro a ombro reforçada com fita de viés visível para maior durabilidade. Etiqueta de composição interna em transfer visível na região do cós traseiro. Tecido com elasticidade aparentemente mínima, proporcionando conforto sem perder a forma. Caimento regular, permitindo mobilidade sem apertar, adequado para uso casual diário ou esportivo leve. Confecção com acabamento cuidadoso e costuras bem executadas, indicando durabilidade aparentemente boa. Público-alvo: masculino adulto, estilo casual contemporâneo."
+
+⚠️ **ERROS A EVITAR:**
+- ❌ NUNCA mencione: gramaturas (180g/m²), composições exatas (100% algodão), medidas específicas (2cm), percentuais de elasticidade (5% stretch)
+- ❌ NUNCA mencione: idade do modelo/pessoa (jovem, 18-45 anos, etc)
+- ❌ NUNCA use: notas numéricas (8/10, 7/10) ou escalas de qualidade
+- ✅ USE: descrições qualitativas visuais ("confecção cuidadosa", "durabilidade aparentemente boa", "público adulto")
+
+**INSTRUÇÕES CRÍTICAS:**
+- Use SEMPRE terminologia técnica de moda e confecção para descrever o que é VISÍVEL
+- Seja EXTREMAMENTE detalhista e preciso no que você PODE VER
+- NUNCA mencione medidas, gramaturas ou composições específicas que não sejam visíveis
+- Use termos como "aparenta", "parece ser", "aspecto de" quando apropriado
+- Descreva cada elemento estrutural VISÍVEL com profundidade
+- Analise com olhar de profissional de moda técnica, mas baseado APENAS em evidências visuais
+- EVITE descrições genéricas - seja específico no que é visível!
+- NUNCA invente especificações técnicas que não podem ser confirmadas visualmente`,
+      model: 'gpt-4.1-mini',
+      max_tokens: 6000,
+      temperature: 0.3
     };
 
     // Buscar imagens do produto através dos SKUs (máximo 2 imagens para qualidade)
@@ -207,31 +288,26 @@ export async function POST(request: NextRequest) {
         if (characteristics && characteristics.length > 0) {
           characteristicsQuestions = `
 
-**CARACTERÍSTICAS ESPECÍFICAS PARA IDENTIFICAR:**
+---
+
+## PARTE 2: CARACTERÍSTICAS ESPECÍFICAS (APÓS A ANÁLISE TÉCNICA)
+
+**IMPORTANTE:** Somente após completar toda a análise técnica detalhada acima, adicione uma seção separada com o título "### Características Específicas" e responda objetivamente cada item abaixo:
+
 ${characteristics.map((c, index) => {
   let question = `\n**${index + 1}. ${c.caracteristica}:**\n`;
-  question += `   ${c.pergunta_ia}\n`;
+  question += `   Pergunta: ${c.pergunta_ia}\n`;
   if (c.valores_possiveis) {
-    question += `   \n   **INSTRUÇÃO OBRIGATÓRIA:**\n   ${c.valores_possiveis}\n`;
+    question += `   Instrução: ${c.valores_possiveis}\n`;
   }
-  question += `   \n   **RESPOSTA REQUERIDA:**\n`;
-  question += `   - Analise as imagens e responda DIRETAMENTE a pergunta\n`;
-  question += `   - Siga EXATAMENTE a instrução fornecida\n`;
-  question += `   - Seja OBJETIVO e DIRETO na resposta\n`;
-  question += `   - NÃO faça descrições longas ou explicações desnecessárias\n`;
   return question;
 }).join('\n')}
 
-**INSTRUÇÕES FINAIS PARA CARACTERÍSTICAS:**
-- Após sua análise contextual principal, responda DIRETAMENTE cada característica acima
-- Para cada característica, dê uma resposta OBJETIVA e DIRETA
-- Siga EXATAMENTE as instruções fornecidas na coluna "valores_possiveis"
-- NÃO faça descrições longas ou explicações técnicas desnecessárias
-- Seja CONCISO e DIRETO nas respostas
-- Use formato markdown para as características: "### Características Específicas"
-- Para cada característica, responda apenas: "**Nome da Característica:** Resposta direta"
-- NÃO adicione frases de conclusão, resumo ou comentários gerais no final
-- Termine diretamente após responder todas as características`;
+**FORMATO PARA CARACTERÍSTICAS ESPECÍFICAS:**
+- Crie uma seção separada com título "### Características Específicas"
+- Para cada característica, responda: "**Nome:** Resposta objetiva"
+- Respostas curtas e diretas (1-3 palavras ou lista separada por vírgula)
+- Siga exatamente as instruções fornecidas`;
         }
 
         // Preparar lista de atributos do produto
@@ -255,6 +331,10 @@ ${attributes.map(attr => {
         // Preparar mensagens para a API da OpenAI (otimizado para velocidade)
         const messages = [
           {
+            role: "system",
+            content: agent.system_prompt
+          },
+          {
             role: "user",
             content: [
               {
@@ -266,8 +346,24 @@ Nome: ${productInfo.name}
 Marca: ${productInfo.brand_name || 'N/A'}
 Categoria: ${productInfo.category_name || 'N/A'}${attributesInfo}
 
-**INSTRUÇÃO:**
-Analise as imagens seguindo os 9 pontos. Use parágrafos corridos, linguagem técnica de moda. Seja preciso e conciso.
+**INSTRUÇÃO PRINCIPAL:**
+
+## PARTE 1: ANÁLISE TÉCNICA DETALHADA (OBRIGATÓRIA E PRIORITÁRIA)
+
+VOCÊ DEVE COMEÇAR SUA RESPOSTA COM UMA ANÁLISE TÉCNICA COMPLETA E DETALHADA seguindo TODOS os 10 pontos técnicos descritos acima:
+
+1. CLASSIFICAÇÃO GERAL
+2. COMPOSIÇÃO E MATERIAIS
+3. COLORIMETRIA E TONALIDADES
+4. MODELAGEM E CONSTRUÇÃO
+5. ELEMENTOS ESTRUTURAIS DETALHADOS
+6. ACABAMENTOS E COSTURAS
+7. ESTAMPAS, APLICAÇÕES E GRAFISMOS
+8. AVIAMENTOS E COMPONENTES
+9. CAIMENTO E ERGONOMIA
+10. ANÁLISE TÉCNICA COMPLEMENTAR
+
+**FORMATO ESPERADO:** Escreva 3-5 parágrafos corridos e detalhados cobrindo todos os 10 pontos técnicos. Use linguagem técnica especializada de moda e confecção. Seja extremamente detalhista, preciso e profissional. Esta análise técnica DEVE vir PRIMEIRO na sua resposta.
 
 ${characteristicsQuestions}`
               },
@@ -275,7 +371,7 @@ ${characteristicsQuestions}`
                 type: "image_url",
                 image_url: {
                   url: img.url,
-                  detail: "low"
+                  detail: "high"
                 }
               }))
             ]

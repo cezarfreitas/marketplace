@@ -368,7 +368,7 @@ FORMATO DE RESPOSTA:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: agent.model || 'gpt-4o-mini',
+          model: agent.model || 'gpt-4.1-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
@@ -757,7 +757,7 @@ Saída:
 
 FORMATO DE RESPOSTA OBRIGATÓRIO:
 Retorne EXATAMENTE 5 títulos numerados (1. 2. 3. 4. 5.), um por linha, sem explicações adicionais.`,
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       max_tokens: 100,
       temperature: 0.3
     };

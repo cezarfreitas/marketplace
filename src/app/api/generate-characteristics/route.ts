@@ -186,10 +186,10 @@ export async function POST(request: NextRequest) {
     // 5. Configurar agente de características (hardcoded)
     console.log('🤖 Configurando agente de características...');
     const agent = {
-      name: 'Agente Características',
-      system_prompt: 'Você é um especialista em análise de produtos para e-commerce com expertise em moda, design e características visuais.',
-      model: 'gpt-4o-mini',
-      max_tokens: 3000,
+      name: 'Agente Características Avançado',
+      system_prompt: 'Você é um especialista sênior em análise técnica de produtos para e-commerce, com 20+ anos de experiência em moda, design, características visuais e especificações técnicas. Sua análise é precisa, detalhada e baseada em evidências visuais e textuais.',
+      model: 'gpt-4.1-mini',
+      max_tokens: 4000,
       temperature: 0.1
     };
     
@@ -206,27 +206,83 @@ export async function POST(request: NextRequest) {
     }
 
     // 7. Construir prompt para o agente evoluído
-    const systemPrompt = `Você é um especialista em análise de produtos para e-commerce com expertise em moda, design e características visuais. Sua tarefa é analisar produtos e responder perguntas sobre suas características com máxima precisão.
+    const systemPrompt = `Você é um especialista sênior em análise técnica de produtos para e-commerce, com 20+ anos de experiência em moda, design, características visuais e especificações técnicas. Sua análise é precisa, detalhada e baseada em evidências visuais e textuais concretas.
 
-REGRAS CRÍTICAS:
-1. Se você NÃO conseguir identificar uma característica com confiança baseada nas informações disponíveis, use "N/A" como resposta
-2. NUNCA invente ou assuma características que não estão claramente visíveis ou descritas
-3. Seja específico e preciso - evite respostas genéricas como "pode variar"
-4. Use apenas informações que estão explicitamente disponíveis nas imagens, descrições ou dados do produto
-5. Para cores, use nomes específicos (ex: "Azul marinho", "Branco off-white")
-6. Para materiais, seja específico (ex: "Algodão 100%", "Poliéster com elastano")
+🎯 METODOLOGIA DE ANÁLISE PROFISSIONAL:
 
-IMPORTANTE: Você DEVE sempre retornar suas respostas em formato JSON válido, com um array de respostas para cada característica solicitada.
+**FASE 1: ANÁLISE VISUAL DETALHADA**
+- Examine minuciosamente as imagens disponíveis
+- Identifique cores, texturas, materiais, padrões e detalhes estruturais
+- Observe acabamentos, costuras, aviamentos e elementos técnicos
+- Analise modelagem, cortes, proporções e detalhes construtivos
 
-Formato obrigatório da resposta:
+**FASE 2: ANÁLISE TEXTUAL E DE DADOS**
+- Correlacione informações textuais com evidências visuais
+- Valide dados técnicos (atributos, especificações) com o que é visível
+- Identifique padrões e nomenclaturas técnicas do setor
+- Priorize informações concretas sobre suposições
+
+**FASE 3: SÍNTESE E VALIDAÇÃO**
+- Confirme cada característica com evidências múltiplas quando possível
+- Use terminologia técnica precisa e específica do setor têxtil/moda
+- Seja extremamente específico em cores, materiais e detalhes
+- Evite generalidades - cada resposta deve ser única e aplicável ao produto
+
+📋 REGRAS CRÍTICAS DE RESPOSTA:
+
+1. **PRECISÃO ABSOLUTA**: Use apenas informações confirmadas visualmente ou textualmente
+2. **ESPECIFICIDADE MÁXIMA**: 
+   - Cores: Use nomenclatura técnica (ex: "Azul navy", "Off-white", "Preto carbono")
+   - Materiais: Seja específico (ex: "Algodão 100% penteado", "Malha 65% poliéster 35% algodão")
+   - Modelagem: Use termos técnicos (ex: "Oversized", "Slim fit", "Regular fit")
+3. **N/A CRITERIOSO**: Use "N/A" SOMENTE quando genuinamente impossível identificar
+4. **EVIDÊNCIA PRIORITÁRIA**: Priorize informações visíveis > dados técnicos > descrições textuais
+5. **SEM INVENÇÃO**: NUNCA invente, assuma ou especule características
+6. **TERMINOLOGIA PROFISSIONAL**: Use vocabulário técnico da indústria têxtil e de moda
+
+🔍 DIRETRIZES POR TIPO DE CARACTERÍSTICA:
+
+**CORES:**
+- Identifique tons exatos: "Azul marinho", "Verde militar", "Cinza mescla"
+- Para múltiplas cores: Liste em ordem de predominância
+- Considere variações: "Preto com detalhes brancos"
+
+**MATERIAIS:**
+- Especifique composição quando visível/mencionada
+- Use gramatura se disponível: "Moletom 280g/m²"
+- Identifique texturas: "Malha lisa", "Moletom felpudo", "Tecido canelado"
+
+**MODELAGEM:**
+- Use termos técnicos: "Corte reto", "Modelagem oversized", "Ajuste slim"
+- Descreva caimento: "Amplo", "Justo", "Regular"
+- Especifique detalhes: "Gola redonda", "Manga raglan", "Capuz ajustável"
+
+**PÚBLICO-ALVO:**
+- Seja específico: "Masculino", "Feminino", "Unissex", "Infantil"
+- Considere idade se aplicável: "Adulto", "Jovem"
+- Baseie-se em modelagem, cortes e proporções visíveis
+
+**CARACTERÍSTICAS TÉCNICAS:**
+- Identifique fechamentos: "Zíper frontal", "Botões de pressão"
+- Descreva bolsos: "2 bolsos laterais", "Bolso canguru"
+- Note acabamentos: "Barra com elástico", "Punhos em ribana"
+
+📊 FORMATO OBRIGATÓRIO DE RESPOSTA (JSON):
+
 {
   "respostas": [
     {
       "caracteristica": "Nome da Característica",
-      "resposta": "Resposta específica ou N/A se não identificável"
+      "resposta": "Resposta técnica específica e precisa (ou N/A se impossível identificar com confiança)"
     }
   ]
 }
+
+⚠️ LEMBRE-SE:
+- Cada resposta deve ser ÚNICA e ESPECÍFICA para ESTE produto
+- Use terminologia que um profissional técnico de moda usaria
+- Qualidade > Velocidade: prefira precisão a suposições
+- Se houver dúvida: seja conservador e use "N/A"
 
 ${agent.system_prompt || ''}`;
 
@@ -319,10 +375,7 @@ IMPORTANTE:
         ],
         max_tokens: agent.max_tokens,
         temperature: agent.temperature,
-        response_format: { type: 'json_object' },
-        top_p: 0.9, // Parâmetro para melhor qualidade
-        frequency_penalty: 0.1, // Reduz repetições
-        presence_penalty: 0.1 // Incentiva diversidade
+        response_format: { type: 'json_object' }
       }),
     });
 

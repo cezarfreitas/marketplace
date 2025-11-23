@@ -42,8 +42,19 @@ export function BrandContextModal({ isOpen, onClose, brand, onContextGenerated }
       return;
     }
 
+    console.log('\n🎨 =====================================');
+    console.log('🎨 GERAÇÃO DE CONTEXTO - FRONTEND');
+    console.log('🎨 =====================================');
+    console.log('📋 Brand:', brand.name);
+    console.log('📋 Brand ID:', brand.id);
+    console.log('📋 Description Length:', brandDescription.length);
+
     setIsGenerating(true);
+    const startTime = Date.now();
+    
     try {
+      console.log('⏳ Enviando requisição para API...');
+      
       const response = await fetch('/api/brands/generate-context', {
         method: 'POST',
         headers: {
@@ -60,18 +71,30 @@ export function BrandContextModal({ isOpen, onClose, brand, onContextGenerated }
         }),
       });
 
+      const responseTime = Date.now() - startTime;
+      console.log(`⏱️  Tempo de requisição: ${responseTime}ms`);
+
       const result = await response.json();
+      console.log('📦 Resposta recebida:', result.success ? 'Sucesso' : 'Erro');
 
       if (result.success) {
+        console.log('✅ Contexto gerado com sucesso!');
+        console.log('📊 Tamanho do contexto:', result.data.context.length, 'caracteres');
         setGeneratedContext(result.data.context);
       } else {
+        console.error('❌ Erro ao gerar contexto:', result.message);
         alert('Erro ao gerar contexto: ' + result.message);
       }
     } catch (error) {
-      console.error('Erro ao gerar contexto:', error);
+      console.error('\n❌ =====================================');
+      console.error('❌ ERRO NO FRONTEND');
+      console.error('❌ =====================================');
+      console.error('❌ Erro:', error);
+      console.error('❌ =====================================\n');
       alert('Erro ao gerar contexto. Tente novamente.');
     } finally {
       setIsGenerating(false);
+      console.log('🎨 ===================================== \n');
     }
   };
 
@@ -81,8 +104,19 @@ export function BrandContextModal({ isOpen, onClose, brand, onContextGenerated }
       return;
     }
 
+    console.log('\n💾 =====================================');
+    console.log('💾 SALVANDO CONTEXTO NO BANCO');
+    console.log('💾 =====================================');
+    console.log('📋 Brand:', brand.name);
+    console.log('📋 Brand ID:', brand.id);
+    console.log('📋 Context Length:', generatedContext.length);
+
     setIsSaving(true);
+    const startTime = Date.now();
+    
     try {
+      console.log('⏳ Enviando para API...');
+      
       const response = await fetch(`/api/brands/${brand.id}/context`, {
         method: 'PUT',
         headers: {
@@ -93,18 +127,29 @@ export function BrandContextModal({ isOpen, onClose, brand, onContextGenerated }
         }),
       });
 
+      const responseTime = Date.now() - startTime;
+      console.log(`⏱️  Tempo de requisição: ${responseTime}ms`);
+
       const result = await response.json();
+      console.log('📦 Resposta recebida:', result.success ? 'Sucesso' : 'Erro');
 
       if (result.success) {
+        console.log('✅ Contexto salvo com sucesso no banco de dados!');
+        console.log('💾 ===================================== \n');
         onContextGenerated(brand.id, generatedContext);
         onClose();
         setGeneratedContext('');
         setBrandDescription('');
       } else {
+        console.error('❌ Erro ao salvar:', result.message);
         alert('Erro ao salvar contexto: ' + result.message);
       }
     } catch (error) {
-      console.error('Erro ao salvar contexto:', error);
+      console.error('\n❌ =====================================');
+      console.error('❌ ERRO AO SALVAR');
+      console.error('❌ =====================================');
+      console.error('❌ Erro:', error);
+      console.error('❌ =====================================\n');
       alert('Erro ao salvar contexto. Tente novamente.');
     } finally {
       setIsSaving(false);

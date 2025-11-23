@@ -102,12 +102,34 @@ export async function POST(request: NextRequest) {
             content: [
               {
                 type: "text",
-                text: `Detalhe tecnicamente a peça de vestuário desta foto como se fosse uma ficha técnica de moda (caimento, gola, mangas, corpo, estampa, acabamentos). 
+                text: `Crie uma análise técnica detalhada e profissional desta peça de vestuário como se fosse uma ficha técnica especializada de moda. 
 
 PRODUTO: ${productInfo.name}${productInfo.title ? ` - ${productInfo.title}` : ''}
 REF_ID: ${productInfo.ref_id || 'N/A'}
 
-Crie uma análise técnica profissional focando nos detalhes visíveis das imagens.`
+⚠️ **REGRAS CRÍTICAS - SOMENTE O QUE É VISÍVEL:**
+- NUNCA mencione gramaturas específicas (ex: 180g/m², 280g/m²) - você não pode medir isso
+- NUNCA mencione composições exatas (ex: "100% algodão") a menos que VISÍVEL em etiqueta
+- NUNCA mencione medidas específicas (ex: "gola de 2cm") - você não pode medir com precisão
+- NUNCA mencione idade do modelo/pessoa (ex: "jovem", "18-45 anos", "adulto jovem")
+- NUNCA use notas numéricas ou escalas (ex: "8/10", "qualidade 7/10")
+- Use termos descritivos visuais: "aparenta ser algodão", "textura lisa", "tecido com aspecto de moletom"
+- Para qualidade: use termos qualitativos ("confecção cuidadosa", "acabamento bem executado")
+- Se não tiver certeza absoluta, use: "aparenta", "parece ser", "possivelmente"
+
+**PONTOS OBRIGATÓRIOS DA ANÁLISE (BASEADOS NO VISÍVEL):**
+1. Tipo de peça, gênero e estilo
+2. Descrição visual do material e tecido (textura, aspecto aparente) - SEM gramaturas ou composições exatas
+3. Colorimetria detalhada (tons exatos, acabamento da cor)
+4. Modelagem e construção (corte, silhueta, proporções)
+5. Detalhes estruturais (gola, mangas, bolsos, fechamentos)
+6. Acabamentos e costuras visíveis (tipo aparente, qualidade visual)
+7. Estampas, aplicações e grafismos (técnica aparente, localização, tamanho)
+8. Aviamentos visíveis (botões, zíperes, etiquetas)
+9. Caimento e ergonomia visual (ajuste aparente ao corpo, mobilidade)
+10. Análise complementar visual (qualidade aparente, durabilidade estimada, uso recomendado)
+
+Use linguagem técnica especializada de moda e confecção para descrever APENAS o que é VISÍVEL. Seja extremamente detalhista, preciso e técnico no que você PODE VER. NUNCA especule sobre informações técnicas que não são visualmente evidentes.`
               },
               ...images.map(img => ({
                 type: "image_url",
@@ -130,10 +152,10 @@ Crie uma análise técnica profissional focando nos detalhes visíveis das image
             'Authorization': `Bearer ${openaiApiKey}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4.1-mini',
             messages: messages,
-            max_tokens: parseInt(agent.max_tokens) || 2000,
-            temperature: 0.7
+            max_tokens: parseInt(agent.max_tokens) || 6000,
+            temperature: 0.3
           })
         });
 

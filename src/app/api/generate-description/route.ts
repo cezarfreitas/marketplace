@@ -629,7 +629,7 @@ CTA FINAL PERSUASIVO:
 
 FORMATO DE SAÍDA (HTML BÁSICO COM <br>):
 [Descrição completa em HTML básico usando APENAS tags <b>, <br>, <ul>, <li> seguindo exatamente a estrutura definida com quebras de linha <br>]`,
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       temperature: 0.7,
       max_tokens: 2000
     };

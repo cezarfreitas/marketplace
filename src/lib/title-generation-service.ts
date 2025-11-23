@@ -199,7 +199,7 @@ IMPORTANTE: Conte mentalmente os caracteres antes de responder. O título deve t
 Título:`;
 
         const response = await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4.1-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
