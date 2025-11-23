@@ -126,15 +126,12 @@ function parseGeneratedTitles(content: string): string[] {
     titles.push(...simpleTitles);
   }
   
-  console.log(`📋 Processados ${titles.length} títulos:`, titles);
   return titles;
 }
 
 // Função para verificar se título já existe no banco
 async function checkTitleExists(title: string, productId: number, isRegeneration: boolean = false): Promise<boolean> {
   try {
-    console.log(`🔍 Verificando se título existe: "${title}" (Regeneração: ${isRegeneration})`);
-    
     // Para regeneração, verificar se existe para outros produtos
     // Para título novo, verificar se existe para qualquer produto
     const titlesQuery = isRegeneration 
@@ -146,11 +143,8 @@ async function checkTitleExists(title: string, productId: number, isRegeneration
     
     const exists = titlesCount > 0;
     
-    console.log(`📊 Resultado da verificação: Titles=${titlesCount}, Existe=${exists} (Regeneração: ${isRegeneration})`);
-    
     return exists;
   } catch (error) {
-    console.log('⚠️ Erro ao verificar duplicata de título:', error);
     return false; // Em caso de erro, assumir que não existe para não bloquear
   }
 }
@@ -191,7 +185,6 @@ function detectProperNames(productName: string): string[] {
     return !genericWords.some(word => lowerName.includes(word)) && name.length > 2;
   });
   
-  console.log(`🔍 Nomes próprios detectados em "${productName}":`, uniqueNames);
   return uniqueNames;
 }
 
@@ -208,12 +201,8 @@ async function generateTitleWithExclusiveAgent(
   isRegeneration: boolean = false
 ): Promise<{ success: boolean; data?: string; error?: string }> {
   try {
-    console.log('🎯 Gerando título com agente exclusivo...');
-    console.log(`🤖 Usando agente exclusivo: ${agent.name} (ID: ${agent.id})`);
-    
     // Detectar nomes próprios no produto
     const properNames = detectProperNames(product.name);
-    console.log(`🏷️ Nomes próprios detectados: ${properNames.length > 0 ? properNames.join(', ') : 'Nenhum'}`);
     
     // Gerar elementos criativos aleatórios
     const creativeElements = {
@@ -285,8 +274,6 @@ FORMATO DE RESPOSTA:
 Retorne APENAS o título, sem aspas, sem explicações.`;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`🔄 Tentativa ${attempt}/${maxAttempts} de geração de título...`);
-      
       // Gerar variações criativas para esta tentativa
       const creativeVariations = {
         approaches: [
@@ -385,52 +372,40 @@ FORMATO DE RESPOSTA:
       const content = responseData.choices[0]?.message?.content;
       
       if (!content) {
-        console.log(`❌ Resposta vazia na tentativa ${attempt}`);
         if (attempt === maxAttempts) {
           throw new Error('Resposta vazia da OpenAI');
         }
         continue;
       }
 
-      console.log(`📝 Conteúdo gerado (tentativa ${attempt}):`, content);
-
       // Processar os 5 títulos gerados
       const titles = parseGeneratedTitles(content);
       if (titles.length === 0) {
-        console.log(`❌ Nenhum título válido encontrado na tentativa ${attempt}, tentando novamente...`);
         continue;
       }
-
-      console.log(`📋 ${titles.length} títulos processados na tentativa ${attempt}`);
 
       // Tentar cada título até encontrar um válido e único
       for (let i = 0; i < titles.length; i++) {
         const title = titles[i];
-        console.log(`🔍 Testando título ${i + 1}/${titles.length}: "${title}" (${title.length} caracteres)`);
 
         // VALIDAÇÃO: Verificar se o título segue as regras do marketplace
         const validation = validateTitle(title);
         if (!validation.isValid) {
-          console.log(`❌ Título ${i + 1} inválido (${validation.errors.join(', ')})`);
           continue;
         }
         
         // VALIDAÇÃO: Verificar unicidade no banco
         const exists = await checkTitleExists(title, productId, isRegeneration);
         if (exists) {
-          console.log(`❌ Título ${i + 1} já existe no banco`);
           continue;
         }
 
         // Se chegou até aqui, o título é válido e único
-        console.log(`✅ Título ${i + 1} válido e único encontrado: "${title}"`);
         return {
           success: true,
           data: title
         };
       }
-
-      console.log(`❌ Nenhum dos ${titles.length} títulos foi válido na tentativa ${attempt}, tentando novamente...`);
     }
     
     // Se chegou aqui, todas as tentativas falharam
@@ -509,8 +484,6 @@ async function saveTitleToTitlesTable(
       validationPassed
     ]);
 
-    console.log('✅ Título salvo na tabela titles para produto ID:', productId);
-
     return {
       success: true,
       data: {
@@ -521,8 +494,6 @@ async function saveTitleToTitlesTable(
     };
 
   } catch (error: any) {
-    console.error('❌ Erro ao salvar título:', error);
-    
     return {
       success: false,
       error: error.message
@@ -603,10 +574,8 @@ export async function POST(request: NextRequest) {
     }
 
     const product = products[0];
-    console.log('📦 Produto encontrado:', product.name);
 
     // 2. Buscar SKUs do produto
-    console.log('🔍 Buscando SKUs do produto...');
     let skus = [];
     try {
       const skuQuery = `
@@ -618,21 +587,16 @@ export async function POST(request: NextRequest) {
       `;
       
       skus = await executeQuery(skuQuery, [numericProductId]);
-      console.log('📊 SKUs encontrados:', skus?.length || 0);
     } catch (error) {
-      console.log('⚠️ Erro ao buscar SKUs:', error);
       skus = [];
     }
 
     // 3. Especificações não disponíveis (tabela não existe)
-    console.log('⚠️ Especificações não disponíveis - tabela product_specifications não existe');
     const specifications: any[] = [];
 
     // 4. Buscar análise de imagens mais recente
     let imageAnalysis = null;
     try {
-      console.log('🔍 Buscando análise de imagens...');
-      
       // Buscar da tabela analise_imagens (tabela correta)
       const analysisQuery = `
         SELECT 
@@ -656,7 +620,6 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
     } catch (error) {
-      console.log('⚠️ Erro ao buscar análise de imagens:', error);
       return NextResponse.json({
         success: false,
         message: 'Erro ao buscar análise de imagens'
@@ -665,14 +628,11 @@ export async function POST(request: NextRequest) {
 
     // 5. Verificar se já existe título (se não for regeneração forçada)
     if (!forceRegenerate) {
-      console.log('🔍 Verificando se já existe título...');
       try {
         const existingQuery = `SELECT title FROM titles WHERE id_product_vtex = ? AND status = 'validated'`;
         const existing = await executeQuery(existingQuery, [numericProductId]);
-        console.log('📊 Títulos existentes:', existing?.length || 0);
         
         if (existing && existing.length > 0) {
-          console.log('✅ Título já existe, retornando...');
           return NextResponse.json({
             success: true,
             data: {
@@ -682,18 +642,14 @@ export async function POST(request: NextRequest) {
           });
         }
       } catch (error) {
-        console.log('⚠️ Erro ao verificar títulos existentes:', error);
         // Continuar com a geração mesmo se houver erro na verificação
       }
     } else {
-      console.log('🔄 Regeneração forçada - removendo títulos existentes...');
       try {
         // Remover títulos existentes para forçar nova geração
         const deleteQuery = `DELETE FROM titles WHERE id_product_vtex = ?`;
         await executeQuery(deleteQuery, [numericProductId]);
-        console.log('🗑️ Títulos existentes removidos para regeneração');
       } catch (error) {
-        console.log('⚠️ Erro ao remover títulos existentes:', error);
         // Continuar mesmo com erro
       }
     }
@@ -709,7 +665,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Configurar agente hardcoded para títulos
-    console.log('🤖 Configurando agente hardcoded para títulos...');
     const agent = {
       id: 1,
       name: 'Agente de Geração de Títulos',
@@ -754,11 +709,8 @@ Retorne EXATAMENTE 5 títulos numerados, sem explicações.`,
       max_tokens: 100,
       temperature: 0.3
     };
-    
-    console.log(`🤖 Agente hardcoded configurado: ${agent.name}`);
 
     // 7. Gerar título com agente exclusivo
-    console.log('🎯 Gerando título com agente exclusivo...');
     const titleStartTime = Date.now();
     const titleResponse = await generateTitleWithExclusiveAgent(
       product, 
@@ -772,10 +724,8 @@ Retorne EXATAMENTE 5 títulos numerados, sem explicações.`,
       forceRegenerate // isRegeneration
     );
     const titleGenerationTime = Date.now() - titleStartTime;
-    console.log(`🎯 Título gerado (${titleGenerationTime}ms):`, titleResponse.success ? 'Sucesso' : 'Erro');
     
     if (!titleResponse.success) {
-      console.log('❌ Erro na geração do título:', titleResponse.error);
       return NextResponse.json({
         success: false,
         message: titleResponse.error || 'Erro ao gerar título com agente exclusivo'
@@ -783,24 +733,22 @@ Retorne EXATAMENTE 5 títulos numerados, sem explicações.`,
     }
 
     const generatedTitle = titleResponse.data!;
-    console.log('✅ Título gerado com agente exclusivo:', generatedTitle);
     
     // Mostrar comparação entre nome antigo e novo
     console.log('\n' + '='.repeat(80));
     console.log('📊 COMPARAÇÃO DE TÍTULOS');
     console.log('='.repeat(80));
-    console.log(`📦 Nome Original (Antigo): "${product.name}"`);
+    console.log(`📦 Nome Original: "${product.name}"`);
     console.log(`   └─ Caracteres: ${product.name.length}`);
     console.log('');
-    console.log(`✨ Nome Otimizado (Novo): "${generatedTitle}"`);
+    console.log(`✨ Nome Otimizado: "${generatedTitle}"`);
     console.log(`   └─ Caracteres: ${generatedTitle.length}`);
     console.log('');
-    console.log(`📏 Economia: ${product.name.length - generatedTitle.length} caracteres`);
-    console.log(`⏱️  Tempo de geração: ${titleGenerationTime}ms`);
+    console.log(`📏 Diferença: ${generatedTitle.length - product.name.length > 0 ? '+' : ''}${generatedTitle.length - product.name.length} caracteres`);
+    console.log(`⏱️  Tempo: ${titleGenerationTime}ms`);
     console.log('='.repeat(80) + '\n');
 
     // 8. Salvar título no banco de dados
-    console.log('💾 Salvando título no banco de dados...');
     const saveResult = await saveTitleToTitlesTable(
       numericProductId,
       generatedTitle,
@@ -820,14 +768,12 @@ Retorne EXATAMENTE 5 títulos numerados, sem explicações.`,
     );
 
     if (!saveResult.success) {
-      console.log('❌ Erro ao salvar título:', saveResult.error);
       return NextResponse.json({
         success: false,
         message: 'Erro ao salvar título no banco de dados'
       }, { status: 500 });
     }
 
-    console.log('✅ Título gerado e salvo com sucesso!');
     return NextResponse.json({
       success: true,
       data: {
