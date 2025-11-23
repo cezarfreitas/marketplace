@@ -233,34 +233,56 @@ async function generateTitleWithExclusiveAgent(
     const randomBenefit = creativeElements.benefits[Math.floor(Math.random() * creativeElements.benefits.length)];
     const randomMaterial = creativeElements.materials[Math.floor(Math.random() * creativeElements.materials.length)];
 
-    const systemPrompt = agent.system_prompt || `Você é um ESPECIALISTA em criação de títulos para marketplace de moda.
+    const systemPrompt = agent.system_prompt || `Você é um ESPECIALISTA em otimização de títulos para marketplace de moda.
 
-🎯 OBJETIVO: Criar títulos otimizados, atrativos e dentro das regras do marketplace.
+🎯 OBJETIVO: Criar títulos que MAXIMIZEM vendas preservando os elementos-chave do produto.
 
-⚠️ REGRAS OBRIGATÓRIAS (NUNCA QUEBRAR):
+⚠️ REGRAS ABSOLUTAS:
+1. **MÁXIMO 60 caracteres** (limite absoluto - será rejeitado se ultrapassar)
+2. **NUNCA corte palavras** - use sinônimos curtos se necessário
+3. **SEM hífens (-)** no título
+4. **SEM promoções** - não use "Top", "Promoção", "Frete Grátis", "Oferta"
 
-1. **LIMITE DE CARACTERES**: MÁXIMO 60 caracteres (ABSOLUTO - títulos maiores serão rejeitados)
-2. **PALAVRAS COMPLETAS**: NUNCA corte ou trunce palavras - use sinônimos mais curtos se necessário
-3. **SEM HÍFENS**: Nunca use hífens (-) no título
-4. **SEM PROMOÇÕES**: Não use palavras como "Top", "Promoção", "Frete Grátis", "Oferta"
-5. **SEM REPETIÇÕES**: Não repita palavras desnecessariamente
+🔑 REGRAS DE PRIORIZAÇÃO (ORDEM DE IMPORTÂNCIA):
 
-⚽🏆 REGRA ESPECIAL - TIMES E JOGADORES (PRIORIDADE MÁXIMA):
-- Se o produto contém nome de TIME ou JOGADOR, estes DEVEM aparecer logo após o tipo de produto
-- Exemplos: "Camiseta Flamengo Masculina Preta", "Camiseta Messi Masculina Azul"
-- Times e jogadores são de ALTA BUSCA - sempre priorize quando presentes
+1️⃣ **PRESERVAR NOME ORIGINAL**: Use APENAS elementos do nome original + análise de imagem
+   - NÃO invente características não confirmadas
+   - NÃO adicione termos genéricos como "Casual", "Algodão" sem confirmação
+
+2️⃣ **TIPO COMPLETO**: Mantenha o tipo completo do produto
+   - ✅ "Camisa Polo" (não só "Polo")
+   - ✅ "Camiseta Regata" (não só "Regata")
+   - ✅ "Bermuda Moletom" (não só "Bermuda")
+
+3️⃣ **TIMES E JOGADORES**: Se houver, coloque logo após o tipo
+   - ✅ "Camiseta Flamengo Masculina Preta"
+   - ✅ "Camisa Polo Messi Argentina Azul"
+
+4️⃣ **MARCA**: Se for conhecida (Nike, Adidas, Ecko, etc.), destaque após tipo/time
+   - ✅ "Camisa Polo Ecko Masculina Vermelha"
+
+5️⃣ **CARACTERÍSTICAS TÉCNICAS**: Tecidos, modelos (Piquet, Dry Fit, etc.)
+   - ✅ "Camisa Polo Ecko Masculina Piquet Vermelha"
+
+6️⃣ **PÚBLICO**: Masculina, Feminina, Infantil, Unissex
+
+7️⃣ **COR**: Se couber no limite de 60 caracteres
 
 📌 ESTRUTURA IDEAL:
-[TIPO] + [TIME/JOGADOR se houver] + [MARCA se houver] + [PÚBLICO] + [COR se couber] + [CARACTERÍSTICA se couber]
+[TIPO COMPLETO] + [TIME/JOGADOR] + [MARCA] + [CARACTERÍSTICA TÉCNICA] + [PÚBLICO] + [COR]
 
-✅ EXEMPLOS CORRETOS:
-- "Camiseta Flamengo Masculina Preta Original" (45 chars) ✓
-- "Camiseta NFL Masculina Estampada Oficial" (41 chars) ✓
-- "Boné Ecko Aba Curva Preto Unissex" (34 chars) ✓
-- "Moletom Canguru Masculino Preto Confortável" (44 chars) ✓
+✅ EXEMPLOS PERFEITOS:
+- "Camisa Polo Ecko Masculina Vermelha Piquet" (48 chars) ✓
+- "Camiseta Flamengo Masculina Preta Oficial" (42 chars) ✓
+- "Bermuda Moletom Masculina Preta Confortável" (44 chars) ✓
+- "Camiseta Regata Masculina Branca Dry Fit" (41 chars) ✓
+
+❌ EXEMPLOS ERRADOS:
+- "Polo Masculina Ecko Vermelha Casual Algodão" (inventou "Casual" e "Algodão")
+- "Camiseta Preta Masculina" (perdeu marca e características importantes)
 
 FORMATO DE RESPOSTA:
-Retorne APENAS o título, sem aspas, sem explicações, sem formatação adicional.`;
+Retorne APENAS o título, sem aspas, sem explicações.`;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       console.log(`🔄 Tentativa ${attempt}/${maxAttempts} de geração de título...`);
@@ -291,21 +313,39 @@ Retorne APENAS o título, sem aspas, sem explicações, sem formatação adicion
       const randomEmotion = creativeVariations.emotions[Math.floor(Math.random() * creativeVariations.emotions.length)];
       const randomAction = creativeVariations.actions[Math.floor(Math.random() * creativeVariations.actions.length)];
 
-      const userPrompt = `Gere 5 títulos diferentes para este produto:
+      const userPrompt = `Gere 5 títulos otimizados para este produto:
 
-📦 PRODUTO:
-Nome: ${product.name}
+📦 DADOS DO PRODUTO:
+Nome Original: ${product.name}
 Marca: ${product.brand_name || 'Não especificada'}
 Categoria: ${product.category_name || 'Não especificada'}
 
 📸 ANÁLISE DA IMAGEM:
 ${imageAnalysis ? imageAnalysis.contextualizacao : 'Análise não disponível'}
 
-⚠️ INSTRUÇÃO CRÍTICA:
-1. Analise o nome do produto e identifique se há TIME ou JOGADOR
-2. Se detectar, coloque logo após o tipo de produto (ex: "Camiseta Flamengo Masculina")
-3. Máximo 60 caracteres por título
-4. Gere 5 variações diferentes
+🎯 INSTRUÇÕES CRÍTICAS:
+
+1. **ANALISE o "Nome Original"** e identifique:
+   - Tipo COMPLETO do produto (ex: "Camisa Polo", não só "Polo")
+   - TIME ou JOGADOR (se houver)
+   - MARCA (se for conhecida: Nike, Adidas, Ecko, Puma, etc.)
+   - CARACTERÍSTICAS TÉCNICAS (Piquet, Dry Fit, Moletom, etc.)
+   - COR principal
+
+2. **USE APENAS** elementos confirmados no nome original ou análise
+   - ❌ NÃO adicione "Casual", "Algodão", "Básica" sem confirmação
+   - ❌ NÃO remova partes importantes do tipo ("Camisa Polo" → "Polo")
+
+3. **PRIORIZE nesta ordem**:
+   - Tipo completo → Time/Jogador → Marca → Característica Técnica → Público → Cor
+
+4. **EXEMPLO PRÁTICO**:
+   - Nome: "Camisa Polo Ecko Piquet Vermelha"
+   - ✅ "Camisa Polo Ecko Masculina Vermelha Piquet" (48 chars)
+   - ❌ "Polo Masculina Ecko Vermelha Casual" (removeu "Camisa", inventou "Casual")
+
+5. Máximo 60 caracteres por título
+6. Gere EXATAMENTE 5 variações diferentes
 
 FORMATO DE RESPOSTA:
 1. [título 1]
@@ -673,32 +713,43 @@ export async function POST(request: NextRequest) {
     const agent = {
       id: 1,
       name: 'Agente de Geração de Títulos',
-      system_prompt: `Você é um especialista em criação de títulos para marketplace de moda.
+      system_prompt: `Você é um especialista em otimização de títulos para marketplace de moda.
 
-🎯 OBJETIVO: Criar títulos otimizados, curtos e dentro das regras.
+🎯 OBJETIVO: Criar títulos que preservem os elementos-chave do produto original.
 
-⚠️ REGRAS OBRIGATÓRIAS:
+⚠️ REGRAS ABSOLUTAS:
 1. MÁXIMO 60 caracteres (limite absoluto)
-2. NUNCA corte palavras - use sinônimos curtos se necessário
+2. NUNCA corte palavras - use sinônimos curtos
 3. SEM hífens (-)
-4. SEM palavras como "Top", "Promoção", "Frete Grátis"
+4. SEM promoções ("Top", "Frete Grátis", etc.)
 5. Gerar EXATAMENTE 5 títulos diferentes
 
-⚽🏆 PRIORIDADE MÁXIMA - TIMES E JOGADORES:
-- Se o produto tem TIME ou JOGADOR, coloque logo após o tipo de produto
-- Exemplos: "Camiseta Flamengo Masculina Preta", "Camiseta Messi Argentina Azul"
-- Times e jogadores são de ALTA BUSCA - sempre priorize
+🔑 PRIORIZAÇÃO (ordem de importância):
+1. **TIPO COMPLETO**: "Camisa Polo" (não só "Polo"), "Camiseta Regata" (não só "Regata")
+2. **TIMES/JOGADORES**: Se houver, logo após o tipo
+3. **MARCA**: Se for conhecida (Nike, Adidas, Ecko, Puma)
+4. **CARACTERÍSTICAS TÉCNICAS**: Piquet, Dry Fit, Moletom, etc.
+5. **PÚBLICO**: Masculina, Feminina, Infantil
+6. **COR**: Se couber
 
-📌 ESTRUTURA IDEAL:
-[TIPO] + [TIME/JOGADOR] + [PÚBLICO] + [COR] + [CARACTERÍSTICA]
+⚠️ IMPORTANTE:
+- USE APENAS informações do nome original + análise de imagem
+- NÃO invente características ("Casual", "Algodão" sem confirmação)
+- NÃO remova partes importantes do tipo
 
-✅ EXEMPLOS:
-1. Com time: "Camiseta Flamengo Masculina Preta Oficial" (45 chars)
-2. Com jogador: "Camiseta Messi Argentina Masculina Azul" (40 chars)
-3. Sem time: "Camiseta Masculina Preta Algodão Confortável" (46 chars)
+📌 ESTRUTURA:
+[TIPO COMPLETO] + [TIME/JOGADOR] + [MARCA] + [TÉCNICA] + [PÚBLICO] + [COR]
 
-FORMATO DE RESPOSTA:
-Retorne EXATAMENTE 5 títulos numerados (1. 2. 3. 4. 5.), um por linha, sem explicações.`,
+✅ EXEMPLOS CORRETOS:
+- "Camisa Polo Ecko Masculina Vermelha Piquet" (48 chars) ✓
+- "Camiseta Flamengo Masculina Preta Oficial" (42 chars) ✓
+- "Bermuda Moletom Masculina Preta Confortável" (44 chars) ✓
+
+❌ ERRADO:
+- "Polo Masculina Ecko Vermelha Casual" (removeu "Camisa", inventou "Casual")
+
+FORMATO:
+Retorne EXATAMENTE 5 títulos numerados, sem explicações.`,
       model: 'gpt-4.1-mini',
       max_tokens: 100,
       temperature: 0.3
