@@ -57,7 +57,9 @@ export async function GET(request: NextRequest) {
         b.imported_at,
         b.created_at,
         b.updated_at,
-        COALESCE(p.product_count, 0) as actual_product_count
+        COALESCE(p.product_count, 0) as actual_product_count,
+        COALESCE(a.anymarket_count, 0) as anymarket_count,
+        COALESCE(o.optimized_count, 0) as optimized_count
       FROM batches b
       LEFT JOIN (
         SELECT batch_id, COUNT(*) as product_count 
@@ -65,6 +67,22 @@ export async function GET(request: NextRequest) {
         WHERE batch_id IS NOT NULL
         GROUP BY batch_id
       ) p ON b.id = p.batch_id
+      LEFT JOIN (
+        SELECT pv.batch_id, COUNT(DISTINCT a.id_produto_any) as anymarket_count 
+        FROM products_vtex pv
+        INNER JOIN anymarket a ON pv.ref_produto = a.ref_produto_vtex
+        WHERE pv.batch_id IS NOT NULL AND a.id_produto_any IS NOT NULL
+        GROUP BY pv.batch_id
+      ) a ON b.id = a.batch_id
+      LEFT JOIN (
+        SELECT pv.batch_id, COUNT(DISTINCT pv.id_produto_vtex) as optimized_count
+        FROM products_vtex pv
+        INNER JOIN analise_imagens ai ON pv.id_produto_vtex = ai.id_produto_vtex
+        INNER JOIN anymarket a ON pv.ref_produto = a.ref_produto_vtex AND a.id_produto_any IS NOT NULL
+        INNER JOIN anymarket_sync_logs asl ON pv.id_produto_vtex = asl.id_produto_vtex AND asl.sync_type = 'crop'
+        WHERE pv.batch_id IS NOT NULL
+        GROUP BY pv.batch_id
+      ) o ON b.id = o.batch_id
       ${whereClause}
       ORDER BY b.created_at DESC
       LIMIT ${limit} OFFSET ${offset}

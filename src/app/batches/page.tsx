@@ -13,7 +13,8 @@ import {
   Package,
   Calendar,
   Archive,
-  CheckCircle
+  CheckCircle,
+  ShoppingCart
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -24,6 +25,8 @@ interface Batch {
   status: 'active' | 'archived';
   total_products: number;
   actual_product_count: number;
+  anymarket_count: number;
+  optimized_count: number;
   imported_at: string | null;
   created_at: string;
   updated_at: string;
@@ -287,6 +290,12 @@ export default function BatchesPage() {
                       Produtos
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Anymarket
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Otimizado
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Data de Criação
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -339,6 +348,24 @@ export default function BatchesPage() {
                             {batch.actual_product_count}
                           </span>
                           <span className="text-gray-500 ml-1">produtos</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center text-sm">
+                          <ShoppingCart className="h-4 w-4 text-purple-500 mr-1" />
+                          <span className="font-medium text-purple-700">
+                            {batch.anymarket_count || 0}
+                          </span>
+                          <span className="text-gray-500 ml-1">produtos</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center text-sm">
+                          <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                          <span className="font-medium text-green-700">
+                            {batch.optimized_count || 0}
+                          </span>
+                          <span className="text-gray-500 ml-1">completo</span>
                         </div>
                       </td>
                       <td className="px-4 py-4">
