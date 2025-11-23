@@ -13,8 +13,7 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10, // Aumentado para suportar mais operações simultâneas
   queueLimit: 50, // Aumentado significativamente para importações em lote
-  acquireTimeoutMillis: 120000, // 2 minutos para adquirir conexão (formato correto)
-  idleTimeout: 600000, // 10 minutos de timeout para conexões ociosas
+  connectTimeout: 120000, // 2 minutos para estabelecer conexão
   timezone: '-03:00', // UTC-3
   charset: 'utf8mb4',
   // Configurações adicionais para melhor performance
