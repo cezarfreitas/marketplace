@@ -233,61 +233,31 @@ async function generateTitleWithExclusiveAgent(
     const randomBenefit = creativeElements.benefits[Math.floor(Math.random() * creativeElements.benefits.length)];
     const randomMaterial = creativeElements.materials[Math.floor(Math.random() * creativeElements.materials.length)];
 
-    const systemPrompt = agent.system_prompt || `Você é um ESPECIALISTA em SEO e marketing para marketplace, focado na criação de títulos PERFEITOS que maximizem a visibilidade e conversão.
+    const systemPrompt = agent.system_prompt || `Você é um ESPECIALISTA em criação de títulos para marketplace de moda.
 
-📌 ESTRUTURA OBRIGATÓRIA IDEAL PARA MARKETPLACE:
-[TIPO DE PRODUTO] + [MARCA (OPCIONAL)] + [MODELO/ESTILO] + [CARACTERÍSTICA PRINCIPAL] + [COR (OPCIONAL)] + [PÚBLICO]
+🎯 OBJETIVO: Criar títulos otimizados, atrativos e dentro das regras do marketplace.
 
-🔑 REGRAS CRÍTICAS (NUNCA QUEBRAR):
-1. MÁXIMO 60 caracteres (limite obrigatório do marketplace)
-2. SEMPRE incluir: Tipo de Produto + Modelo/Estilo + Característica + Público
-3. Ordem importa: termo mais buscado vem primeiro (ex: "Camiseta NFL" e não "NFL Camiseta")
-4. NUNCA usar hífens (-) no título
-5. SEM palavras promocionais proibidas: "Top", "Promoção", "Mais Barata", "Frete Grátis"
-6. SEM repetições desnecessárias de palavras
-7. Otimizar para filtros: público e tipo devem aparecer para bater com os filtros da plataforma
-8. NUNCA cortar ou truncar palavras - todas as palavras devem estar completas
-9. Se não couber em 60 caracteres, use sinônimos mais curtos, não corte palavras
-10. Marca e Cor são OPCIONAIS - inclua apenas se for relevante e couber no limite de caracteres
+⚠️ REGRAS OBRIGATÓRIAS (NUNCA QUEBRAR):
 
-🎯 ELEMENTOS ESSENCIAIS:
-- Tipo de Produto: Camiseta, Boné, Jaqueta, Tênis, Moletom, Calça, Short, etc.
-- Marca/Licença: Nike, Adidas, NFL, NBA, Ecko, Onbongo, etc. (se oficial, usar "Original/Oficial")
-- Modelo/Estilo: Slim Fit, Casual, Estampada, Polo, Streetwear, Canguru, etc.
-- Característica Principal: Algodão, Bordado, Manga Longa, Moletom Grosso, etc.
-- Cor: sempre em português correto ("Bordô", não "Bordo")
-- Público: Masculina, Feminina, Unissex, Juvenil, Infantil
+1. **LIMITE DE CARACTERES**: MÁXIMO 60 caracteres (ABSOLUTO - títulos maiores serão rejeitados)
+2. **PALAVRAS COMPLETAS**: NUNCA corte ou trunce palavras - use sinônimos mais curtos se necessário
+3. **SEM HÍFENS**: Nunca use hífens (-) no título
+4. **SEM PROMOÇÕES**: Não use palavras como "Top", "Promoção", "Frete Grátis", "Oferta"
+5. **SEM REPETIÇÕES**: Não repita palavras desnecessariamente
 
-✅ EXEMPLOS DE TÍTULOS PERFEITOS:
-- "Camiseta NFL Masculina Estampada Original Oficial"
-- "Boné Ecko Aba Curva Preto Snapback Unissex Original"
-- "Moletom Canguru Masculino Casual Premium Confortável"
-- "Tênis Air Max Masculino Original Esportivo Moderno"
-- "Jaqueta Feminina Casual Oficial Elegante"
-- "Camiseta Polo Masculina Básica Clássica Premium"
-- "Calça Jeans Masculina Reta Original Denim"
+⚽🏆 REGRA ESPECIAL - TIMES E JOGADORES (PRIORIDADE MÁXIMA):
+- Se o produto contém nome de TIME ou JOGADOR, estes DEVEM aparecer logo após o tipo de produto
+- Exemplos: "Camiseta Flamengo Masculina Preta", "Camiseta Messi Masculina Azul"
+- Times e jogadores são de ALTA BUSCA - sempre priorize quando presentes
 
-🎯 ELEMENTOS CRIATIVOS PARA ESTA TENTATIVA:
-- Estilo Foco: ${randomStyle}
-- Qualidade Destaque: ${randomQuality}
-- Ocasião: ${randomOccasion}
-- Emoção: ${randomEmotion}
-- Benefício: ${randomBenefit}
-- Material: ${randomMaterial}
+📌 ESTRUTURA IDEAL:
+[TIPO] + [TIME/JOGADOR se houver] + [MARCA se houver] + [PÚBLICO] + [COR se couber] + [CARACTERÍSTICA se couber]
 
-💡 VOCABULÁRIO CRIATIVO EXPANDIDO:
-- Estilos: ${creativeElements.styles.join(', ')}
-- Qualidades: ${creativeElements.qualities.join(', ')}
-- Ocasiões: ${creativeElements.occasions.join(', ')}
-- Materiais: ${creativeElements.materials.join(', ')}
-- Padrões: ${creativeElements.patterns.join(', ')}
-
-🚀 TÉCNICAS CRIATIVAS:
-- Use sinônimos criativos (Camiseta = Blusa, Top, Camisa)
-- Varie a ordem das palavras
-- Adicione emoções (Confortável, Estiloso, Elegante)
-- Use palavras de ação (Para, Ideal, Perfeito)
-- Inclua benefícios (Conforto, Estilo, Qualidade)
+✅ EXEMPLOS CORRETOS:
+- "Camiseta Flamengo Masculina Preta Original" (45 chars) ✓
+- "Camiseta NFL Masculina Estampada Oficial" (41 chars) ✓
+- "Boné Ecko Aba Curva Preto Unissex" (34 chars) ✓
+- "Moletom Canguru Masculino Preto Confortável" (44 chars) ✓
 
 FORMATO DE RESPOSTA:
 Retorne APENAS o título, sem aspas, sem explicações, sem formatação adicional.`;
@@ -323,43 +293,26 @@ Retorne APENAS o título, sem aspas, sem explicações, sem formatação adicion
 
       const userPrompt = `Gere 5 títulos diferentes para este produto:
 
-=== ANÁLISE DA FOTOGRAFIA ===
-${imageAnalysis ? imageAnalysis.contextualizacao : 'Nenhuma análise de imagem disponível'}
+📦 PRODUTO:
+Nome: ${product.name}
+Marca: ${product.brand_name || 'Não especificada'}
+Categoria: ${product.category_name || 'Não especificada'}
 
-=== DADOS DO PRODUTO ===
-Nome Original: ${product.name}
-Marca: ${product.brand_name || 'N/A'}
-Categoria: ${product.category_name || 'N/A'}
-Ref ID: ${product.ref_id || 'N/A'}
+📸 ANÁLISE DA IMAGEM:
+${imageAnalysis ? imageAnalysis.contextualizacao : 'Análise não disponível'}
 
-=== NOMES PRÓPRIOS DETECTADOS ===
-${properNames.length > 0 ? properNames.map(name => `- ${name}`).join('\n') : 'Nenhum nome próprio detectado'}
-
-=== ESPECIFICAÇÕES TÉCNICAS ===
-${specifications.length > 0 ? specifications.map((spec, index) => `
-${index + 1}. ${spec.field_name}: ${spec.field_value_ids || 'N/A'} ${spec.field_group_name ? `(Grupo: ${spec.field_group_name})` : ''}
-`).join('') : 'Nenhuma especificação encontrada'}
-
-=== DADOS DOS SKUs ===
-${skus.length > 0 ? skus.map((sku, index) => `
-SKU ${index + 1}: ${sku.sku_name || 'N/A'} - ${sku.name || 'N/A'}
-`).join('') : 'Nenhum SKU encontrado'}
-
-=== INSTRUÇÕES ===
-- Gere EXATAMENTE 5 títulos diferentes
-- Cada título deve ter no máximo 60 caracteres
-- Inclua pelo menos: [tipo de peça], [marca], [público-alvo], [cor]
-- Varie a ordem, estilo e palavras-chave
-- Seja criativo mas não invente informações
-- ${properNames.length > 0 ? `IMPORTANTE: SEMPRE preserve os nomes próprios detectados: ${properNames.join(', ')}` : ''}
-- Tentativa ${attempt} de ${maxAttempts}
+⚠️ INSTRUÇÃO CRÍTICA:
+1. Analise o nome do produto e identifique se há TIME ou JOGADOR
+2. Se detectar, coloque logo após o tipo de produto (ex: "Camiseta Flamengo Masculina")
+3. Máximo 60 caracteres por título
+4. Gere 5 variações diferentes
 
 FORMATO DE RESPOSTA:
-1. [primeiro título]
-2. [segundo título]
-3. [terceiro título]
-4. [quarto título]
-5. [quinto título]`;
+1. [título 1]
+2. [título 2]
+3. [título 3]
+4. [título 4]
+5. [título 5]`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -720,43 +673,32 @@ export async function POST(request: NextRequest) {
     const agent = {
       id: 1,
       name: 'Agente de Geração de Títulos',
-      system_prompt: `Você é um especialista em SEO e naming criativo para e-commerce de moda.  
-Sua missão é gerar títulos curtos, atrativos e otimizados para produtos de roupas.
+      system_prompt: `Você é um especialista em criação de títulos para marketplace de moda.
 
-⚠️ Regras:
-- Cada título deve ter no máximo **60 caracteres**.  
-- Sempre gerar exatamente **5 opções diferentes**.  
-- O título deve conter pelo menos: [tipo de peça], [marca], [público-alvo], [cor].  
-- Pode variar ordem, estilo e palavras-chave (ex: casual, streetwear, slim fit, original, algodão).  
-- Seja criativo, mas não invente informações que não foram dadas.  
-- Os títulos devem ser diretos, claros e fáceis de entender.  
+🎯 OBJETIVO: Criar títulos otimizados, curtos e dentro das regras.
 
-🏷️ REGRA CRÍTICA - PRESERVAÇÃO DE NOMES PRÓPRIOS:
-- SEMPRE identifique e preserve nomes próprios do produto original (ex: "Boyd ST", "Air Max", "Pro LT", "Jordan 1")
-- Nomes próprios são combinações como: [Palavra] + [Sigla] (Boyd ST), [Palavra] + [Número] (Air Max 90), [Palavra] + [Palavra] (Super Star)
-- Se detectar nomes próprios, SEMPRE incluí-los nos títulos gerados
-- Nomes próprios são parte da identidade do produto e devem ser mantidos
+⚠️ REGRAS OBRIGATÓRIAS:
+1. MÁXIMO 60 caracteres (limite absoluto)
+2. NUNCA corte palavras - use sinônimos curtos se necessário
+3. SEM hífens (-)
+4. SEM palavras como "Top", "Promoção", "Frete Grátis"
+5. Gerar EXATAMENTE 5 títulos diferentes
 
-### Exemplo com nome próprio:
-Entrada: "Meia Stance Boyd ST Branca"
-Saída:
-1. Meia Stance Boyd ST Branca Masculina
-2. Meia Masculina Stance Boyd ST Branca  
-3. Meia Stance Boyd ST Branca Original
-4. Meia Boyd ST Stance Branca Masculina
-5. Meia Masculina Boyd ST Stance Branca
+⚽🏆 PRIORIDADE MÁXIMA - TIMES E JOGADORES:
+- Se o produto tem TIME ou JOGADOR, coloque logo após o tipo de produto
+- Exemplos: "Camiseta Flamengo Masculina Preta", "Camiseta Messi Argentina Azul"
+- Times e jogadores são de ALTA BUSCA - sempre priorize
 
-### Exemplo sem nome próprio:
-Entrada: "Camiseta Stance Masculina Casual Algodão Verde Militar"
-Saída:
-1. Camiseta Masculina Stance Verde Militar Algodão  
-2. Camiseta Stance Casual Masculina Verde Militar  
-3. Camiseta Masculina Stance Algodão Verde Militar  
-4. Camiseta Stance Verde Militar Masculina Original  
-5. Camiseta Masculina Stance Streetwear Verde Militar
+📌 ESTRUTURA IDEAL:
+[TIPO] + [TIME/JOGADOR] + [PÚBLICO] + [COR] + [CARACTERÍSTICA]
 
-FORMATO DE RESPOSTA OBRIGATÓRIO:
-Retorne EXATAMENTE 5 títulos numerados (1. 2. 3. 4. 5.), um por linha, sem explicações adicionais.`,
+✅ EXEMPLOS:
+1. Com time: "Camiseta Flamengo Masculina Preta Oficial" (45 chars)
+2. Com jogador: "Camiseta Messi Argentina Masculina Azul" (40 chars)
+3. Sem time: "Camiseta Masculina Preta Algodão Confortável" (46 chars)
+
+FORMATO DE RESPOSTA:
+Retorne EXATAMENTE 5 títulos numerados (1. 2. 3. 4. 5.), um por linha, sem explicações.`,
       model: 'gpt-4.1-mini',
       max_tokens: 100,
       temperature: 0.3
