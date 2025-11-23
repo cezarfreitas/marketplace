@@ -60,7 +60,27 @@ export async function POST(request: NextRequest) {
     const newTitle = titleResult[0].title;
     console.log('📝 Título encontrado:', newTitle);
 
-    // 2. Buscar SKUs atuais do produto no Anymarket
+    // 2. Buscar SKUs da tabela VTEX para obter os nomes originais
+    console.log('🔍 Buscando SKUs da tabela VTEX...');
+    const vtexSkusQuery = `
+      SELECT id_sku_vtex, name, ean 
+      FROM skus_vtex 
+      WHERE id_produto_vtex = ?
+    `;
+    
+    const vtexSkus = await executeQuery(vtexSkusQuery, [productId]);
+    console.log('📊 SKUs VTEX encontrados:', vtexSkus.length);
+    
+    // Criar mapeamento de EAN para nome original (para extrair tamanho)
+    const eanToOriginalName: Record<string, string> = {};
+    vtexSkus.forEach((vtexSku: any) => {
+      if (vtexSku.ean && vtexSku.name) {
+        eanToOriginalName[vtexSku.ean] = vtexSku.name;
+        console.log(`📋 Mapeamento EAN: ${vtexSku.ean} → ${vtexSku.name}`);
+      }
+    });
+
+    // 3. Buscar SKUs atuais do produto no Anymarket
     console.log('🔍 Buscando SKUs atuais do produto no Anymarket...');
     const skusUrl = `https://api.anymarket.com.br/v2/products/${anymarketId}/skus`;
     
@@ -100,23 +120,49 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3. Atualizar cada SKU
+    // 4. Atualizar cada SKU
     const updateResults = [];
     let successCount = 0;
     let errorCount = 0;
 
     for (const sku of skusData) {
       try {
-        // Extrair tamanho do nome atual do SKU
-        // Padrão esperado: "Nome do Produto - Tamanho"
         const currentTitle = sku.title || '';
-        const sizeMatch = currentTitle.match(/\s-\s([^-]+)$/);
-        const size = sizeMatch ? sizeMatch[1].trim() : 'Único';
+        
+        // Extrair tamanho do nome original do SKU (VTEX) usando EAN
+        let size = 'Único';
+        const skuEan = sku.ean || sku.partnerId;
+        
+        if (skuEan && eanToOriginalName[skuEan]) {
+          const originalName = eanToOriginalName[skuEan];
+          console.log(`📋 SKU ${sku.id} - Nome original VTEX: "${originalName}"`);
+          
+          // Extrair os últimos 13 caracteres do nome original
+          // Exemplo: "Camisa Polo Ecko Piquet Vermelha - P" → últimos 13 chars podem incluir " - P"
+          const last13Chars = originalName.slice(-13).trim();
+          console.log(`📏 Últimos 13 caracteres: "${last13Chars}"`);
+          
+          // Tentar extrair tamanho após o último " - "
+          const parts = originalName.split(' - ');
+          if (parts.length > 1) {
+            size = parts[parts.length - 1].trim();
+            console.log(`✅ Tamanho extraído: "${size}"`);
+          } else {
+            // Se não houver " - ", usar os últimos caracteres limpos
+            size = last13Chars.replace(/^[^a-zA-Z0-9]+/, '').trim() || 'Único';
+            console.log(`⚠️ Usando últimos caracteres como tamanho: "${size}"`);
+          }
+        } else {
+          console.log(`⚠️ SKU ${sku.id} - EAN não encontrado ou sem mapeamento, usando "Único"`);
+        }
         
         // Criar novo nome do SKU
         const newSkuTitle = `${newTitle} - ${size}`;
         
-        console.log(`🔄 Atualizando SKU ${sku.id}: "${currentTitle}" → "${newSkuTitle}"`);
+        console.log(`🔄 Atualizando SKU ${sku.id}:`);
+        console.log(`   Nome atual Anymarket: "${currentTitle}"`);
+        console.log(`   Nome original VTEX: "${skuEan && eanToOriginalName[skuEan] ? eanToOriginalName[skuEan] : 'N/A'}"`);
+        console.log(`   Novo nome: "${newSkuTitle}"`);
 
         // Preparar payload PATCH para atualização do SKU (apenas campos necessários)
         const skuUpdatePayload = {
@@ -142,6 +188,8 @@ export async function POST(request: NextRequest) {
           const updatedSku = await skuUpdateResponse.json();
           updateResults.push({
             sku_id: sku.id,
+            ean: skuEan,
+            vtex_original_name: skuEan && eanToOriginalName[skuEan] ? eanToOriginalName[skuEan] : 'N/A',
             old_title: currentTitle,
             new_title: newSkuTitle,
             size: size,
@@ -153,6 +201,8 @@ export async function POST(request: NextRequest) {
           const errorData = await skuUpdateResponse.json();
           updateResults.push({
             sku_id: sku.id,
+            ean: skuEan,
+            vtex_original_name: skuEan && eanToOriginalName[skuEan] ? eanToOriginalName[skuEan] : 'N/A',
             old_title: currentTitle,
             new_title: newSkuTitle,
             size: size,
@@ -168,8 +218,11 @@ export async function POST(request: NextRequest) {
 
       } catch (error) {
         console.error(`❌ Erro ao processar SKU ${sku.id}:`, error);
+        const skuEan = sku.ean || sku.partnerId;
         updateResults.push({
           sku_id: sku.id,
+          ean: skuEan || 'N/A',
+          vtex_original_name: skuEan && eanToOriginalName[skuEan] ? eanToOriginalName[skuEan] : 'N/A',
           old_title: sku.title || '',
           new_title: '',
           size: 'N/A',
