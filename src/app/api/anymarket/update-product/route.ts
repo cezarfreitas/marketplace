@@ -292,7 +292,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar características
-    if (productCharacteristics.length > 0) {
+    if (productCharacteristics && productCharacteristics.length > 0) {
       console.log(`🔧 ${productCharacteristics.length} características serão enviadas`);
       updates.push({
         field: 'Características do Produto',
@@ -367,12 +367,12 @@ export async function POST(request: NextRequest) {
       warrantyTime: 1, // ← VALOR FIXO OBRIGATÓRIO
       warrantyText: "Garantia de Fábrica", // ← VALOR FIXO OBRIGATÓRIO
       priceFactor: 1, // ← VALOR FIXO OBRIGATÓRIO
-      characteristics: productCharacteristics // ← Características da tabela respostas_caracteristicas
+      characteristics: productCharacteristics || [] // ← Características da tabela respostas_caracteristicas
     };
 
     console.log('📦 Payload PUT (campos específicos permitidos):', JSON.stringify(putPayload, null, 2));
     console.log('🔍 Valor final do model no payload:', putPayload.model);
-    console.log('🔍 Características incluídas no payload:', productCharacteristics.length > 0 ? productCharacteristics.map(c => `${c.name}: ${c.value}`).join(', ') : 'Nenhuma');
+    console.log('🔍 Características incluídas no payload:', productCharacteristics && productCharacteristics.length > 0 ? productCharacteristics.map(c => `${c.name}: ${c.value}`).join(', ') : 'Nenhuma');
     console.log('🔍 Estrutura do campo characteristics no payload:', JSON.stringify(putPayload.characteristics, null, 2));
 
     // 5. ETAPA 2: Fazer PATCH para atualizar produto (recomendado para características)
@@ -400,7 +400,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Adicionar operação para atualizar características se existirem
-    if (productCharacteristics.length > 0) {
+    if (productCharacteristics && productCharacteristics.length > 0) {
       patchOperations.push({
         op: 'replace',
         path: '/characteristics',
@@ -411,7 +411,7 @@ export async function POST(request: NextRequest) {
     const patchPayload: any = {
       title: newTitle,
       description: newDescription || anymarketData.description,
-      characteristics: productCharacteristics
+      characteristics: productCharacteristics || []
     };
 
     // Adicionar campo model se foi extraído da característica
@@ -499,7 +499,7 @@ export async function POST(request: NextRequest) {
 
     // Determinar quais campos foram atualizados para a mensagem
     const updatedFields = updates.map(update => update.field).join(' e ');
-    const characteristicsMessage = productCharacteristics.length > 0 ? ` e ${productCharacteristics.length} características` : '';
+    const characteristicsMessage = productCharacteristics && productCharacteristics.length > 0 ? ` e ${productCharacteristics.length} características` : '';
     const skuMessage = skuUpdateResult && skuUpdateResult.success ? ` e ${skuUpdateResult.data?.skus_updated || 0} SKUs` : '';
     
     return NextResponse.json({
@@ -509,13 +509,13 @@ export async function POST(request: NextRequest) {
         anymarket_id: anymarketId,
         action: 'product_updated_patch',
         updates: updates,
-        characteristics: productCharacteristics,
-        characteristics_count: productCharacteristics.length,
+        characteristics: productCharacteristics || [],
+        characteristics_count: productCharacteristics ? productCharacteristics.length : 0,
         sku_update: skuUpdateResult,
         patch_payload: {
           title: newTitle,
           description: newDescription || anymarketData.description,
-          characteristics: productCharacteristics
+          characteristics: productCharacteristics || []
         },
         response: patchResult,
         timestamp: new Date().toISOString()
