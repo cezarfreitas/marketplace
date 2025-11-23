@@ -565,13 +565,13 @@ export function AnymarketSyncModal({ isOpen, onClose, product, onSyncComplete }:
               </Card>
             )}
 
-            {/* JSON Enviado para Anymarket */}
+            {/* JSON Enviado para Anymarket - Produto */}
             {sentJsonData && currentStep === 'completed' && (
               <Card className="border-purple-200 bg-purple-50">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center space-x-2 text-sm">
                     <Hash className="w-4 h-4 text-purple-600" />
-                    <span>JSON Enviado para Anymarket</span>
+                    <span>JSON Enviado - Produto (ETAPA 2)</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -579,6 +579,43 @@ export function AnymarketSyncModal({ isOpen, onClose, product, onSyncComplete }:
                     <pre className="text-green-400 text-xs font-mono whitespace-pre-wrap break-words">
                       {JSON.stringify(sentJsonData, null, 2)}
                     </pre>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* JSON Enviado para Anymarket - SKUs */}
+            {updateResult && updateResult.sku_update && updateResult.sku_update.data && currentStep === 'completed' && (
+              <Card className="border-indigo-200 bg-indigo-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center space-x-2 text-sm">
+                    <Hash className="w-4 h-4 text-indigo-600" />
+                    <span>JSON Enviado - SKUs (ETAPA 3)</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-3">
+                    {/* Resumo */}
+                    <div className="bg-indigo-100 border border-indigo-300 rounded-lg p-3">
+                      <div className="text-indigo-800 text-sm font-medium mb-2">
+                        Resumo da Atualização de SKUs
+                      </div>
+                      <div className="text-indigo-600 text-xs space-y-1">
+                        <div><strong>Total de SKUs:</strong> {updateResult.sku_update.data.skus_total}</div>
+                        <div><strong>Atualizados:</strong> {updateResult.sku_update.data.skus_updated}</div>
+                        <div><strong>Erros:</strong> {updateResult.sku_update.data.skus_errors}</div>
+                        <div><strong>Título Base:</strong> {updateResult.sku_update.data.product_title}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Detalhes de cada SKU */}
+                    {updateResult.sku_update.data.update_results && updateResult.sku_update.data.update_results.length > 0 && (
+                      <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                        <pre className="text-cyan-400 text-xs font-mono whitespace-pre-wrap break-words">
+                          {JSON.stringify(updateResult.sku_update.data.update_results, null, 2)}
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
