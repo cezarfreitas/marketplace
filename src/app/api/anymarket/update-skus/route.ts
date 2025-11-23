@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // 2. Buscar SKUs da tabela VTEX para obter os nomes originais
     console.log('🔍 Buscando SKUs da tabela VTEX...');
     const vtexSkusQuery = `
-      SELECT id_sku_vtex, name, ean 
+      SELECT id_sku_vtex, name, ref_sku 
       FROM skus_vtex 
       WHERE id_produto_vtex = ?
     `;
@@ -71,12 +71,21 @@ export async function POST(request: NextRequest) {
     const vtexSkus = await executeQuery(vtexSkusQuery, [productId]);
     console.log('📊 SKUs VTEX encontrados:', vtexSkus.length);
     
-    // Criar mapeamento de EAN para nome original (para extrair tamanho)
-    const eanToOriginalName: Record<string, string> = {};
+    // Criar mapeamento de ref_sku para nome original (para extrair tamanho)
+    const refSkuToOriginalName: Record<string, string> = {};
+    const skuIdToOriginalName: Record<string, string> = {};
     vtexSkus.forEach((vtexSku: any) => {
-      if (vtexSku.ean && vtexSku.name) {
-        eanToOriginalName[vtexSku.ean] = vtexSku.name;
-        console.log(`📋 Mapeamento EAN: ${vtexSku.ean} → ${vtexSku.name}`);
+      if (vtexSku.name) {
+        // Mapear por ref_sku
+        if (vtexSku.ref_sku) {
+          refSkuToOriginalName[vtexSku.ref_sku] = vtexSku.name;
+          console.log(`📋 Mapeamento ref_sku: ${vtexSku.ref_sku} → ${vtexSku.name}`);
+        }
+        // Mapear também por id_sku_vtex
+        if (vtexSku.id_sku_vtex) {
+          skuIdToOriginalName[vtexSku.id_sku_vtex.toString()] = vtexSku.name;
+          console.log(`📋 Mapeamento id_sku: ${vtexSku.id_sku_vtex} → ${vtexSku.name}`);
+        }
       }
     });
 
@@ -129,39 +138,49 @@ export async function POST(request: NextRequest) {
       try {
         const currentTitle = sku.title || '';
         
-        // Extrair tamanho do nome original do SKU (VTEX) usando EAN
+        // Extrair tamanho do nome original do SKU (VTEX)
         let size = 'Único';
-        const skuEan = sku.ean || sku.partnerId;
+        let originalName = null;
         
-        if (skuEan && eanToOriginalName[skuEan]) {
-          const originalName = eanToOriginalName[skuEan];
-          console.log(`📋 SKU ${sku.id} - Nome original VTEX: "${originalName}"`);
-          
-          // Extrair os últimos 13 caracteres do nome original
-          // Exemplo: "Camisa Polo Ecko Piquet Vermelha - P" → últimos 13 chars podem incluir " - P"
-          const last13Chars = originalName.slice(-13).trim();
-          console.log(`📏 Últimos 13 caracteres: "${last13Chars}"`);
-          
-          // Tentar extrair tamanho após o último " - "
+        // Tentar encontrar o nome original por diferentes identificadores
+        const skuPartnerId = sku.partnerId; // ID do SKU na VTEX
+        const skuId = sku.id?.toString();
+        
+        // Prioridade 1: Buscar por partnerId (ref_sku)
+        if (skuPartnerId && refSkuToOriginalName[skuPartnerId]) {
+          originalName = refSkuToOriginalName[skuPartnerId];
+          console.log(`📋 SKU ${sku.id} - Nome original VTEX (via partnerId): "${originalName}"`);
+        }
+        // Prioridade 2: Buscar por id_sku_vtex
+        else if (skuPartnerId && skuIdToOriginalName[skuPartnerId]) {
+          originalName = skuIdToOriginalName[skuPartnerId];
+          console.log(`📋 SKU ${sku.id} - Nome original VTEX (via id_sku): "${originalName}"`);
+        }
+        
+        if (originalName) {
+          // Extrair tamanho após o último " - "
           const parts = originalName.split(' - ');
           if (parts.length > 1) {
             size = parts[parts.length - 1].trim();
             console.log(`✅ Tamanho extraído: "${size}"`);
           } else {
-            // Se não houver " - ", usar os últimos caracteres limpos
+            // Se não houver " - ", tentar extrair dos últimos caracteres
+            const last13Chars = originalName.slice(-13).trim();
+            console.log(`📏 Últimos 13 caracteres: "${last13Chars}"`);
             size = last13Chars.replace(/^[^a-zA-Z0-9]+/, '').trim() || 'Único';
             console.log(`⚠️ Usando últimos caracteres como tamanho: "${size}"`);
           }
         } else {
-          console.log(`⚠️ SKU ${sku.id} - EAN não encontrado ou sem mapeamento, usando "Único"`);
+          console.log(`⚠️ SKU ${sku.id} - partnerId: ${skuPartnerId} - Nome original não encontrado, usando "Único"`);
         }
         
         // Criar novo nome do SKU
         const newSkuTitle = `${newTitle} - ${size}`;
         
         console.log(`🔄 Atualizando SKU ${sku.id}:`);
+        console.log(`   partnerId: ${skuPartnerId}`);
         console.log(`   Nome atual Anymarket: "${currentTitle}"`);
-        console.log(`   Nome original VTEX: "${skuEan && eanToOriginalName[skuEan] ? eanToOriginalName[skuEan] : 'N/A'}"`);
+        console.log(`   Nome original VTEX: "${originalName || 'N/A'}"`);
         console.log(`   Novo nome: "${newSkuTitle}"`);
 
         // Preparar payload PATCH para atualização do SKU (apenas campos necessários)
@@ -188,11 +207,12 @@ export async function POST(request: NextRequest) {
           const updatedSku = await skuUpdateResponse.json();
           updateResults.push({
             sku_id: sku.id,
-            ean: skuEan,
-            vtex_original_name: skuEan && eanToOriginalName[skuEan] ? eanToOriginalName[skuEan] : 'N/A',
+            partner_id: skuPartnerId,
+            vtex_original_name: originalName || 'N/A',
             old_title: currentTitle,
             new_title: newSkuTitle,
             size: size,
+            payload_sent: skuUpdatePayload,
             success: true
           });
           successCount++;
@@ -201,11 +221,12 @@ export async function POST(request: NextRequest) {
           const errorData = await skuUpdateResponse.json();
           updateResults.push({
             sku_id: sku.id,
-            ean: skuEan,
-            vtex_original_name: skuEan && eanToOriginalName[skuEan] ? eanToOriginalName[skuEan] : 'N/A',
+            partner_id: skuPartnerId,
+            vtex_original_name: originalName || 'N/A',
             old_title: currentTitle,
             new_title: newSkuTitle,
             size: size,
+            payload_sent: skuUpdatePayload,
             success: false,
             error: errorData.message || 'Erro desconhecido'
           });
@@ -218,14 +239,14 @@ export async function POST(request: NextRequest) {
 
       } catch (error) {
         console.error(`❌ Erro ao processar SKU ${sku.id}:`, error);
-        const skuEan = sku.ean || sku.partnerId;
         updateResults.push({
           sku_id: sku.id,
-          ean: skuEan || 'N/A',
-          vtex_original_name: skuEan && eanToOriginalName[skuEan] ? eanToOriginalName[skuEan] : 'N/A',
+          partner_id: sku.partnerId || 'N/A',
+          vtex_original_name: 'N/A',
           old_title: sku.title || '',
           new_title: '',
           size: 'N/A',
+          payload_sent: null,
           success: false,
           error: error instanceof Error ? error.message : 'Erro desconhecido'
         });
