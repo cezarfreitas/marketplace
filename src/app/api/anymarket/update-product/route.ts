@@ -257,12 +257,21 @@ export async function POST(request: NextRequest) {
     console.log('✅ ETAPA 1 CONCLUÍDA: Dados do Anymarket obtidos');
     console.log('📋 ID do produto no Anymarket:', anymarketData.id, 'Tipo:', typeof anymarketData.id);
 
+    // Debug: Verificar variáveis antes de processar
+    console.log('🔍 DEBUG - Verificando variáveis:');
+    console.log('  - newTitle:', newTitle, 'tipo:', typeof newTitle);
+    console.log('  - newDescription:', newDescription ? 'existe' : 'null', 'tipo:', typeof newDescription);
+    console.log('  - productCharacteristics:', productCharacteristics ? `array com ${productCharacteristics.length} itens` : 'undefined/null', 'tipo:', typeof productCharacteristics);
+    console.log('  - anymarketData.title:', anymarketData.title);
+    console.log('  - anymarketData.description:', anymarketData.description ? 'existe' : 'null');
+
     // 3. Verificar se título, descrição ou características precisam ser atualizados
-    const updates = [];
+    const updates: any[] = [];
     let needsUpdate = false;
     
-    // Verificar título
-    if (anymarketData.title !== newTitle) {
+    try {
+      // Verificar título
+      if (anymarketData.title !== newTitle) {
       console.log(`📝 Título será atualizado: "${anymarketData.title}" → "${newTitle}"`);
       updates.push({
         field: 'Título do Produto',
@@ -277,11 +286,13 @@ export async function POST(request: NextRequest) {
     // Verificar descrição (apenas se existe descrição gerada)
     if (newDescription && anymarketData.description !== newDescription) {
       console.log(`📄 Descrição será atualizada`);
-      console.log(`📄 Descrição atual (${anymarketData.description.length} chars): ${anymarketData.description.substring(0, 100)}...`);
+      const currentDescLength = anymarketData.description ? anymarketData.description.length : 0;
+      const currentDescPreview = anymarketData.description ? anymarketData.description.substring(0, 100) : 'N/A';
+      console.log(`📄 Descrição atual (${currentDescLength} chars): ${currentDescPreview}...`);
       console.log(`📄 Nova descrição (${newDescription.length} chars): ${newDescription.substring(0, 100)}...`);
       updates.push({
         field: 'Descrição do Produto',
-        oldValue: anymarketData.description,
+        oldValue: anymarketData.description || 'Sem descrição',
         newValue: newDescription
       });
       needsUpdate = true;
@@ -302,6 +313,11 @@ export async function POST(request: NextRequest) {
       needsUpdate = true;
     } else {
       console.log('ℹ️ Nenhuma característica encontrada para enviar');
+    }
+    } catch (error: any) {
+      console.error('❌ Erro ao verificar atualizações necessárias:', error);
+      console.error('❌ Stack trace:', error.stack);
+      throw error;
     }
 
     // Se não há atualizações necessárias
