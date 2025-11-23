@@ -81,7 +81,7 @@ export class ProductImportModule {
    *   console.error(`Erro: ${result.message}`);
    * }
    */
-  async importProductByRefId(refId: string): Promise<ProductImportResult> {
+  async importProductByRefId(refId: string, batchId: number | null = null): Promise<ProductImportResult> {
     try {
       console.log(`📦 PASSO 1: Importando produto por RefId: ${refId}`);
 
@@ -149,6 +149,7 @@ export class ProductImportModule {
             list_store_id = ?,           -- ID da loja na lista
             adwords_remarketing_code = ?, -- Código AdWords
             lomadee_campaign_code = ?,   -- Código Lomadee
+            batch_id = ?,                -- ID do lote
             updated_at = NOW()           -- Data de atualização
           WHERE id_produto_vtex = ?
         `, [
@@ -172,6 +173,7 @@ export class ProductImportModule {
           null, // list_store_id (não disponível na API VTEX)
           product.AdWordsRemarketingCode,
           product.LomadeeCampaignCode,
+          batchId, // ID do lote
           product.Id
         ]);
         console.log(`✅ Produto atualizado com sucesso: ${product.Name}`);
@@ -201,8 +203,9 @@ export class ProductImportModule {
             show_without_stock,          -- Mostrar sem estoque
             list_store_id,               -- ID da loja na lista
             adwords_remarketing_code,    -- Código AdWords
-            lomadee_campaign_code        -- Código Lomadee
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            lomadee_campaign_code,       -- Código Lomadee
+            batch_id                     -- ID do lote
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           product.Id,                    // ID da VTEX
           product.Name,                  // Nome
@@ -224,9 +227,10 @@ export class ProductImportModule {
           product.ShowWithoutStock,      // Mostrar sem estoque
           null,                          // list_store_id (não disponível na API VTEX)
           product.AdWordsRemarketingCode, // Código AdWords
-          product.LomadeeCampaignCode    // Código Lomadee
+          product.LomadeeCampaignCode,   // Código Lomadee
+          batchId                        // ID do lote
         ]);
-        productId = (insertResult as any).insertId!;
+        productId = product.Id; // Usar o ID da VTEX como productId
         console.log(`✅ Produto inserido com sucesso: ${product.Name} (ID: ${productId})`);
       }
 

@@ -35,6 +35,7 @@ export interface FastBatchImportResult {
  */
 export interface FastBatchImportConfig {
   batchSize: number;
+  batchId?: number | null;
   importImages?: boolean;
   importStock?: boolean;
   importAttributes?: boolean;
@@ -95,7 +96,7 @@ export class FastBatchImportModule {
     
     for (const refId of refIds) {
       try {
-        const productResult = await this.productImporter.importProductByRefId(refId);
+        const productResult = await this.productImporter.importProductByRefId(refId, config.batchId || null);
         if (productResult.success && productResult.data?.product?.Id) {
           const skuResult = await this.skuImporter.importSkusByProductId(productResult.data.product.Id);
           if (skuResult.success && skuResult.data?.skus) {
@@ -205,7 +206,7 @@ export class FastBatchImportModule {
       // PASSO 1: Importar produto
       let productResult = null;
       try {
-        productResult = await this.productImporter.importProductByRefId(refId);
+        productResult = await this.productImporter.importProductByRefId(refId, config.batchId || null);
         if (!productResult.success) {
           errors.push(`Erro ao importar produto: ${productResult.message}`);
         }
