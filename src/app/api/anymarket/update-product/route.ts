@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
+import { detectGenderWithFallback } from '@/lib/gender-mapper';
 
 // Função auxiliar para salvar logs de sincronização - VERSÃO SIMPLIFICADA
 async function saveSyncLog(productId: number, anymarketId: string, title: string, description: string, success: boolean, responseData: any, errorMessage?: string, syncType: string = 'info', action: string = 'update') {
@@ -354,10 +355,14 @@ export async function POST(request: NextRequest) {
     const characteristicsData = await executeQuery(modelCharacteristicsQuery, [productId]);
     console.log('📋 Características encontradas na tabela:', characteristicsData.length);
     
-    // Procurar pela característica "modelo"
-    console.log('🔍 Procurando característica "modelo" em:', characteristicsData.map(c => c.caracteristica));
+    // Procurar pela característica "modelo" e "gênero"
+    console.log('🔍 Procurando características "modelo" e "gênero" em:', characteristicsData.map(c => c.caracteristica));
     const modeloChar = characteristicsData.find((char: any) => 
       char.caracteristica && char.caracteristica.toLowerCase().includes('modelo')
+    );
+    
+    const genderChar = characteristicsData.find((char: any) => 
+      char.caracteristica && (char.caracteristica.toLowerCase().includes('gênero') || char.caracteristica.toLowerCase().includes('genero'))
     );
     
     if (modeloChar && modeloChar.resposta) {
@@ -369,6 +374,13 @@ export async function POST(request: NextRequest) {
       console.log('🔍 Características disponíveis:', characteristicsData.map(c => ({ caracteristica: c.caracteristica, resposta: c.resposta })));
     }
     
+    // Detectar gênero inteligentemente: primeiro pelo título, depois pelas características
+    console.log('🔍 Detectando gênero do produto...');
+    console.log('📝 Título:', newTitle);
+    console.log('📝 Característica de gênero:', genderChar?.resposta || 'não encontrada');
+    const genderValue = detectGenderWithFallback(newTitle, genderChar?.resposta);
+    console.log('✅ Gênero detectado:', genderValue);
+    
     // Usar APENAS os campos específicos permitidos na Etapa 2
     // Valores vêm APENAS do payload da primeira etapa (anymarketData)
     // ID: usa o id do anymarketData (já obtido na primeira etapa)
@@ -379,7 +391,7 @@ export async function POST(request: NextRequest) {
       category: anymarketData.category,
       brand: anymarketData.brand,
       model: modeloValue, // ← Valor da característica "modelo" ou valor padrão
-      gender: anymarketData.gender,
+      gender: genderValue, // ← Gênero detectado inteligentemente do título ou características
       warrantyTime: 1, // ← VALOR FIXO OBRIGATÓRIO
       warrantyText: "Garantia de Fábrica", // ← VALOR FIXO OBRIGATÓRIO
       priceFactor: 1, // ← VALOR FIXO OBRIGATÓRIO
@@ -434,6 +446,13 @@ export async function POST(request: NextRequest) {
     if (modeloValue && modeloValue !== anymarketData.model) {
       patchPayload.model = modeloValue;
       console.log('✅ Campo model adicionado ao payload PATCH:', modeloValue);
+    }
+    
+    // Adicionar campo gender (sempre enviar o valor detectado)
+    if (genderValue && genderValue !== anymarketData.gender) {
+      patchPayload.gender = genderValue;
+      console.log('✅ Campo gender adicionado ao payload PATCH:', genderValue);
+      console.log('🔄 Alterando de:', anymarketData.gender, '→', genderValue);
     }
 
     console.log('📦 Payload PATCH (merge-patch):', JSON.stringify(patchPayload, null, 2));

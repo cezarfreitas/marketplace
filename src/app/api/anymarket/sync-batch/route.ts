@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
+import { detectGenderWithFallback } from '@/lib/gender-mapper';
 
 /**
  * Converte texto puro em HTML formatado para a Anymarket
@@ -213,7 +214,7 @@ export async function POST(request: NextRequest) {
         // 4. Preparar dados para envio ao Anymarket
         const characteristics: any[] = [];
         let modelValue = null;
-        let genderValue = null;
+        let genderCharacteristicValue = null; // Valor das características para fallback
         let warrantyTimeValue = null;
         let warrantyTextValue = null;
         let heightValue = null;
@@ -235,17 +236,8 @@ export async function POST(request: NextRequest) {
               modelValue = char.resposta;
             }
             if (char.caracteristica.toLowerCase().includes('gênero') || char.caracteristica.toLowerCase().includes('genero')) {
-              // Mapear gênero para o formato do Anymarket
-              const genderLower = char.resposta.toLowerCase();
-              if (genderLower.includes('masculino') || genderLower.includes('male')) {
-                genderValue = 'MALE';
-              } else if (genderLower.includes('feminino') || genderLower.includes('female')) {
-                genderValue = 'FEMALE';
-              } else if (genderLower.includes('unissex') || genderLower.includes('unisex')) {
-                genderValue = 'UNISEX';
-              } else {
-                genderValue = 'UNISEX'; // Default
-              }
+              // Armazenar valor da característica para usar como fallback
+              genderCharacteristicValue = char.resposta;
             }
             
             // Extrair valores específicos para garantia
@@ -296,6 +288,13 @@ export async function POST(request: NextRequest) {
           }
         });
         
+        // Detectar gênero inteligentemente: primeiro pelo título, depois pelas características
+        console.log(`🔍 Detectando gênero do produto ${productId}...`);
+        console.log(`📝 Título: ${title}`);
+        console.log(`📝 Característica de gênero: ${genderCharacteristicValue || 'não encontrada'}`);
+        const genderValue = detectGenderWithFallback(title, genderCharacteristicValue || undefined);
+        console.log(`✅ Gênero detectado para produto ${productId}:`, genderValue);
+        
         // Preparar payload base
         const anymarketPayload: any = {
           title: title,
@@ -303,14 +302,13 @@ export async function POST(request: NextRequest) {
           characteristics: characteristics
         };
 
-        // Adicionar campos model e gender se disponíveis
+        // Adicionar campos model e gender
         if (modelValue) {
           anymarketPayload.model = modelValue;
         }
         
-        if (genderValue) {
-          anymarketPayload.gender = genderValue;
-        }
+        // Sempre adicionar gender (já detectado com fallback para UNISSEX)
+        anymarketPayload.gender = genderValue;
         
         // Adicionar campos de garantia se disponíveis
         if (warrantyTimeValue !== null) {
@@ -355,7 +353,7 @@ export async function POST(request: NextRequest) {
           characteristics_count: characteristics.length,
           characteristics: characteristics.map(c => `${c.name}: ${c.value}`),
           model: modelValue || 'não informado',
-          gender: genderValue || 'não informado',
+          gender: genderValue,
           warrantyTime: warrantyTimeValue || 'não informado',
           warrantyText: warrantyTextValue || 'não informado',
           height: heightValue || 'não informado',
