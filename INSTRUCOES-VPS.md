@@ -1,14 +1,17 @@
 # 🚀 Instruções para Atualizar o VPS
 
-## ⚠️ IMPORTANTE: Adicionar Variável de Ambiente
+## ✅ ATUALIZAÇÃO: Detecção Automática Implementada!
 
-Para resolver o erro `ECONNREFUSED ::1:3000` no VPS, você **DEVE** adicionar a seguinte variável de ambiente ao arquivo `.env`:
+**A partir do commit `5b4e962`, a variável `NEXT_PUBLIC_APP_URL` NÃO é mais obrigatória!**
 
-```env
-NEXT_PUBLIC_APP_URL=https://b2b-seo.jzo3qo.easypanel.host
-```
+O sistema agora detecta automaticamente a URL base a partir dos headers do request:
+- ✅ Detecta automaticamente o domínio
+- ✅ Detecta automaticamente a porta
+- ✅ Detecta automaticamente o protocolo (http/https)
 
-## 📋 Passos para Atualizar
+**Você pode remover a variável `NEXT_PUBLIC_APP_URL` do `.env` se quiser!**
+
+## 📋 Passos SIMPLES para Atualizar
 
 ### 1. Conectar ao VPS
 
@@ -28,29 +31,13 @@ cd /caminho/do/seu/projeto
 git pull origin master
 ```
 
-### 4. Adicionar a variável de ambiente
-
-```bash
-# Editar o arquivo .env
-nano .env
-
-# Adicionar esta linha (se não existir):
-NEXT_PUBLIC_APP_URL=https://b2b-seo.jzo3qo.easypanel.host
-```
-
-### 5. Instalar dependências (se necessário)
-
-```bash
-npm install
-```
-
-### 6. Fazer build da aplicação
+### 4. Fazer build da aplicação
 
 ```bash
 npm run build
 ```
 
-### 7. Reiniciar o servidor
+### 5. Reiniciar o servidor
 
 ```bash
 # Se estiver usando PM2:
@@ -62,6 +49,8 @@ docker-compose restart
 # Ou se estiver usando systemd:
 sudo systemctl restart seu-servico
 ```
+
+**É SÓ ISSO! Não precisa mais configurar variáveis de ambiente!** 🎉
 
 ## ✅ Verificação
 
@@ -80,36 +69,62 @@ sudo journalctl -u seu-servico -f
 
 ## 🎯 O Que Foi Corrigido
 
-### Commit 1: Detecção de Gênero Automática
+### Commit 1: Detecção de Gênero Automática (5ea8f54)
 - ✅ Implementa detecção inteligente de gênero do título
 - ✅ Mapeia português → inglês (MALE, FEMALE, BOY, GIRL, etc.)
 - ✅ Sistema de fallback: título → características → UNISSEX
 
-### Commit 2: Correção IPv6 Básica
+### Commit 2: Correção IPv6 Básica (47545b0)
 - ✅ Altera `localhost` para `127.0.0.1` nas URLs internas
 
-### Commit 3: Solução Definitiva (ATUAL)
+### Commit 3: Solução com Variável de Ambiente (f96e865)
 - ✅ Cria função `getApiBaseUrlFromRequest()` 
 - ✅ Detecta automaticamente a URL base do request
 - ✅ Usa variável `NEXT_PUBLIC_APP_URL` em produção
 - ✅ Funciona com qualquer porta (80, 3000, etc.)
 - ✅ Resolve problema de IPv6 definitivamente
 
-## 📝 Arquivo Criado
+### Commit 4: Logs de Debug (f618817)
+- ✅ Adiciona logs detalhados para diagnóstico
+- ✅ Mostra URL, ambiente e variáveis de configuração
+
+### Commit 5: Detecção 100% Automática (5b4e962) ⭐ **ATUAL**
+- ✅ **Remove necessidade de `NEXT_PUBLIC_APP_URL`**
+- ✅ Detecta automaticamente do header do request
+- ✅ Funciona em qualquer ambiente sem configuração
+- ✅ Aplica em `optimize-batch-no-crop-stream`
+- ✅ Aplica em `analyze-images-batch-stream`
+
+## 🔧 Como Funciona a Detecção Automática
+
+A função `getApiBaseUrlFromRequest()` detecta automaticamente a URL base:
 
 ```typescript
 // src/lib/api-url.ts
 export function getApiBaseUrlFromRequest(request: Request): string {
-  const host = request.headers.get('host');
+  const host = request.headers.get('host');              // Ex: b2b-seo.jzo3qo.easypanel.host
   const protocol = request.headers.get('x-forwarded-proto') || 'http';
   
   if (host) {
-    return `${protocol}://${host}`;
+    return `${protocol}://${host}`;  // Ex: https://b2b-seo.jzo3qo.easypanel.host
   }
   
-  return getApiBaseUrl();
+  return getApiBaseUrl();  // Fallback
 }
 ```
+
+**Exemplos de Detecção:**
+
+| Ambiente | Host Header | Protocolo | URL Detectada |
+|----------|-------------|-----------|---------------|
+| VPS (Porta 80) | `b2b-seo.jzo3qo.easypanel.host` | `https` | `https://b2b-seo.jzo3qo.easypanel.host` ✅ |
+| Local (Porta 3000) | `localhost:3000` | `http` | `http://localhost:3000` ✅ |
+| Docker (Porta 8080) | `meuapp.com:8080` | `https` | `https://meuapp.com:8080` ✅ |
+
+**Resultado:**
+- ✅ Sempre detecta corretamente
+- ✅ Não precisa configuração manual
+- ✅ Funciona em qualquer ambiente
 
 ## 🔄 Arquivos Modificados
 
