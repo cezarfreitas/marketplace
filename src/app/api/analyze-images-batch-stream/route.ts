@@ -3,24 +3,6 @@ import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 import { getApiBaseUrlFromRequest } from '@/lib/api-url';
 
-// Helper para obter a URL base correta (com fallback)
-function getBaseUrl(): string {
-  const url = process.env.NEXT_PUBLIC_APP_URL || (
-    process.env.NODE_ENV === 'production' 
-      ? 'https://b2b-seo.jzo3qo.easypanel.host'
-      : 'http://127.0.0.1:3000'
-  );
-  
-  console.log('🔧 [DEBUG] getBaseUrl (fallback):', {
-    url,
-    env: process.env.NODE_ENV,
-    hasEnvVar: !!process.env.NEXT_PUBLIC_APP_URL,
-    envVarValue: process.env.NEXT_PUBLIC_APP_URL || 'não definido'
-  });
-  
-  return url;
-}
-
 interface BatchAnalysisResult {
   productId: number;
   productName: string;
@@ -497,7 +479,7 @@ async function executeImageCrop(productId: number, baseUrl: string): Promise<{ s
       try {
         // Upload da imagem processada
         console.log(`📤 Fazendo upload da imagem ${i + 1}/${processedImages.length}...`);
-        const uploadResponse = await fetch(`${getBaseUrl()}/api/upload-image`, {
+        const uploadResponse = await fetch(`${baseUrl}/api/upload-image`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -515,7 +497,7 @@ async function executeImageCrop(productId: number, baseUrl: string): Promise<{ s
           
           // Enviar para Anymarket
           console.log(`📤 Enviando imagem ${i + 1} para Anymarket...`);
-          const anymarketUploadResponse = await fetch(`${getBaseUrl()}/api/anymarket/upload-image`, {
+          const anymarketUploadResponse = await fetch(`${baseUrl}/api/anymarket/upload-image`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
