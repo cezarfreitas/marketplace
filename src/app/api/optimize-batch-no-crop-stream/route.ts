@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
+import { getApiBaseUrlFromRequest } from '@/lib/api-url';
 
-// Helper para obter a URL base correta
+// Helper para obter a URL base correta (com fallback)
 function getBaseUrl(): string {
   const url = process.env.NEXT_PUBLIC_APP_URL || (
     process.env.NODE_ENV === 'production' 
@@ -10,7 +11,7 @@ function getBaseUrl(): string {
       : 'http://127.0.0.1:3000'
   );
   
-  console.log('🔧 [DEBUG] getBaseUrl:', {
+  console.log('🔧 [DEBUG] getBaseUrl (fallback):', {
     url,
     env: process.env.NODE_ENV,
     hasEnvVar: !!process.env.NEXT_PUBLIC_APP_URL
@@ -36,7 +37,7 @@ interface BatchOptimizationResult {
 }
 
 // Função para executar análise de imagem de um produto
-async function executeImageAnalysis(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeImageAnalysis(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`🖼️ Executando análise de imagem para produto ${productId}...`);
     
@@ -53,7 +54,6 @@ async function executeImageAnalysis(productId: number): Promise<{ success: boole
       return { success: false, error: 'Produto não possui categoria definida' };
     }
     
-    const baseUrl = getBaseUrl();
     console.log(`🔗 Fazendo fetch para: ${baseUrl}/api/analyze-images`);
     
     const response = await fetch(`${baseUrl}/api/analyze-images`, {
@@ -91,11 +91,11 @@ async function executeImageAnalysis(productId: number): Promise<{ success: boole
 }
 
 // Função para gerar título de um produto
-async function executeTitleGeneration(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeTitleGeneration(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`📝 Executando geração de título para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/generate-title`, {
+    const response = await fetch(`${baseUrl}/api/generate-title`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -129,11 +129,11 @@ async function executeTitleGeneration(productId: number): Promise<{ success: boo
 }
 
 // Função para gerar descrição de um produto
-async function executeDescriptionGeneration(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeDescriptionGeneration(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`📄 Executando geração de descrição para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/generate-description`, {
+    const response = await fetch(`${baseUrl}/api/generate-description`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -161,11 +161,11 @@ async function executeDescriptionGeneration(productId: number): Promise<{ succes
 }
 
 // Função para gerar características de um produto
-async function executeCharacteristicsGeneration(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeCharacteristicsGeneration(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`🏷️ Executando geração de características para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/generate-characteristics`, {
+    const response = await fetch(`${baseUrl}/api/generate-characteristics`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -193,12 +193,12 @@ async function executeCharacteristicsGeneration(productId: number): Promise<{ su
 }
 
 // Função para sincronizar produto com AnyMarket
-async function executeAnymarketSync(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeAnymarketSync(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`🔄 Executando sincronização AnyMarket para produto ${productId}...`);
     
     // 1. Buscar dados do produto no Anymarket
-    const fetchResponse = await fetch(`${getBaseUrl()}/api/anymarket/fetch-product`, {
+    const fetchResponse = await fetch(`${baseUrl}/api/anymarket/fetch-product`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ async function executeAnymarketSync(productId: number): Promise<{ success: boole
     }
 
     // 2. Atualizar produto no Anymarket
-    const updateResponse = await fetch(`${getBaseUrl()}/api/anymarket/update-product`, {
+    const updateResponse = await fetch(`${baseUrl}/api/anymarket/update-product`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -259,6 +259,10 @@ export async function POST(request: NextRequest) {
     if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
       return new Response('Lista de IDs de produtos é obrigatória', { status: 400 });
     }
+
+    // Detectar URL base automaticamente do request
+    const baseUrl = getApiBaseUrlFromRequest(request);
+    console.log(`🔧 URL base detectada automaticamente: ${baseUrl}`);
 
     console.log(`🚀 Iniciando otimização em lote (sem crop) para ${productIds.length} produtos`);
 
@@ -338,7 +342,7 @@ export async function POST(request: NextRequest) {
 
             try {
               // Executar análise de imagem
-              const analysisResult = await executeImageAnalysis(productId);
+              const analysisResult = await executeImageAnalysis(productId, baseUrl);
               
               if (analysisResult.success) {
                 results[i].steps.imageAnalysis.success = true;
@@ -389,7 +393,7 @@ export async function POST(request: NextRequest) {
 
               try {
                 // Executar geração de título
-                const titleResult = await executeTitleGeneration(productId);
+                const titleResult = await executeTitleGeneration(productId, baseUrl);
                 
                 if (titleResult.success) {
                   results[i].steps.titleGeneration.success = true;
@@ -440,7 +444,7 @@ export async function POST(request: NextRequest) {
 
                 try {
                   // Executar geração de descrição
-                  const descriptionResult = await executeDescriptionGeneration(productId);
+                  const descriptionResult = await executeDescriptionGeneration(productId, baseUrl);
                   
                   if (descriptionResult.success) {
                     results[i].steps.descriptionGeneration.success = true;
@@ -491,7 +495,7 @@ export async function POST(request: NextRequest) {
 
                   try {
                     // Executar geração de características
-                    const characteristicsResult = await executeCharacteristicsGeneration(productId);
+                    const characteristicsResult = await executeCharacteristicsGeneration(productId, baseUrl);
                     
                     if (characteristicsResult.success) {
                       results[i].steps.characteristicsGeneration.success = true;
@@ -542,7 +546,7 @@ export async function POST(request: NextRequest) {
 
                     try {
                       // Executar sincronização AnyMarket
-                      const anymarketResult = await executeAnymarketSync(productId);
+                      const anymarketResult = await executeAnymarketSync(productId, baseUrl);
                       
                       if (anymarketResult.success) {
                         results[i].steps.anymarketSync.success = true;

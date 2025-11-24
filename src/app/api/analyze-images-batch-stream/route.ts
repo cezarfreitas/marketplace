@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
+import { getApiBaseUrlFromRequest } from '@/lib/api-url';
 
-// Helper para obter a URL base correta
+// Helper para obter a URL base correta (com fallback)
 function getBaseUrl(): string {
   const url = process.env.NEXT_PUBLIC_APP_URL || (
     process.env.NODE_ENV === 'production' 
@@ -10,7 +11,7 @@ function getBaseUrl(): string {
       : 'http://127.0.0.1:3000'
   );
   
-  console.log('🔧 [DEBUG] getBaseUrl:', {
+  console.log('🔧 [DEBUG] getBaseUrl (fallback):', {
     url,
     env: process.env.NODE_ENV,
     hasEnvVar: !!process.env.NEXT_PUBLIC_APP_URL,
@@ -38,7 +39,7 @@ interface BatchAnalysisResult {
 }
 
 // Função para executar análise de imagem de um produto
-async function executeImageAnalysis(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeImageAnalysis(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`🖼️ Executando análise de imagem para produto ${productId}...`);
     
@@ -55,7 +56,8 @@ async function executeImageAnalysis(productId: number): Promise<{ success: boole
       return { success: false, error: 'Produto não possui categoria definida' };
     }
     
-    const response = await fetch(`${getBaseUrl()}/api/analyze-images`, {
+    console.log(`🔗 Fazendo fetch para: ${baseUrl}/api/analyze-images`);
+    const response = await fetch(`${baseUrl}/api/analyze-images`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -700,6 +702,10 @@ export async function POST(request: NextRequest) {
       return new Response('Lista de IDs de produtos é obrigatória', { status: 400 });
     }
 
+    // Detectar URL base automaticamente do request
+    const baseUrl = getApiBaseUrlFromRequest(request);
+    console.log(`🔧 URL base detectada automaticamente: ${baseUrl}`);
+
     console.log(`🚀 Iniciando análise de imagens em lote para ${productIds.length} produtos`);
 
     // Criar stream de resposta
@@ -779,7 +785,7 @@ export async function POST(request: NextRequest) {
 
             try {
               // Executar análise de imagem
-              const analysisResult = await executeImageAnalysis(productId);
+              const analysisResult = await executeImageAnalysis(productId, baseUrl);
               
               if (analysisResult.success) {
                 results[i].steps.imageAnalysis.success = true;
