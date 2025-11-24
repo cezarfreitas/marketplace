@@ -490,7 +490,7 @@ export async function POST(request: NextRequest) {
     
     try {
       // Fazer requisição interna para atualizar SKUs
-      const skuUpdateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/anymarket/update-skus`, {
+      const skuUpdateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000'}/api/anymarket/update-skus`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 5. Fazer requisição interna para atualizar produto
-        const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/anymarket/update-product`, {
+        const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000'}/api/anymarket/update-product`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

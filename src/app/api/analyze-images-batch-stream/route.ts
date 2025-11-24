@@ -6,7 +6,7 @@ import { executeQuery } from '@/lib/database';
 function getBaseUrl(): string {
   return process.env.NODE_ENV === 'production' 
     ? 'https://b2b-seo.jzo3qo.easypanel.host'
-    : 'http://localhost:3000';
+    : 'http://127.0.0.1:3000';
 }
 
 interface BatchAnalysisResult {

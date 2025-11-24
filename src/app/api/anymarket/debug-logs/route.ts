@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     console.log('🧪 Testando upload de imagem...');
     
     try {
-      const testImageUrl = 'http://localhost:3000/uploads/crop-images/7045460064_vtex_35306781.jpg';
+      const testImageUrl = 'http://127.0.0.1:3000/uploads/crop-images/7045460064_vtex_35306781.jpg';
       
       const uploadResponse = await fetch(`https://api.anymarket.com.br/v2/products/${testProductId}/images`, {
         method: 'POST',

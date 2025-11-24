@@ -41,7 +41,7 @@ async function executeImageAnalysis(productId: number): Promise<{ success: boole
       return { success: false, error: 'Produto não possui categoria definida' };
     }
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/analyze-images`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://127.0.0.1:3000'}/api/analyze-images`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

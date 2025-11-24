@@ -282,7 +282,7 @@ export function ProductTable({
                             <Copy className="h-3 w-3 text-blue-600" />
                           )}
                           <span className={copiedRefs.has(product.first_sku_ref) ? 'text-orange-600' : 'text-blue-600 hover:text-blue-800'}>
-                            {product.first_sku_ref}
+                              {product.first_sku_ref}
                           </span>
                           {product.anymarket_id && (
                             <span className="text-purple-600">
@@ -307,7 +307,7 @@ export function ProductTable({
                             <Copy className="h-3 w-3 text-blue-600" />
                           )}
                           <span className={copiedRefs.has(product.ref_produto) ? 'text-orange-600' : 'text-blue-600 hover:text-blue-800'}>
-                            {product.ref_produto}
+                              {product.ref_produto}
                           </span>
                           {product.anymarket_id && (
                             <span className="text-purple-600">
@@ -332,7 +332,7 @@ export function ProductTable({
                             <Copy className="h-3 w-3 text-blue-600" />
                           )}
                           <span className={copiedRefs.has(product.ref_id) ? 'text-orange-600' : 'text-blue-600 hover:text-blue-800'}>
-                            Ref_Produto: {product.ref_id}
+                              Ref_Produto: {product.ref_id}
                           </span>
                         </div>
                       )}
