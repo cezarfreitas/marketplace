@@ -86,11 +86,11 @@ async function executeImageAnalysis(productId: number, baseUrl: string): Promise
 }
 
 // Função para gerar título de um produto
-async function executeTitleGeneration(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeTitleGeneration(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`📝 Executando geração de título para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/generate-title`, {
+    const response = await fetch(`${baseUrl}/api/generate-title`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -118,11 +118,11 @@ async function executeTitleGeneration(productId: number): Promise<{ success: boo
 }
 
 // Função para gerar descrição de um produto
-async function executeDescriptionGeneration(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeDescriptionGeneration(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`📄 Executando geração de descrição para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/generate-description`, {
+    const response = await fetch(`${baseUrl}/api/generate-description`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -150,11 +150,11 @@ async function executeDescriptionGeneration(productId: number): Promise<{ succes
 }
 
 // Função para gerar características de um produto
-async function executeCharacteristicsGeneration(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeCharacteristicsGeneration(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`🏷️ Executando geração de características para produto ${productId}...`);
     
-    const response = await fetch(`${getBaseUrl()}/api/generate-characteristics`, {
+    const response = await fetch(`${baseUrl}/api/generate-characteristics`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -190,12 +190,12 @@ async function executeCharacteristicsGeneration(productId: number): Promise<{ su
 }
 
 // Função para sincronizar produto com AnyMarket (igual ao modal individual)
-async function executeAnymarketSync(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeAnymarketSync(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
     console.log(`🔄 Executando sincronização AnyMarket para produto ${productId}...`);
     
     // 1. Buscar dados do produto no Anymarket (igual ao modal individual)
-    const fetchResponse = await fetch(`${getBaseUrl()}/api/anymarket/fetch-product`, {
+    const fetchResponse = await fetch(`${baseUrl}/api/anymarket/fetch-product`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -216,7 +216,7 @@ async function executeAnymarketSync(productId: number): Promise<{ success: boole
     }
 
     // 2. Atualizar produto no Anymarket (igual ao modal individual)
-    const updateResponse = await fetch(`${getBaseUrl()}/api/anymarket/update-product`, {
+    const updateResponse = await fetch(`${baseUrl}/api/anymarket/update-product`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -253,7 +253,7 @@ async function executeAnymarketSync(productId: number): Promise<{ success: boole
 }
 
 // Função para executar crop de imagens de um produto (igual ao modal individual)
-async function executeImageCrop(productId: number): Promise<{ success: boolean; error?: string; message?: string }> {
+async function executeImageCrop(productId: number, baseUrl: string): Promise<{ success: boolean; error?: string; message?: string }> {
   let logId: number | null = null;
   
   try {
@@ -344,7 +344,7 @@ async function executeImageCrop(productId: number): Promise<{ success: boolean; 
     }
 
     // 3. Buscar imagens da VTEX (igual ao modal individual)
-    const vtexResponse = await fetch(`${getBaseUrl()}/api/crop-images`, {
+    const vtexResponse = await fetch(`${baseUrl}/api/crop-images`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -836,7 +836,7 @@ export async function POST(request: NextRequest) {
 
               try {
                 // Executar geração de título
-                const titleResult = await executeTitleGeneration(productId);
+                const titleResult = await executeTitleGeneration(productId, baseUrl);
                 
                 if (titleResult.success) {
                   results[i].steps.titleGeneration.success = true;
@@ -887,7 +887,7 @@ export async function POST(request: NextRequest) {
 
                 try {
                   // Executar geração de descrição
-                  const descriptionResult = await executeDescriptionGeneration(productId);
+                  const descriptionResult = await executeDescriptionGeneration(productId, baseUrl);
                   
                   if (descriptionResult.success) {
                     results[i].steps.descriptionGeneration.success = true;
@@ -938,7 +938,7 @@ export async function POST(request: NextRequest) {
 
                   try {
                     // Executar geração de características
-                    const characteristicsResult = await executeCharacteristicsGeneration(productId);
+                    const characteristicsResult = await executeCharacteristicsGeneration(productId, baseUrl);
                     
                     if (characteristicsResult.success) {
                       results[i].steps.characteristicsGeneration.success = true;
@@ -989,7 +989,7 @@ export async function POST(request: NextRequest) {
 
                     try {
                       // Executar sincronização AnyMarket
-                      const anymarketResult = await executeAnymarketSync(productId);
+                      const anymarketResult = await executeAnymarketSync(productId, baseUrl);
                       
                       if (anymarketResult.success) {
                         results[i].steps.anymarketSync.success = true;
@@ -1049,7 +1049,7 @@ export async function POST(request: NextRequest) {
 
                       try {
                         // Executar crop de imagens
-                        const cropResult = await executeImageCrop(productId);
+                        const cropResult = await executeImageCrop(productId, baseUrl);
                         
                         if (cropResult.success) {
                           results[i].steps.imageCrop.success = true;
