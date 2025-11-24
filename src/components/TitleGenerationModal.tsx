@@ -25,6 +25,10 @@ export function TitleGenerationModal({ isOpen, onClose, product, onTitleGenerate
   const [productDetails, setProductDetails] = useState<any>(null);
   const [loadingProductDetails, setLoadingProductDetails] = useState(false);
   const [loadingExistingTitle, setLoadingExistingTitle] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualTitle, setManualTitle] = useState('');
+  const [savingManualTitle, setSavingManualTitle] = useState(false);
   const [titleStats, setTitleStats] = useState<{
     characterCount: number;
     isUnique: boolean | null;
@@ -45,6 +49,9 @@ export function TitleGenerationModal({ isOpen, onClose, product, onTitleGenerate
       setOriginalTitle(product.title || null);
       setGeneratedTitle(null);
       setError(null);
+      setRetryCount(0);
+      setShowManualInput(false);
+      setManualTitle('');
     }
   }, [isOpen, product]);
 
@@ -144,7 +151,7 @@ export function TitleGenerationModal({ isOpen, onClose, product, onTitleGenerate
     }
   };
 
-  // Função para gerar título
+  // Função para gerar título com retry automático
   const handleGenerateTitle = async (forceRegenerate = false) => {
     if (!product) return;
 
@@ -159,47 +166,127 @@ export function TitleGenerationModal({ isOpen, onClose, product, onTitleGenerate
     setError(null);
     setTitleStats(prev => ({ ...prev, isUnique: null, generationTime: null }));
 
+    let currentRetry = 0;
+    const maxRetries = 10;
+    let lastError = '';
+
+    while (currentRetry < maxRetries) {
+      try {
+        console.log(`🔄 Tentativa ${currentRetry + 1}/${maxRetries} de gerar título...`);
+        
+        const response = await fetch('/api/generate-title', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            productId: product.id_produto_vtex,
+            forceRegenerate: forceRegenerate
+          }),
+        });
+
+        const result = await response.json();
+        const generationTime = Date.now() - startTime;
+
+        if (result.success) {
+          const newTitle = result.data.title;
+          setGeneratedTitle(newTitle);
+          
+          // Atualizar estatísticas
+          setTitleStats(prev => ({
+            ...prev,
+            characterCount: newTitle.length,
+            generationTime: generationTime
+          }));
+
+          // Verificar unicidade
+          const isUnique = await checkTitleUniqueness(newTitle);
+          setTitleStats(prev => ({ ...prev, isUnique }));
+
+          if (onTitleGenerated) {
+            onTitleGenerated(product.id_produto_vtex, newTitle);
+          }
+          
+          // Sucesso! Resetar contadores e sair
+          setRetryCount(0);
+          setGenerating(false);
+          return;
+        } else {
+          lastError = result.message || 'Erro ao gerar título';
+          console.warn(`⚠️ Tentativa ${currentRetry + 1} falhou:`, lastError);
+        }
+      } catch (error) {
+        lastError = `Erro de conexão: ${(error as Error).message}`;
+        console.error(`❌ Tentativa ${currentRetry + 1} falhou:`, error);
+      }
+
+      currentRetry++;
+      setRetryCount(currentRetry);
+
+      // Se não atingiu o limite, aguardar antes de tentar novamente
+      if (currentRetry < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Aguardar 2 segundos entre tentativas
+      }
+    }
+
+    // Se chegou aqui, todas as 10 tentativas falharam
+    setGenerating(false);
+    setError(`Não foi possível gerar o título após ${maxRetries} tentativas. ${lastError}`);
+    setShowManualInput(true); // Mostrar input manual
+  };
+
+  // Função para salvar título manual
+  const handleSaveManualTitle = async () => {
+    if (!product || !manualTitle.trim()) {
+      setError('Por favor, insira um título válido');
+      return;
+    }
+
+    setSavingManualTitle(true);
+    setError(null);
+
     try {
-      const response = await fetch('/api/generate-title', {
+      const response = await fetch('/api/titles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           productId: product.id_produto_vtex,
-          forceRegenerate: forceRegenerate
+          title: manualTitle.trim(),
+          status: 'validated'
         }),
       });
 
       const result = await response.json();
-      const generationTime = Date.now() - startTime;
 
       if (result.success) {
-        const newTitle = result.data.title;
-        setGeneratedTitle(newTitle);
+        setGeneratedTitle(manualTitle.trim());
+        setShowManualInput(false);
+        setManualTitle('');
+        setRetryCount(0);
         
         // Atualizar estatísticas
         setTitleStats(prev => ({
           ...prev,
-          characterCount: newTitle.length,
-          generationTime: generationTime
+          characterCount: manualTitle.trim().length
         }));
 
         // Verificar unicidade
-        const isUnique = await checkTitleUniqueness(newTitle);
+        const isUnique = await checkTitleUniqueness(manualTitle.trim());
         setTitleStats(prev => ({ ...prev, isUnique }));
 
         if (onTitleGenerated) {
-          onTitleGenerated(product.id_produto_vtex, newTitle);
+          onTitleGenerated(product.id_produto_vtex, manualTitle.trim());
         }
       } else {
-        setError(result.message || 'Erro ao gerar título');
+        setError(result.message || 'Erro ao salvar título manual');
       }
     } catch (error) {
-      console.error('Erro ao gerar título:', error);
-      setError(`Erro de conexão: ${(error as Error).message}`);
+      console.error('Erro ao salvar título manual:', error);
+      setError(`Erro ao salvar: ${(error as Error).message}`);
     } finally {
-      setGenerating(false);
+      setSavingManualTitle(false);
     }
   };
 
@@ -290,8 +377,13 @@ export function TitleGenerationModal({ isOpen, onClose, product, onTitleGenerate
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">Gerando Título</h3>
                     <p className="text-sm text-gray-600">Analisando produto e gerando título otimizado...</p>
+                    {retryCount > 0 && (
+                      <p className="text-xs text-blue-600 mt-2 font-medium">
+                        Tentativa {retryCount}/10
+                      </p>
+                    )}
                   </div>
-                  <Progress value={75} className="w-full" />
+                  <Progress value={(retryCount / 10) * 100 || 75} className="w-full" />
                 </div>
               </CardContent>
             </Card>
@@ -307,7 +399,78 @@ export function TitleGenerationModal({ isOpen, onClose, product, onTitleGenerate
                 <CardContent className="pt-6">
                   <div className="flex items-center space-x-3">
                     <AlertCircle className="w-5 h-5 text-red-600" />
-                    <p className="text-red-800 font-medium text-sm">{error}</p>
+                    <div className="flex-1">
+                      <p className="text-red-800 font-medium text-sm">{error}</p>
+                      {retryCount > 0 && (
+                        <p className="text-red-600 text-xs mt-1">
+                          Tentativas realizadas: {retryCount}/10
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Manual Title Input - Aparece após 10 falhas */}
+            {showManualInput && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center space-x-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <span>Inserir Título Manualmente</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Como a geração automática falhou, você pode inserir o título manualmente abaixo:
+                  </p>
+                  <div className="space-y-3">
+                    <textarea
+                      value={manualTitle}
+                      onChange={(e) => setManualTitle(e.target.value)}
+                      placeholder="Digite o título do produto..."
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      rows={3}
+                      disabled={savingManualTitle}
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        {manualTitle.length} caracteres
+                      </span>
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={() => {
+                            setShowManualInput(false);
+                            setManualTitle('');
+                            setRetryCount(0);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          disabled={savingManualTitle}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={handleSaveManualTitle}
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700"
+                          disabled={!manualTitle.trim() || savingManualTitle}
+                        >
+                          {savingManualTitle ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Salvando...
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-4 h-4 mr-2" />
+                              Salvar Título
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
