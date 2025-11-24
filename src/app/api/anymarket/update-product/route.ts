@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
 import { detectGenderWithFallback } from '@/lib/gender-mapper';
+import { getApiBaseUrlFromRequest } from '@/lib/api-url';
 
 // Função auxiliar para salvar logs de sincronização - VERSÃO SIMPLIFICADA
 async function saveSyncLog(productId: number, anymarketId: string, title: string, description: string, success: boolean, responseData: any, errorMessage?: string, syncType: string = 'info', action: string = 'update') {
@@ -490,7 +491,8 @@ export async function POST(request: NextRequest) {
     
     try {
       // Fazer requisição interna para atualizar SKUs
-      const skuUpdateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000'}/api/anymarket/update-skus`, {
+      const baseUrl = getApiBaseUrlFromRequest(request);
+      const skuUpdateResponse = await fetch(`${baseUrl}/api/anymarket/update-skus`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkBuildEnvironment } from '@/lib/build-check';
 import { executeQuery } from '@/lib/database';
+import { getApiBaseUrlFromRequest } from '@/lib/api-url';
 
 /**
  * API para sincronização em lote de produtos com o Anymarket
@@ -146,7 +147,8 @@ export async function POST(request: NextRequest) {
         }
 
         // 5. Fazer requisição interna para atualizar produto
-        const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000'}/api/anymarket/update-product`, {
+        const baseUrl = getApiBaseUrlFromRequest(request);
+        const updateResponse = await fetch(`${baseUrl}/api/anymarket/update-product`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
