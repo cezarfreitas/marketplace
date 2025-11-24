@@ -4,11 +4,20 @@ import { executeQuery } from '@/lib/database';
 
 // Helper para obter a URL base correta
 function getBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL || (
+  const url = process.env.NEXT_PUBLIC_APP_URL || (
     process.env.NODE_ENV === 'production' 
       ? 'https://b2b-seo.jzo3qo.easypanel.host'
       : 'http://127.0.0.1:3000'
   );
+  
+  console.log('🔧 [DEBUG] getBaseUrl:', {
+    url,
+    env: process.env.NODE_ENV,
+    hasEnvVar: !!process.env.NEXT_PUBLIC_APP_URL,
+    envVarValue: process.env.NEXT_PUBLIC_APP_URL || 'não definido'
+  });
+  
+  return url;
 }
 
 interface BatchAnalysisResult {

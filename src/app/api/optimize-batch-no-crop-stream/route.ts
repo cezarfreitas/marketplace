@@ -4,11 +4,19 @@ import { executeQuery } from '@/lib/database';
 
 // Helper para obter a URL base correta
 function getBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL || (
+  const url = process.env.NEXT_PUBLIC_APP_URL || (
     process.env.NODE_ENV === 'production' 
       ? 'https://b2b-seo.jzo3qo.easypanel.host'
       : 'http://127.0.0.1:3000'
   );
+  
+  console.log('🔧 [DEBUG] getBaseUrl:', {
+    url,
+    env: process.env.NODE_ENV,
+    hasEnvVar: !!process.env.NEXT_PUBLIC_APP_URL
+  });
+  
+  return url;
 }
 
 interface BatchOptimizationResult {
@@ -45,7 +53,10 @@ async function executeImageAnalysis(productId: number): Promise<{ success: boole
       return { success: false, error: 'Produto não possui categoria definida' };
     }
     
-    const response = await fetch(`${getBaseUrl()}/api/analyze-images`, {
+    const baseUrl = getBaseUrl();
+    console.log(`🔗 Fazendo fetch para: ${baseUrl}/api/analyze-images`);
+    
+    const response = await fetch(`${baseUrl}/api/analyze-images`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -69,7 +80,13 @@ async function executeImageAnalysis(productId: number): Promise<{ success: boole
       message: result.success ? 'Análise de imagem concluída com sucesso' : result.message
     };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error(`❌ Erro na análise de imagem para produto ${productId}:`, error);
+    return { 
+      success: false, 
+      error: error.code === 'ECONNREFUSED' 
+        ? `Erro de conexão: ${error.message}. Verifique NEXT_PUBLIC_APP_URL no .env` 
+        : error.message 
+    };
   }
 }
 
@@ -101,7 +118,13 @@ async function executeTitleGeneration(productId: number): Promise<{ success: boo
       message: result.success ? 'Título gerado com sucesso' : result.message
     };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error(`❌ Erro na geração de título para produto ${productId}:`, error);
+    return { 
+      success: false, 
+      error: error.code === 'ECONNREFUSED' 
+        ? `Erro de conexão: ${error.message}. Verifique NEXT_PUBLIC_APP_URL no .env` 
+        : error.message 
+    };
   }
 }
 
