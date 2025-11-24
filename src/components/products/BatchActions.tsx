@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Package, Trash2, X, Download, Loader2, Image, RefreshCw, Layers } from 'lucide-react';
+import { Package, Trash2, X, Download, Loader2, Image, RefreshCw, Layers, List } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ interface BatchActionsProps {
   onBatchAnalysis: () => void;
   onBatchOptimizationNoCrop: () => void;
   onAnymarketSync: () => void;
+  onBatchCharacteristics: () => void;
   isExporting: boolean;
 }
 
@@ -36,6 +37,7 @@ export function BatchActions({
   onBatchAnalysis,
   onBatchOptimizationNoCrop,
   onAnymarketSync,
+  onBatchCharacteristics,
   isExporting
 }: BatchActionsProps) {
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -175,6 +177,16 @@ export function BatchActions({
           >
             <Image className="h-3 w-3 mr-1" />
             Otimização (Sem Crop)
+          </button>
+          
+          <button
+            onClick={onBatchCharacteristics}
+            disabled={isExporting}
+            className="px-2 py-1 text-xs text-emerald-600 border border-emerald-300 rounded hover:bg-emerald-50 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-50 to-teal-50"
+            title="Gerar Características em Lote"
+          >
+            <List className="h-3 w-3 mr-1" />
+            Características
           </button>
           
           <button

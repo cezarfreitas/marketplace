@@ -19,6 +19,7 @@ import { AnymarketBatchSyncModal } from '@/components/AnymarketBatchSyncModal';
 import { TitleGenerationModal } from '@/components/TitleGenerationModal';
 import { CharacteristicsModal } from '@/components/CharacteristicsModal';
 import { DescriptionModal } from '@/components/DescriptionModal';
+import { BatchCharacteristicsModal } from '@/components/BatchCharacteristicsModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BatchActions, ProductFilters } from '@/components/products';
@@ -89,6 +90,7 @@ export default function ProductsPage() {
   const [showSkusModal, setShowSkusModal] = useState(false);
   const [showBatchAnalysisModal, setShowBatchAnalysisModal] = useState(false);
   const [showAnymarketBatchSyncModal, setShowAnymarketBatchSyncModal] = useState(false);
+  const [showBatchCharacteristicsModal, setShowBatchCharacteristicsModal] = useState(false);
 
   // Carregar produtos quando a página carregar (sem busca de status)
   useEffect(() => {
@@ -258,6 +260,17 @@ export default function ProductsPage() {
     // productsHook.refresh();
   }, []);
 
+  const handleBatchCharacteristics = useCallback(() => {
+    setShowBatchCharacteristicsModal(true);
+  }, []);
+
+  const handleBatchCharacteristicsComplete = useCallback((results: any[]) => {
+    console.log('Geração de características em lote concluída:', results);
+    setShowBatchCharacteristicsModal(false);
+    // Atualizar a lista de produtos se necessário
+    // productsHook.refresh();
+  }, []);
+
   // Estados para otimização sem crop
   const [showBatchOptimizationNoCropModal, setShowBatchOptimizationNoCropModal] = useState(false);
 
@@ -286,6 +299,7 @@ export default function ProductsPage() {
         onBatchAnalysis={handleBatchAnalysis}
         onBatchOptimizationNoCrop={handleBatchOptimizationNoCrop}
         onAnymarketSync={handleAnymarketBatchSync}
+        onBatchCharacteristics={handleBatchCharacteristics}
         isExporting={productStates.isExporting}
       />
 
@@ -624,6 +638,16 @@ export default function ProductsPage() {
           onClose={() => setShowBatchOptimizationNoCropModal(false)}
           selectedProducts={globalSelectedProducts}
           onComplete={handleBatchOptimizationNoCropComplete}
+        />
+      )}
+
+      {/* Modal de Geração de Características em Lote */}
+      {showBatchCharacteristicsModal && (
+        <BatchCharacteristicsModal
+          isOpen={showBatchCharacteristicsModal}
+          onClose={() => setShowBatchCharacteristicsModal(false)}
+          selectedProducts={globalSelectedProducts}
+          onComplete={handleBatchCharacteristicsComplete}
         />
       )}
 
